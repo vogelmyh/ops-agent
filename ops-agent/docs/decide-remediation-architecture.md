@@ -165,4 +165,4 @@ LLM_MODE=real .venv/bin/python eval/run_eval.py   # 可选，需 API key
 
 ## 10. 版本注记
 
-（暂无组件级变更；合入 decide/工具/验收相关修改时在此追加摘要。）
+- **2026-06-30**：`decide.py`、`eval_remediation.py` 的 structured output 调用改为 `invoke_structured()`，与 `app/llm/provider.py` 的 DashScope JSON 提示兼容层对齐。

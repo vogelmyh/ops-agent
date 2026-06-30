@@ -462,4 +462,10 @@ CHECKPOINTER=memory EMBEDDINGS_PROVIDER=local-hash \
 
 ---
 
+### 2026-06-30 · qwen3.7-plus structured output 兼容
+
+`eval_runbook.py` 的 LLM rubric 调用改为 `invoke_structured()`（`app/llm/provider.py`），满足 DashScope 在 `json_object` 模式下要求 messages 含 `json` 字样的 API 规则；RAG 阈值与 finalize 逻辑不变。
+
+---
+
 - 2026-06：RAG hybrid + rerank + rubric eval + golden 46 条 + 55 runbooks + 三层评测（retrieval / coverage oracle / real LLM smoke）。

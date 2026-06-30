@@ -18,7 +18,7 @@ from app.graph.runbook_eval_policy import (
     thresholds_from_settings,
 )
 from app.graph.state import AgentState
-from app.llm.provider import get_chat_model
+from app.llm.provider import get_chat_model, invoke_structured
 
 RUNBOOK_EVAL_SYSTEM_PROMPT = """\
 You are the runbook coverage evaluation module of an ops agent.
@@ -248,16 +248,20 @@ def run_runbook_eval(
     elif settings.llm_is_mock:
         llm_output = _mock_llm_output(service, candidates)
     else:
-        llm = get_chat_model(settings=settings).with_structured_output(RunbookEvalLLMOutput)
-        llm_output = llm.invoke([
-            SystemMessage(content=RUNBOOK_EVAL_SYSTEM_PROMPT),
-            HumanMessage(content=(
-                f"Service: {service}\n"
-                f"Symptom summary: {symptoms}\n"
-                f"Candidate doc_ids: {candidate_ids}\n\n"
-                f"Retrieved runbooks:\n{runbook_text}"
-            )),
-        ])
+        llm_output = invoke_structured(
+            get_chat_model(settings=settings),
+            RunbookEvalLLMOutput,
+            [
+                SystemMessage(content=RUNBOOK_EVAL_SYSTEM_PROMPT),
+                HumanMessage(content=(
+                    f"Service: {service}\n"
+                    f"Symptom summary: {symptoms}\n"
+                    f"Candidate doc_ids: {candidate_ids}\n\n"
+                    f"Retrieved runbooks:\n{runbook_text}"
+                )),
+            ],
+            settings=settings,
+        )
 
     result = finalize_runbook_eval(
         service,

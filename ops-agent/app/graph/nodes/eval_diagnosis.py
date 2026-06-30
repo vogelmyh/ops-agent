@@ -4,7 +4,7 @@ from app.config import get_settings
 from app.graph.eval_schemas import DiagnosisEvalAssessment
 from app.graph.remediation_context import EVAL_DIAGNOSIS_RETRY_GUIDANCE, format_remediation_context
 from app.graph.state import AgentState
-from app.llm.provider import get_chat_model
+from app.llm.provider import get_chat_model, invoke_structured
 
 DIAGNOSIS_EVAL_SYSTEM_PROMPT = """\
 You are the self-evaluation module of an ops agent.
@@ -69,7 +69,6 @@ def eval_diagnosis_node(state: AgentState) -> dict:
     if settings.llm_is_mock:
         assessment = _mock_eval_diagnosis(state)
     else:
-        llm = get_chat_model(settings=settings).with_structured_output(DiagnosisEvalAssessment)
         runbook_section = relevant_runbook or "(no reference runbook)"
         remediation_block = format_remediation_context(
             state,
@@ -80,15 +79,20 @@ def eval_diagnosis_node(state: AgentState) -> dict:
             ),
         )
         remediation_section = f"\n\n{remediation_block}" if remediation_block else ""
-        assessment = llm.invoke([
-            SystemMessage(content=DIAGNOSIS_EVAL_SYSTEM_PROMPT),
-            HumanMessage(content=(
-                f"Evidence:\n{evidence_text}\n\n"
-                f"Diagnosed root cause:\n{root_cause}\n\n"
-                f"Reference runbook:\n{runbook_section[:1200]}"
-                f"{remediation_section}"
-            )),
-        ])
+        assessment = invoke_structured(
+            get_chat_model(settings=settings),
+            DiagnosisEvalAssessment,
+            [
+                SystemMessage(content=DIAGNOSIS_EVAL_SYSTEM_PROMPT),
+                HumanMessage(content=(
+                    f"Evidence:\n{evidence_text}\n\n"
+                    f"Diagnosed root cause:\n{root_cause}\n\n"
+                    f"Reference runbook:\n{runbook_section[:1200]}"
+                    f"{remediation_section}"
+                )),
+            ],
+            settings=settings,
+        )
 
     return {
         "needs_human_review": assessment.needs_human_review,

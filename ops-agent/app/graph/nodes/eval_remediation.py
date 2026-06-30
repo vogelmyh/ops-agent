@@ -7,7 +7,7 @@ from app.config import get_settings
 from app.graph.collection import collect, serialize_collected
 from app.graph.eval_schemas import RemediationEvalAssessment
 from app.graph.state import AgentState
-from app.llm.provider import get_chat_model
+from app.llm.provider import get_chat_model, invoke_structured
 from app.schemas import StreamStatus
 from app.tools.policy import pending_tool_calls, tool_execution_results
 
@@ -314,12 +314,16 @@ def eval_remediation_node(state: AgentState) -> dict:
     if settings.llm_is_mock:
         assessment = _rule_based_resolved(service, serialized_post)
     else:
-        llm = get_chat_model(settings=settings).with_structured_output(RemediationEvalAssessment)
         context = _format_post_context(service, serialized_post, exec_results, root_cause)
-        assessment = llm.invoke([
-            SystemMessage(content=REMEDIATION_EVAL_SYSTEM_PROMPT),
-            HumanMessage(content=context),
-        ])
+        assessment = invoke_structured(
+            get_chat_model(settings=settings),
+            RemediationEvalAssessment,
+            [
+                SystemMessage(content=REMEDIATION_EVAL_SYSTEM_PROMPT),
+                HumanMessage(content=context),
+            ],
+            settings=settings,
+        )
 
     tools_attempted = [
         tc.get("name", "") for tc in pending_tool_calls(state.get("messages", [])) if tc.get("name")

@@ -177,4 +177,4 @@ CHECKPOINTER=memory .venv/bin/python scripts/run_scenarios.py --scenarios REM-01
 
 ## 9. 版本注记
 
-（暂无组件级变更；合入主图/路由/HITL 相关修改时在此追加摘要。）
+- **2026-06-30**：eval/decide 节点的 structured output 调用统一改为 `invoke_structured()`，兼容 qwen3.7-plus（DashScope）JSON 模式约束。

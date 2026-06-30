@@ -1,11 +1,16 @@
-from typing import Any
+from typing import Any, TypeVar
 
 from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_core.messages import AIMessage, BaseMessage
+from langchain_core.messages import AIMessage, BaseMessage, SystemMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
 from langchain_openai import ChatOpenAI
+from pydantic import BaseModel
 
 from app.config import Settings, get_settings
+
+T = TypeVar("T", bound=BaseModel)
+
+_JSON_OUTPUT_HINT = "\n\nRespond with a valid JSON object matching the required schema."
 
 
 class MockChatModel(BaseChatModel):
@@ -53,3 +58,57 @@ def get_chat_model(*, strong: bool = False, settings: Settings | None = None) ->
         base_url=settings.openai_base_url,
         temperature=0,
     )
+
+
+def _needs_dashscope_json_hint(settings: Settings) -> bool:
+    base = (settings.openai_base_url or "").lower()
+    model = (settings.openai_model or "").lower()
+    return "dashscope" in base or "aliyuncs.com" in base or model.startswith("qwen")
+
+
+def _message_content_text(message: BaseMessage) -> str:
+    content = message.content
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: list[str] = []
+        for block in content:
+            if isinstance(block, str):
+                parts.append(block)
+            elif isinstance(block, dict):
+                parts.append(str(block.get("text", "")))
+        return " ".join(parts)
+    return str(content)
+
+
+def _messages_contain_json(messages: list[BaseMessage]) -> bool:
+    combined = " ".join(_message_content_text(m).lower() for m in messages)
+    return "json" in combined
+
+
+def ensure_json_in_messages(messages: list[BaseMessage]) -> list[BaseMessage]:
+    """DashScope qwen3.x requires 'json' in messages when using json_object response_format."""
+    if _messages_contain_json(messages):
+        return messages
+    out = list(messages)
+    for i, message in enumerate(out):
+        if isinstance(message, SystemMessage):
+            out[i] = SystemMessage(content=_message_content_text(message) + _JSON_OUTPUT_HINT)
+            return out
+    out.insert(0, SystemMessage(content=_JSON_OUTPUT_HINT.strip()))
+    return out
+
+
+def invoke_structured(
+    llm: BaseChatModel,
+    schema: type[T],
+    messages: list[BaseMessage],
+    *,
+    settings: Settings | None = None,
+    **kwargs: Any,
+) -> T:
+    """Invoke LLM with structured output; inject JSON hint for DashScope/Qwen compatibility."""
+    settings = settings or get_settings()
+    if _needs_dashscope_json_hint(settings):
+        messages = ensure_json_in_messages(messages)
+    return llm.with_structured_output(schema, **kwargs).invoke(messages)
