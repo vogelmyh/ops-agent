@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: ops-agent
+  namespace: ops-agent-system
+spec:
+  selector:
+    app: ops-agent
+  ports:
+    - port: 8000
+      targetPort: 8000

@@ -1,0 +1,26 @@
+services:
+  ops-backend:
+    build:
+      context: ../ops-backend
+    ports:
+      - "8080:8080"
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  ops-agent:
+    build:
+      context: ../ops-agent
+    ports:
+      - "8000:8000"
+    environment:
+      BACKEND_MODE: real
+      BACKEND_BASE_URL: http://ops-backend:8080
+      LLM_MODE: mock
+      EMBEDDINGS_PROVIDER: local-hash
+      CHECKPOINTER: memory
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      - ops-backend
+      - redis

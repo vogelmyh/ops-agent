@@ -1,0 +1,15 @@
+{"id":"1","service":"ecomm-manager","description":"admin API QPS drop","expected_root_cause":"限流","expected_action":"patch_config"}
+{"id":"2","service":"ecomm-manager","description":"merchant-api throttled","expected_root_cause":"限流","expected_action":"patch_config"}
+{"id":"3","service":"ecomm-order","description":"crashloop","expected_root_cause":"坏镜像","expected_action":"rollback_deployment"}
+{"id":"4","service":"ecomm-order","description":"0/3 ready","expected_root_cause":"坏镜像","expected_action":"rollback_deployment"}
+{"id":"5","service":"ecomm-order","description":"no order events","expected_root_cause":"暂停","expected_action":"resume_event_stream"}
+{"id":"6","service":"ecomm-order","description":"stream paused","expected_root_cause":"暂停","expected_action":"resume_event_stream"}
+{"id":"7","service":"ecomm-manager","description":"rate limit","expected_root_cause":"限流","expected_action":"patch_config"}
+{"id":"8","service":"ecomm-order","description":"upgrade failed","expected_root_cause":"坏镜像","expected_action":"rollback_deployment"}
+{"id":"9","service":"ecomm-order","description":"paused stream","expected_root_cause":"暂停","expected_action":"resume_event_stream"}
+{"id":"10","service":"ecomm-manager","description":"admin api degraded","expected_root_cause":"限流","expected_action":"patch_config"}
+{"id":"11","service":"ecomm-order","description":"image bad","expected_root_cause":"坏镜像","expected_action":"rollback_deployment"}
+{"id":"12","service":"ecomm-order","description":"zero ingest","expected_root_cause":"暂停","expected_action":"resume_event_stream"}
+{"id":"13","service":"ecomm-manager","description":"max-qps misconfigured","expected_root_cause":"限流","expected_action":"patch_config"}
+{"id":"14","service":"ecomm-order","description":"order service down","expected_root_cause":"坏镜像","expected_action":"rollback_deployment"}
+{"id":"15","service":"ecomm-order","description":"order-events stream","expected_root_cause":"暂停","expected_action":"resume_event_stream"}
