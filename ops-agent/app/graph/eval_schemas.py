@@ -193,10 +193,22 @@ class RunbookCandidate(BaseModel):
     coverage: RunbookCoverageRubric | None = None
 
 
+def coerce_runbook_eval_llm_output(data: Any) -> Any:
+    """Normalize LLM output JSON: bare rubric list → {rubrics: [...]}."""
+    if isinstance(data, list):
+        return {"rubrics": data}
+    return data
+
+
 class RunbookEvalLLMOutput(BaseModel):
     """Structured LLM output — per-doc rubric scores only; selection and reasoning are code-owned."""
 
     rubrics: list[RunbookPerDocRubric] = Field(default_factory=list)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce_llm_output_shape(cls, data: Any) -> Any:
+        return coerce_runbook_eval_llm_output(data)
 
 
 class RunbookEvalResult(BaseModel):
