@@ -1,5 +1,7 @@
 from typing import Any, TypeVar
 
+import json
+
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, SystemMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
@@ -99,6 +101,15 @@ def ensure_json_in_messages(messages: list[BaseMessage]) -> list[BaseMessage]:
     return out
 
 
+def _ai_message_text(message: AIMessage) -> str:
+    return _message_content_text(message).strip()
+
+
+def _parse_schema_from_ai_text(schema: type[T], text: str) -> T:
+    payload = json.loads(text)
+    return schema.model_validate(payload)
+
+
 def invoke_structured(
     llm: BaseChatModel,
     schema: type[T],
@@ -111,4 +122,27 @@ def invoke_structured(
     settings = settings or get_settings()
     if _needs_dashscope_json_hint(settings):
         messages = ensure_json_in_messages(messages)
+        structured = llm.with_structured_output(schema, include_raw=True, **kwargs)
+        result = structured.invoke(messages)
+        parsed = result.get("parsed")
+        if parsed is not None:
+            if isinstance(parsed, schema):
+                return parsed
+            return schema.model_validate(parsed)
+
+        raw = result.get("raw")
+        if isinstance(raw, AIMessage):
+            text = _ai_message_text(raw)
+            if text:
+                try:
+                    return _parse_schema_from_ai_text(schema, text)
+                except (json.JSONDecodeError, ValueError):
+                    pass
+
+        parsing_error = result.get("parsing_error")
+        if parsing_error is not None:
+            raise parsing_error
+        msg = "Structured output missing parsed payload and text JSON fallback failed"
+        raise ValueError(msg)
+
     return llm.with_structured_output(schema, **kwargs).invoke(messages)

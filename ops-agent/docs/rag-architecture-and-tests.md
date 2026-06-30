@@ -330,6 +330,8 @@ EMBEDDINGS_PROVIDER=qwen LLM_MODE=real \
 
 **规则**：LLM **不得**输出 `relevant_runbook` 全文、选篇或 reasoning；全文由 `resolve_selected_runbook()` 加载，选篇与 `runbook_eval_reasoning` 由 `finalize_runbook_eval()` / `build_eval_reasoning()` 生成。
 
+**LLM rubric 形状**：`RunbookPerDocRubric` 在 `eval_schemas.py` 入库前接受**扁平**或**嵌套**（`relevance` / `coverage`）JSON；DashScope 自由 JSON 段由 `coerce_runbook_per_doc_rubric()` 归一化，`invoke_structured()` 在 `parsed` 缺失时从 `AIMessage` 文本兜底解析。
+
 ---
 
 ### 5.6 改动 `finalize_runbook_eval` / 阈值 / `novel_reason`
@@ -459,6 +461,14 @@ CHECKPOINTER=memory EMBEDDINGS_PROVIDER=local-hash \
 **测试**：`test_runbook_eval_policy.py`、`test_rag_integration.py`、`test_eval.py`、`test_run_scenarios.py`；golden `tests/rag_eval/*`（oracle 已改，语料 `golden.py` 无需改）
 
 **文档**：`test-scenario-trajectories.md`、`rag-eval-corpus.md` 已同步
+
+---
+
+### 2026-06-30 · 嵌套 rubric JSON 归一化（DashScope 自由 JSON）
+
+`RunbookPerDocRubric` 增加 `coerce_runbook_per_doc_rubric()`：LLM 返回 `relevance`/`coverage` 嵌套分组时展平为策略层扁平 rubric，修复 qwen3.7 等模型在 `json_object` 路径下分数被静默归零、`novel_reason=service_mismatch` 误报。`invoke_structured()` 对 DashScope 增加 `include_raw` + 文本 JSON 兜底。
+
+**关键文件**：`eval_schemas.py`、`app/llm/provider.py`；**测试**：`tests/test_eval_schemas.py`；finalize / golden 门槛不变。
 
 ---
 

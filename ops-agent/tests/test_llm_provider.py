@@ -3,8 +3,10 @@
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from app.config import Settings
+from app.graph.eval_schemas import RunbookEvalLLMOutput
 from app.llm.provider import (
     _needs_dashscope_json_hint,
+    _parse_schema_from_ai_text,
     ensure_json_in_messages,
 )
 
@@ -59,3 +61,16 @@ def test_ensure_json_in_messages_inserts_system_when_missing():
     assert len(updated) == 2
     assert isinstance(updated[0], SystemMessage)
     assert "json" in updated[0].content.lower()
+
+
+def test_parse_schema_from_ai_text_nested_rubrics():
+    text = """{
+      "rubrics": [{
+        "doc_id": "ecomm-order-crashloop",
+        "relevance": {"service_scope_match": 0.25, "symptom_match": 0.25},
+        "coverage": {"root_cause_fit": 0.25}
+      }]
+    }"""
+    output = _parse_schema_from_ai_text(RunbookEvalLLMOutput, text)
+    assert output.rubrics[0].service_scope_match == 0.25
+    assert output.rubrics[0].root_cause_fit == 0.25
