@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ops-backend-config
+  namespace: ops-agent-system
+data:
+  SPRING_APPLICATION_NAME: ops-backend

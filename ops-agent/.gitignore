@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+data/chroma/
+data/.rag_indexed
+data/checkpoints.db
+data/audit.jsonl
+data/incident_memory.jsonl
+eval/report.json
+.pytest_cache/

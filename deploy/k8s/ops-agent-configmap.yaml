@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ops-agent-config
+  namespace: ops-agent-system
+data:
+  BACKEND_MODE: real
+  BACKEND_BASE_URL: http://ops-backend:8080
+  LLM_MODE: mock
+  EMBEDDINGS_PROVIDER: local-hash
+  CHECKPOINTER: memory

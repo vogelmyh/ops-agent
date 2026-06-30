@@ -1,0 +1,36 @@
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*~
+
+# Python (ops-agent/ops-agent)
+ops-agent/.venv/
+ops-agent/**/__pycache__/
+ops-agent/**/*.py[cod]
+ops-agent/.pytest_cache/
+ops-agent/.mypy_cache/
+ops-agent/.ruff_cache/
+ops-agent/**/*.egg-info/
+ops-agent/dist/
+ops-agent/build/
+
+# Runtime / local data (do not commit secrets or ephemeral state)
+ops-agent/data/checkpoints.db
+ops-agent/data/.rag_indexed_*
+ops-agent/data/audit.jsonl
+ops-agent/data/incident_memory.jsonl
+ops-agent/data/**/chroma*/
+
+# Java (ops-backend)
+ops-backend/target/
+
+# Simulator
+ops-backend-simulator/.venv/
+ops-backend-simulator/**/__pycache__/
+ops-backend-simulator/.pytest_cache/
+
+# Env files with secrets (keep .env.example)
+**/.env
+!**/.env.example

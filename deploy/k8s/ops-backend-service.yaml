@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: ops-backend
+  namespace: ops-agent-system
+spec:
+  selector:
+    app: ops-backend
+  ports:
+    - port: 8080
+      targetPort: 8080
