@@ -13,7 +13,7 @@ from app.graph.decide_spec import (
 )
 from app.graph.remediation_context import DECIDE_RETRY_GUIDANCE, format_remediation_context
 from app.graph.state import AgentState
-from app.llm.provider import get_chat_model
+from app.llm.provider import get_chat_model, invoke_structured
 from app.schemas import DecisionClass
 from app.tools import WRITE_TOOLS
 from app.tools.policy import compute_needs_approval, pending_tool_calls
@@ -47,7 +47,6 @@ def _run_assessment(state: AgentState, settings) -> DecideAssessment:
             escalation_hint=row.escalation_hint,
         )
 
-    llm = get_chat_model(settings=settings).with_structured_output(DecideAssessment)
     human = ASSESSMENT_HUMAN_TEMPLATE.format(
         service=service,
         root_cause=state.get("root_cause", ""),
@@ -59,10 +58,15 @@ def _run_assessment(state: AgentState, settings) -> DecideAssessment:
         remediation_context=_remediation_context_for_decide(state),
         write_tools_catalog=format_write_tools_catalog(WRITE_TOOLS),
     )
-    return llm.invoke([
-        SystemMessage(content=ASSESSMENT_SYSTEM_PROMPT),
-        HumanMessage(content=human),
-    ])
+    return invoke_structured(
+        get_chat_model(settings=settings),
+        DecideAssessment,
+        [
+            SystemMessage(content=ASSESSMENT_SYSTEM_PROMPT),
+            HumanMessage(content=human),
+        ],
+        settings=settings,
+    )
 
 
 def _run_tool_select(

@@ -164,4 +164,4 @@ curl -s localhost:8000/readyz | jq .
 
 ## 10. 版本注记
 
-（暂无组件级变更；合入 API/配置/观测相关修改时在此追加摘要。）
+- **2026-06-30**：`app/llm/provider.py` 新增 `invoke_structured()` 与 `ensure_json_in_messages()`，适配 DashScope qwen3.x 在 `json_object` 模式下要求 messages 含 `json` 字样的 API 规则。
