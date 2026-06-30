@@ -34,10 +34,13 @@
 ## 验证命令（monorepo 根目录）
 
 ```bash
-make test-rag      # RAG 相关
-make test-graph    # 图路径 mock LLM
-make test          # 全量 pytest
+make install-hooks   # 一次性：pre-commit 按路径跑 test-*
+make test-rag
+make test-graph
+make test
 ```
+
+紧急跳过 pre-commit：`SKIP_HOOKS=1 git commit ...`
 
 ## 边界
 

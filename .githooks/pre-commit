@@ -1,0 +1,23 @@
+#!/bin/sh
+# Pre-commit: run path-based tests on staged changes (monorepo root).
+# Install: make install-hooks
+# Bypass:  SKIP_HOOKS=1 git commit ...
+
+set -e
+
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT" || exit 1
+
+STAGED=$(git diff --cached --name-only)
+if [ -z "$STAGED" ]; then
+  exit 0
+fi
+
+if [ "${SKIP_HOOKS}" = "1" ] || [ "${SKIP_HOOKS}" = "true" ]; then
+  echo "pre-commit: SKIP_HOOKS set — skipping tests"
+  exit 0
+fi
+
+echo "pre-commit: analyzing staged changes..."
+python3 scripts/change_impact.py --staged --run --quiet
+exit $?

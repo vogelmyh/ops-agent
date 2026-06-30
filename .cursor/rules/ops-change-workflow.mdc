@@ -17,4 +17,4 @@ RAG 改动以 `ops-agent/docs/rag-architecture-and-tests.md` §5 为权威清单
 Simulator 实现细节只维护在 `ops-backend-simulator/README.md`。
 场景 ID 只维护在 `ops-agent/docs/test-scenario-trajectories.md`。
 
-不要跳过同步计划与验证步骤。不要提交 `.env`、checkpoint、审计日志。
+不要跳过同步计划与验证步骤。合入前可运行 `make install-hooks` 启用 pre-commit；紧急跳过：`SKIP_HOOKS=1`。

@@ -27,8 +27,9 @@ make test
 ## 改代码前
 
 1. 读 [`docs/change-workflow.md`](docs/change-workflow.md)
-2. `python scripts/change_impact.py` 查看建议文档与测试命令
-3. 让 Agent 先输出「同步计划」，确认后再改
+2. `make install-hooks`（首次）→ 之后 commit 自动跑路径相关测试
+3. `make impact` 查看建议文档与测试命令
+4. 让 Agent 先输出「同步计划」，确认后再改
 
 ## 父目录
 

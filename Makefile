@@ -1,6 +1,7 @@
-.PHONY: test test-rag test-graph graph-paths scenarios demo eval build up down k8s-dry-run impact
+.PHONY: test test-rag test-graph test-api test-simulator graph-paths scenarios demo eval build up down k8s-dry-run impact install-hooks pre-commit-check
 
 PY = cd ops-agent && .venv/bin/python
+SIM_PY = $(PY)
 
 test:
 	$(PY) -m pytest tests/ -q
@@ -11,6 +12,12 @@ test-rag:
 
 test-graph:
 	cd ops-agent && CHECKPOINTER=memory LLM_MODE=mock .venv/bin/python -m pytest tests/graph_paths/ -q
+
+test-api:
+	$(PY) -m pytest tests/test_eval.py tests/test_tracing.py tests/test_health.py -q
+
+test-simulator:
+	cd ops-backend-simulator && ../ops-agent/.venv/bin/python -m pytest tests/ -q
 
 graph-paths: test-graph
 
@@ -37,3 +44,14 @@ k8s-dry-run:
 
 impact:
 	python3 scripts/change_impact.py
+
+impact-staged:
+	python3 scripts/change_impact.py --staged
+
+pre-commit-check:
+	python3 scripts/change_impact.py --staged --run
+
+install-hooks:
+	git config core.hooksPath .githooks
+	chmod +x .githooks/pre-commit
+	@echo "Installed: git core.hooksPath=.githooks (pre-commit runs path-based tests)"
