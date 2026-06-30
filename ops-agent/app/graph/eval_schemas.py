@@ -1,6 +1,10 @@
 """Pydantic schemas for eval nodes using with_structured_output."""
 
-from pydantic import BaseModel, Field, computed_field
+from __future__ import annotations
+
+from typing import Any
+
+from pydantic import BaseModel, Field, computed_field, model_validator
 
 
 # ---------------------------------------------------------------------------
@@ -62,6 +66,55 @@ class RunbookCoverageRubric(BaseModel):
         )
 
 
+def _nested_dict(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+def _field_or_default(
+    nested: dict[str, Any],
+    flat: dict[str, Any],
+    key: str,
+    default: Any,
+) -> Any:
+    if key in nested:
+        return nested[key]
+    if key in flat:
+        return flat[key]
+    return default
+
+
+def coerce_runbook_per_doc_rubric(data: Any) -> Any:
+    """Normalize LLM rubric JSON: flat fields or nested relevance/coverage groups."""
+    if not isinstance(data, dict):
+        return data
+
+    rel = _nested_dict(data.get("relevance"))
+    cov = _nested_dict(data.get("coverage"))
+    if not rel and not cov:
+        return data
+
+    doc_id = (
+        data.get("doc_id")
+        or rel.get("doc_id")
+        or cov.get("doc_id")
+        or ""
+    )
+    return {
+        "doc_id": doc_id,
+        "service_scope_match": _field_or_default(rel, data, "service_scope_match", 0.0),
+        "symptom_match": _field_or_default(rel, data, "symptom_match", 0.0),
+        "telemetry_match": _field_or_default(rel, data, "telemetry_match", 0.0),
+        "exclusion_clear": _field_or_default(rel, data, "exclusion_clear", 0.0),
+        "match_signals": _field_or_default(rel, data, "match_signals", []),
+        "conflict_signals": _field_or_default(rel, data, "conflict_signals", []),
+        "root_cause_fit": _field_or_default(cov, data, "root_cause_fit", 0.0),
+        "remediation_fit": _field_or_default(cov, data, "remediation_fit", 0.0),
+        "forbidden_clear": _field_or_default(cov, data, "forbidden_clear", 0.0),
+        "verification_fit": _field_or_default(cov, data, "verification_fit", 0.0),
+        "coverage_notes": _field_or_default(cov, data, "coverage_notes", ""),
+    }
+
+
 class RunbookPerDocRubric(BaseModel):
     """Merged Stage A + B rubric for one candidate — sole element of LLM structured output."""
 
@@ -77,6 +130,11 @@ class RunbookPerDocRubric(BaseModel):
     forbidden_clear: float = Field(default=0.0, ge=0.0, le=0.25)
     verification_fit: float = Field(default=0.0, ge=0.0, le=0.25)
     coverage_notes: str = ""
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce_llm_rubric_shape(cls, data: Any) -> Any:
+        return coerce_runbook_per_doc_rubric(data)
 
     @classmethod
     def from_relevance_coverage(

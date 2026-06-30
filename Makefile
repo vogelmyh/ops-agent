@@ -7,7 +7,7 @@ test:
 	$(PY) -m pytest tests/ -q
 
 test-rag:
-	$(PY) -m pytest tests/test_rag.py tests/test_runbook_eval_policy.py \
+	$(PY) -m pytest tests/test_rag.py tests/test_runbook_eval_policy.py tests/test_eval_schemas.py \
 	  tests/test_hybrid_retrieval.py tests/test_rag_integration.py tests/rag_eval/ -q
 
 test-graph:
