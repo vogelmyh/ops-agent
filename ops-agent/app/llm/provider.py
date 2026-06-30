@@ -6,7 +6,7 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, SystemMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
 from langchain_openai import ChatOpenAI
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from app.config import Settings, get_settings
 
@@ -110,6 +110,70 @@ def _parse_schema_from_ai_text(schema: type[T], text: str) -> T:
     return schema.model_validate(payload)
 
 
+def _parse_schema_from_ai_message(schema: type[T], message: AIMessage) -> T | None:
+    parsed = message.additional_kwargs.get("parsed")
+    if parsed is not None:
+        try:
+            return schema.model_validate(parsed)
+        except ValidationError:
+            pass
+
+    text = _ai_message_text(message)
+    if not text:
+        return None
+    try:
+        return _parse_schema_from_ai_text(schema, text)
+    except (json.JSONDecodeError, ValidationError, ValueError):
+        return None
+
+
+def _invoke_plain_json_fallback(
+    llm: BaseChatModel,
+    schema: type[T],
+    messages: list[BaseMessage],
+) -> T:
+    """Plain chat invoke when SDK structured parse fails (DashScope shape drift)."""
+    response = llm.invoke(messages)
+    if isinstance(response, AIMessage):
+        parsed = _parse_schema_from_ai_message(schema, response)
+        if parsed is not None:
+            return parsed
+    msg = "Plain JSON fallback could not parse structured output from AIMessage"
+    raise ValueError(msg)
+
+
+def _invoke_dashscope_structured(
+    llm: BaseChatModel,
+    schema: type[T],
+    messages: list[BaseMessage],
+    **kwargs: Any,
+) -> T:
+    structured = llm.with_structured_output(schema, include_raw=True, **kwargs)
+    try:
+        result = structured.invoke(messages)
+    except ValidationError:
+        return _invoke_plain_json_fallback(llm, schema, messages)
+
+    parsed = result.get("parsed")
+    if parsed is not None:
+        if isinstance(parsed, schema):
+            return parsed
+        return schema.model_validate(parsed)
+
+    raw = result.get("raw")
+    if isinstance(raw, AIMessage):
+        from_text = _parse_schema_from_ai_message(schema, raw)
+        if from_text is not None:
+            return from_text
+
+    parsing_error = result.get("parsing_error")
+    if parsing_error is not None:
+        from_fallback = _invoke_plain_json_fallback(llm, schema, messages)
+        return from_fallback
+
+    return _invoke_plain_json_fallback(llm, schema, messages)
+
+
 def invoke_structured(
     llm: BaseChatModel,
     schema: type[T],
@@ -122,27 +186,6 @@ def invoke_structured(
     settings = settings or get_settings()
     if _needs_dashscope_json_hint(settings):
         messages = ensure_json_in_messages(messages)
-        structured = llm.with_structured_output(schema, include_raw=True, **kwargs)
-        result = structured.invoke(messages)
-        parsed = result.get("parsed")
-        if parsed is not None:
-            if isinstance(parsed, schema):
-                return parsed
-            return schema.model_validate(parsed)
-
-        raw = result.get("raw")
-        if isinstance(raw, AIMessage):
-            text = _ai_message_text(raw)
-            if text:
-                try:
-                    return _parse_schema_from_ai_text(schema, text)
-                except (json.JSONDecodeError, ValueError):
-                    pass
-
-        parsing_error = result.get("parsing_error")
-        if parsing_error is not None:
-            raise parsing_error
-        msg = "Structured output missing parsed payload and text JSON fallback failed"
-        raise ValueError(msg)
+        return _invoke_dashscope_structured(llm, schema, messages, **kwargs)
 
     return llm.with_structured_output(schema, **kwargs).invoke(messages)

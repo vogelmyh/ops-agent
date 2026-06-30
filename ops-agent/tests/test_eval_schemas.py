@@ -5,6 +5,7 @@ from __future__ import annotations
 from app.graph.eval_schemas import (
     RunbookEvalLLMOutput,
     RunbookPerDocRubric,
+    coerce_runbook_eval_llm_output,
     coerce_runbook_per_doc_rubric,
 )
 from app.graph.runbook_eval_policy import (
@@ -129,3 +130,11 @@ def test_nested_rubric_finalize_selects_crashloop():
     result = finalize_runbook_eval("ecomm-order", enriched, llm_output)
     assert result.novel_scenario is False
     assert result.selected_doc_id == "ecomm-order-crashloop"
+
+
+def test_bare_rubric_array_wrapped():
+    bare = [_nested_crashloop_rubric()]
+    assert coerce_runbook_eval_llm_output(bare) == {"rubrics": bare}
+    output = RunbookEvalLLMOutput.model_validate(bare)
+    assert len(output.rubrics) == 1
+    assert output.rubrics[0].service_scope_match == 0.25

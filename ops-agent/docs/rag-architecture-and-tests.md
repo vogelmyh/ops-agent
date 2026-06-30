@@ -330,7 +330,7 @@ EMBEDDINGS_PROVIDER=qwen LLM_MODE=real \
 
 **规则**：LLM **不得**输出 `relevant_runbook` 全文、选篇或 reasoning；全文由 `resolve_selected_runbook()` 加载，选篇与 `runbook_eval_reasoning` 由 `finalize_runbook_eval()` / `build_eval_reasoning()` 生成。
 
-**LLM rubric 形状**：`RunbookPerDocRubric` 在 `eval_schemas.py` 入库前接受**扁平**或**嵌套**（`relevance` / `coverage`）JSON；DashScope 自由 JSON 段由 `coerce_runbook_per_doc_rubric()` 归一化，`invoke_structured()` 在 `parsed` 缺失时从 `AIMessage` 文本兜底解析。
+**LLM rubric 形状**：`RunbookPerDocRubric` 在 `eval_schemas.py` 入库前接受**扁平**或**嵌套**（`relevance` / `coverage`）JSON；`RunbookEvalLLMOutput` 接受 `{rubrics: [...]}` 或**裸数组** `[...]`。DashScope 自由 JSON 由 `coerce_*` 归一化；`invoke_structured()` 在 SDK `ValidationError` 时降级为 plain `AIMessage` 文本解析。
 
 ---
 
@@ -461,6 +461,14 @@ CHECKPOINTER=memory EMBEDDINGS_PROVIDER=local-hash \
 **测试**：`test_runbook_eval_policy.py`、`test_rag_integration.py`、`test_eval.py`、`test_run_scenarios.py`；golden `tests/rag_eval/*`（oracle 已改，语料 `golden.py` 无需改）
 
 **文档**：`test-scenario-trajectories.md`、`rag-eval-corpus.md` 已同步
+
+---
+
+### 2026-06-30 · 裸 rubric 数组 + SDK 解析降级
+
+`RunbookEvalLLMOutput` 增加 `coerce_runbook_eval_llm_output()`（顶层 `[...]` → `{rubrics: [...]}`）。`invoke_structured()` 在 DashScope SDK `ValidationError` 时降级为 plain invoke + `AIMessage` 文本/`parsed` 兜底，避免 smoke 中途硬失败。
+
+**关键文件**：`eval_schemas.py`、`app/llm/provider.py`；**测试**：`test_eval_schemas.py`、`test_llm_provider.py`。
 
 ---
 

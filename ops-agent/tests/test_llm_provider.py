@@ -74,3 +74,14 @@ def test_parse_schema_from_ai_text_nested_rubrics():
     output = _parse_schema_from_ai_text(RunbookEvalLLMOutput, text)
     assert output.rubrics[0].service_scope_match == 0.25
     assert output.rubrics[0].root_cause_fit == 0.25
+
+
+def test_parse_schema_from_ai_text_bare_rubric_array():
+    text = """[{
+      "doc_id": "ecomm-cache-redis-memory-full",
+      "relevance": {"service_scope_match": 0.25, "symptom_match": 0.25},
+      "coverage": {"root_cause_fit": 0.25}
+    }]"""
+    output = _parse_schema_from_ai_text(RunbookEvalLLMOutput, text)
+    assert len(output.rubrics) == 1
+    assert output.rubrics[0].doc_id == "ecomm-cache-redis-memory-full"
