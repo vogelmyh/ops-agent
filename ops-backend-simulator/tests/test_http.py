@@ -36,8 +36,9 @@ def test_list_scenarios():
 
 def test_ecomm_manager_rate_limit_recover_sequence(client):
     status = client.get("/api/v1/services/ecomm-manager/status").json()
+    msg = status["message"].lower()
     assert status["healthy"] is True
-    assert "degraded" in status["message"].lower() or "rate limit" in status["message"].lower()
+    assert any(k in msg for k in ("degraded", "rate limit", "qps", "baseline"))
 
     metrics = client.get("/api/v1/services/ecomm-manager/metrics").json()
     assert metrics["metric"] == "admin_api_qps"

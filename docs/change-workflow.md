@@ -106,14 +106,40 @@ git commit -m "简短说明（why，非 what 罗列）"
 
 ---
 
-## 影响提示脚本（可选）
+## 影响提示与 pre-commit（P2）
+
+### 安装钩子（一次性）
+
+在 monorepo 根目录：
 
 ```bash
-python scripts/change_impact.py          # 基于 git diff --name-only
-python scripts/change_impact.py --staged
+make install-hooks
 ```
 
-根据变更路径打印建议阅读的文档章节与 `make test-*` 命令。
+将 `git config core.hooksPath` 设为 `.githooks`。之后每次 `git commit` 会：
+
+1. 分析 **staged** 文件路径  
+2. 仅文档 / `.md` / `.cursor` 变更 → **跳过测试**，提醒检查版本注记  
+3. 代码变更 → 自动跑对应的 `make test-rag` / `test-graph` / `test-simulator` / `test-api`（可多目标）
+
+紧急跳过：`SKIP_HOOKS=1 git commit -m "..."`
+
+### 手动命令
+
+```bash
+make impact              # 工作区 diff → 建议文档 + 测试
+make impact-staged       # 暂存区 diff（与 pre-commit 相同分析）
+make pre-commit-check    # 对暂存区分析并执行测试（不 commit）
+python scripts/change_impact.py --staged --run
+```
+
+| `make` 目标 | 范围 |
+|-------------|------|
+| `test-rag` | RAG 单测 + golden |
+| `test-graph` | `tests/graph_paths/` |
+| `test-api` | eval / tracing / health |
+| `test-simulator` | `ops-backend-simulator/tests/` |
+| `test` | 全量 pytest |
 
 ---
 
