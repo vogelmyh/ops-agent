@@ -164,4 +164,5 @@ curl -s localhost:8000/readyz | jq .
 
 ## 10. 版本注记
 
+- **2026-06-30**：`invoke_structured()` 对 DashScope/Qwen 增加 `include_raw` 与 `AIMessage` 文本 JSON 兜底解析；嵌套 rubric 归一化见 [`rag-architecture-and-tests.md`](rag-architecture-and-tests.md) §9。
 - **2026-06-30**：`app/llm/provider.py` 新增 `invoke_structured()` 与 `ensure_json_in_messages()`，适配 DashScope qwen3.x 在 `json_object` 模式下要求 messages 含 `json` 字样的 API 规则。
