@@ -297,6 +297,7 @@ def run_dec_01() -> dict[str, Any]:
     os.environ["BACKEND_MODE"] = "real"
     os.environ["BACKEND_BASE_URL"] = f"http://127.0.0.1:{SIM_PORT}"
     _reset_caches()
+    set_mock_scenario("ecomm-manager", "discount-bug")
 
     client = httpx.Client(base_url=f"http://127.0.0.1:{SIM_PORT}", timeout=120.0)
     client.post("/admin/scenario/ecomm-manager-discount-bug").raise_for_status()
@@ -323,8 +324,8 @@ def run_loop_02() -> dict[str, Any]:
     _start_simulator()
     os.environ["BACKEND_MODE"] = "real"
     os.environ["BACKEND_BASE_URL"] = f"http://127.0.0.1:{SIM_PORT}"
-    set_mock_scenario("ecomm-manager", "chaos-morph")
     _reset_caches()
+    set_mock_scenario("ecomm-manager", "chaos-morph")
 
     client = httpx.Client(base_url=f"http://127.0.0.1:{SIM_PORT}", timeout=120.0)
     client.post("/admin/scenario/ecomm-manager-chaos-morph").raise_for_status()
@@ -370,8 +371,8 @@ def run_loop_03() -> dict[str, Any]:
     _start_simulator()
     os.environ["BACKEND_MODE"] = "real"
     os.environ["BACKEND_BASE_URL"] = f"http://127.0.0.1:{SIM_PORT}"
-    set_mock_scenario("ecomm-manager", "chaos-exhaust")
     _reset_caches()
+    set_mock_scenario("ecomm-manager", "chaos-exhaust")
 
     client = httpx.Client(base_url=f"http://127.0.0.1:{SIM_PORT}", timeout=120.0)
     client.post("/admin/scenario/ecomm-manager-chaos-exhaust").raise_for_status()
@@ -404,8 +405,8 @@ def run_dec_02() -> dict[str, Any]:
     _start_simulator()
     os.environ["BACKEND_MODE"] = "real"
     os.environ["BACKEND_BASE_URL"] = f"http://127.0.0.1:{SIM_PORT}"
-    set_mock_scenario("ecomm-manager", "chaos-oos")
     _reset_caches()
+    set_mock_scenario("ecomm-manager", "chaos-oos")
 
     client = httpx.Client(base_url=f"http://127.0.0.1:{SIM_PORT}", timeout=120.0)
     client.post("/admin/scenario/ecomm-manager-chaos-oos").raise_for_status()

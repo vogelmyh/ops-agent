@@ -385,8 +385,8 @@ CHECKPOINTER=memory LLM_MODE=real \
 # 默认跑 KB-01 + DEC-01
 CHECKPOINTER=memory .venv/bin/python scripts/run_scenarios.py
 
-# mock LLM 冒烟（KB 场景，无 API）
-CHECKPOINTER=memory .venv/bin/python scripts/run_scenarios.py --scenarios KB-01 KB-02 --mock-llm
+# mock LLM 全量场景表征（无 API）
+CHECKPOINTER=memory .venv/bin/python scripts/run_scenarios.py --mock-llm --scenarios all
 
 # Simulator 状态机单测
 cd ops-backend-simulator && python3 -m pytest tests/test_chaos_exhaust.py tests/test_chaos_oos.py -q
@@ -395,6 +395,11 @@ cd ops-backend-simulator && python3 -m pytest tests/test_chaos_exhaust.py tests/
 ---
 
 ## 变更记录
+
+### 2026-06-30 · run_scenarios mock scenario 与 decide 矩阵对齐
+
+- `run_dec_01` / `run_loop_*` / `run_dec_02`：`set_mock_scenario` 须在 `_reset_caches()` **之后**（`reset_mock_scenarios` 会清掉先前设置）
+- `run_dec_01` 补充 `set_mock_scenario("ecomm-manager", "discount-bug")`，mock LLM 全量 `--scenarios all` 预期 6/6
 
 ### 2026-06-30 · DEC-01 场景断言与 novel 写回链对齐
 
