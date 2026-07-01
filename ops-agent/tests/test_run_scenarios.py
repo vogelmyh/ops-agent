@@ -151,6 +151,51 @@ def test_run_scenarios_cli_mock_llm_kb01():
     assert payload[0]["steps"][0]["rag"]["symptom_query"]
 
 
+def test_reset_caches_clears_prior_mock_scenario():
+    """set_mock_scenario must run after _reset_caches in scenario runners."""
+    from app.adapters.mock_data import get_mock_scenario
+    from scripts.run_scenarios import _reset_caches
+
+    set_mock_scenario("ecomm-manager", "discount-bug")
+    _reset_caches()
+    assert get_mock_scenario("ecomm-manager") == "rate-limit"
+    set_mock_scenario("ecomm-manager", "discount-bug")
+    assert get_mock_scenario("ecomm-manager") == "discount-bug"
+
+
+def test_run_dec_01_mock_scenario_runner():
+    from scripts.run_scenarios import run_dec_01
+
+    result = run_dec_01()
+    assert result["passed"] is True
+    assert result["steps"][0]["response"]["decide_outcome"] == "out_of_scope"
+    assert not result["steps"][0]["response"].get("execution_results")
+
+
+def test_run_scenarios_cli_mock_llm_all():
+    script = os.path.join(ROOT, "scripts", "run_scenarios.py")
+    proc = subprocess.run(
+        [sys.executable, script, "--scenarios", "all", "--mock-llm"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        env={
+            **os.environ,
+            "CHECKPOINTER": "memory",
+            "BACKEND_MODE": "mock",
+            "EMBEDDINGS_PROVIDER": "local-hash",
+            "LANGSMITH_TRACING": "false",
+            "LANGCHAIN_TRACING_V2": "false",
+        },
+    )
+    assert proc.returncode == 0, proc.stderr or proc.stdout
+    payload = json.loads(proc.stdout)
+    assert len(payload) == 6
+    assert all(row["passed"] for row in payload), [
+        (row["scenario_id"], row["passed"]) for row in payload if not row["passed"]
+    ]
+
+
 def test_check_dec_01_passed_novel_hitl_path():
     from types import SimpleNamespace
 
