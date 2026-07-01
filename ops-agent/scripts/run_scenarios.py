@@ -134,6 +134,9 @@ def _response_dict(resp) -> dict[str, Any]:
         "coverage_confidence": resp.coverage_confidence,
         "runbook_eval_reasoning": resp.runbook_eval_reasoning,
         "root_cause": resp.root_cause,
+        "diagnosis_confidence": resp.diagnosis_confidence,
+        "confidence_sufficient": resp.confidence_sufficient,
+        "needs_human_review": resp.needs_human_review,
         "decide_outcome": resp.decide_outcome,
         "decision_class": resp.decision_class,
         "escalation_hint": resp.escalation_hint,
@@ -194,7 +197,7 @@ def _result(
 
 
 def run_kb_01() -> dict[str, Any]:
-    """KB-01: novel + ambiguous ecomm-search → uncertain → runbook HITL writeback."""
+    """KB-01: novel + low-confidence ecomm-search → skipped_low_confidence → runbook HITL writeback."""
     _apply_ci_mock_env()
     os.environ["BACKEND_MODE"] = "mock"
     _reset_caches()

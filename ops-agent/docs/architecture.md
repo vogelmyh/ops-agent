@@ -36,7 +36,7 @@
                                    │ POST /diagnose …
                     ┌──────────────▼──────────────────────┐
                     │  LangGraph 诊断主图                  │
-                    │  triage → eval_runbook → diagnose …  │
+                    │  triage → retrieve_runbooks → diagnose …  │
                     └─┬────────┬──────────┬───────────┬───┘
                       │        │          │           │
          ┌────────────▼──┐ ┌───▼────┐ ┌───▼────┐ ┌───▼──────────┐
@@ -49,7 +49,7 @@
 |------|------|------------|
 | **API 与运行时** | [`api-runtime-architecture.md`](api-runtime-architecture.md) | `app/main.py`, `config.py`, `llm/`, `memory/` |
 | **LangGraph 诊断主图** | [`graph-agent-architecture.md`](graph-agent-architecture.md) | `app/graph/builder.py`, `runner.py`, `nodes/triage|diagnose|…` |
-| **RAG** | [`rag-architecture-and-tests.md`](rag-architecture-and-tests.md) | `app/rag/`, `eval_runbook`, `runbook_eval_policy` |
+| **RAG** | [`rag-architecture-and-tests.md`](rag-architecture-and-tests.md) | `app/rag/`, `retrieve_runbooks`, `diagnose_runbook_step`, `runbook_eval_policy` |
 | **决策与修复** | [`decide-remediation-architecture.md`](decide-remediation-architecture.md) | `decide*`, `tools/`, `eval_remediation`, `approve` |
 | **后端适配** | [`backend-adapters-architecture.md`](backend-adapters-architecture.md) | `app/adapters/`, `schemas` 遥测模型 |
 | **KB 知识闭环** | [`kb-lifecycle-architecture.md`](kb-lifecycle-architecture.md) | `summarize` → notes → draft → review → `ingest_runbook` |
@@ -70,7 +70,7 @@ START
   → diagnose                  # Step1 rubric + RCA + 置信度
        ├─ confidence 不足 → summarize
        └─ else → decide
-       ├─ uncertain / OOS → summarize → [novel? → KB HITL] → END
+       ├─ uncertain（tool_select 降级）/ out_of_scope → summarize → [novel? → KB HITL] → END
        ├─ actionable + needs_approval → approve → write_tools
        └─ actionable → write_tools
   → eval_remediation          # 写后验收
@@ -94,9 +94,9 @@ Checkpoint 线程 ID：`thread_id`（`app/graph/runner.py`）。
 
 | 概念 | 含义 |
 |------|------|
-| `novel_scenario` | KB 是否覆盖（RAG 裁决） |
-| `decide_outcome` | 是否可执行写工具（`actionable` / `uncertain` / `out_of_scope`） |
-| `needs_approval` | 高风险或复审策略，不等于不可执行 |
+| `novel_scenario` | KB 是否覆盖（diagnose Step1 裁决） |
+| `decide_outcome` | 是否可执行写工具（`actionable` / `skipped_low_confidence` / `uncertain` / `out_of_scope`） |
+| `needs_approval` | 高风险、novel 或二次修复未恢复等策略，不等于不可执行 |
 
 ---
 
@@ -231,6 +231,7 @@ CHECKPOINTER=memory .venv/bin/python scripts/run_scenarios.py --scenarios KB-01 
 
 ## 9. 版本注记
 
+- **2026-07-01**：主图 `retrieve_runbooks` + `diagnose` 三步；KB-01 `skipped_low_confidence`、KB-02 novel approve；组件图与 `decide_outcome` 枚举已同步。
 - **2026-06-30**：`RemediationEvalAssessment` coerce（`eval_schemas`）修复 DeepSeek `json_mode` 下 `eval_remediation` 缺 `reasoning` 硬崩；见 [`decide-remediation-architecture.md`](decide-remediation-architecture.md) §10。
 - **2026-06-30**：结构化输出 fallback 收紧 + `DecideAssessment` coerce + DEC-01 场景断言对齐 novel 写回链；详见 [`api-runtime-architecture.md`](api-runtime-architecture.md) §10、[`decide-remediation-architecture.md`](decide-remediation-architecture.md) §10、[`test-scenario-trajectories.md`](test-scenario-trajectories.md) §变更记录。
 - **2026-06-30**：推荐 **DeepSeek V4 chat + Qwen embedding**；`invoke_structured()` 供应商分流见 [`api-runtime-architecture.md`](api-runtime-architecture.md) §10、[`rag-architecture-and-tests.md`](rag-architecture-and-tests.md) §9。

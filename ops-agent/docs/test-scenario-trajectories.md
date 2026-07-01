@@ -18,11 +18,13 @@
 图主路径：
 
 ```text
-triage → retrieve_runbooks → diagnose → decide
-  ├─ uncertain / out_of_scope → summarize → [novel? → runbook HITL]
-  └─ actionable → [approve?] → write_tools → eval_remediation
-        ├─ resolved → summarize
-        └─ not resolved & attempt < max → retrieve_runbooks → … (react 环)
+triage → retrieve_runbooks → diagnose
+  ├─ confidence < threshold → summarize（decide_outcome=skipped_low_confidence）→ [novel? → runbook HITL]
+  └─ else → decide
+        ├─ uncertain（tool_select 降级）/ out_of_scope → summarize → [novel? → runbook HITL]
+        └─ actionable → [approve?] → write_tools → eval_remediation
+              ├─ resolved → summarize
+              └─ not resolved & attempt < max → retrieve_runbooks → … (react 环)
 ```
 
 默认 `max_remediation_attempts=3`。
@@ -40,7 +42,7 @@ triage → retrieve_runbooks → diagnose → decide
 | **REM** | 主路径修复 — actionable、write、验收通过 |
 | **HITL** | 人机协同闸门 — approve / runbook notes / review |
 | **LOOP** | 处置反馈环 — eval_remediation、重试、morph |
-| **DEC** | 决策与诚实终止 — uncertain / out_of_scope |
+| **DEC** | 决策与诚实终止 — `skipped_low_confidence`（诊断门槛）/ `uncertain`（tool 降级）/ `out_of_scope` |
 | **KB** | 知识与 runbook 生命周期 — novel、写回、入库 |
 | **RAG** | 检索质量 — 漏匹配、误匹配 |
 | **EXEC** | 执行与验收解耦 — write FAILED vs SUCCEEDED 但未恢复 |
@@ -85,8 +87,8 @@ triage → retrieve_runbooks → diagnose → decide
 | LOOP-03 | LOOP | P4 | Morph 后多轮仍不可恢复 | simulator | `graph_paths/test_loop.py` | `run_scenarios.py` |
 | DEC-01 | DEC | P3 | 静态 out_of_scope | simulator | — | `run_scenarios.py` |
 | DEC-02 | DEC | P3/P4 | Morph 后 early out_of_scope | simulator | `graph_paths/test_dec.py` | `run_scenarios.py` |
-| KB-01 | KB | P5 | Novel + 模糊诊断 → uncertain → 写回 | mock | `graph_paths/test_kb.py` | `run_scenarios.py` |
-| KB-02 | KB | P5 | Novel + 明确模式 → actionable 修复后写回 | mock | `graph_paths/test_kb.py` | `run_scenarios.py` |
+| KB-01 | KB | P5 | Novel + 低置信诊断 → skipped_low_confidence → 写回 | mock | `graph_paths/test_kb.py` | `run_scenarios.py` |
+| KB-02 | KB | P2+P5 | Novel + 高置信 → approve → 修复后写回 | mock | `graph_paths/test_kb.py` | `run_scenarios.py` |
 | RAG-01 | RAG | — | 漏匹配（有 runbook 却 novel） | — | `test_rag_integration.py` | 手工 reindex |
 | RAG-02 | RAG | — | 误匹配 | — | `test_hybrid_retrieval.py`, `test_rag_integration.py` | 手工 |
 | EXEC-01 | EXEC | P4 | Write 执行 FAILED | simulator | 待补 | 手工 real LLM |
@@ -239,49 +241,65 @@ stateDiagram-v2
 
 ## KB · 知识生命周期
 
-`novel_scenario` 仅表示知识库无 runbook 覆盖，**不**等同于 `uncertain` 或必须人工审批。诊断收敛且 catalog 工具参数可落地时，novel 场景仍可 `actionable`；修复完成后经 summarize 进入 runbook 写回链。
+`novel_scenario` 仅表示知识库无 runbook 覆盖，**不**等同于 `skipped_low_confidence` / `uncertain` 或必须人工审批。诊断置信足够且 catalog 工具参数可落地时，novel 场景仍可 `actionable`（但 **novel 必走 approve**）；修复完成后经 summarize 进入 runbook 写回链。
 
-### KB-01 · Novel + 模糊诊断 → 写回 runbook
+### KB-01 · Novel + 低置信诊断 → 写回 runbook
 
 **输入**：`ecomm-search`（无 runbook，症状/generic 日志无法收敛根因）。
 
 | Step | 节点链 | 关键 state / response |
 |------|--------|------------------------|
-| 1 | … → decide | `novel_scenario=true`, `uncertain` |
-| 2 | summarize → notes → draft → review | HITL 链 |
-| 5 | ingest | `runbook_saved_path` 非空 |
+| 1 | … → diagnose | `novel_scenario=true`, `confidence_sufficient=false`, `diagnosis_confidence` < 0.55 |
+| 2 | summarize（跳过 decide） | `decide_outcome=skipped_low_confidence` |
+| 3 | notes → draft → review | HITL 链 |
+| 6 | ingest | `runbook_saved_path` 非空 |
+
+**不应出现**：进入 `decide` 节点、`decide_outcome=actionable`。
 
 ---
 
-### KB-02 · Novel + 明确模式 → 修复后写回 runbook
+### KB-02 · Novel + 高置信 → 审批修复后写回 runbook
 
 **输入**：`ecomm-cache`（无 runbook，OOMKilled + 高 restarts 证据清晰）。
 
 | Step | 节点链 | 关键 state / response |
 |------|--------|------------------------|
-| 1 | … → decide → write_tools | `novel_scenario=true`, `actionable`, `restart_pods` |
-| 2 | eval_remediation | `incident_resolved=true` |
-| 3 | summarize → notes → draft → review | HITL 写回链 |
-| 6 | ingest | `runbook_saved_path` 非空 |
+| 1 | … → diagnose → decide | `novel_scenario=true`, `confidence_sufficient=true`, `actionable`, `needs_approval=true` |
+| 2 | approve（interrupt） | `awaiting_approval` |
+| 3 | resume `approved=true` → write_tools | `restart_pods` |
+| 4 | eval_remediation | `incident_resolved=true` |
+| 5 | summarize → notes → draft → review | HITL 写回链 |
+| 8 | ingest | `runbook_saved_path` 非空 |
 
 ---
 
-## RAG · 检索与覆盖裁决（eval_runbook）
+## RAG · 检索与覆盖裁决
 
 > 架构、golden 评测与改动同步清单：[`rag-architecture-and-tests.md`](rag-architecture-and-tests.md)。
 
-### 流水线
+### 流水线（读路径分两节点）
+
+**`retrieve_runbooks`（纯检索，无 LLM）**
 
 ```text
 symptom_query（incident 描述 + 遥测规则提取）
   → hybrid 召回 chunk top-20（Chroma 向量 + BM25，RRF 融合）
   → lexical rerank top-10
   → parent 全文扩展 + 去重
-  → top-3 RunbookCandidate
+  → top-3 RunbookCandidate → state.runbook_candidates
+```
+
+**`diagnose` Step1（覆盖裁决，沿用 runbook rubric）**
+
+```text
+runbook_candidates
   → LLM RunbookEvalLLMOutput（仅 rubrics: list[RunbookPerDocRubric]，每篇 Stage A+B 打分，无全文）
   → finalize_runbook_eval（代码按 relevance 选 top1 + 阈值终裁 + build_eval_reasoning 生成说明）
-  → relevant_runbook 从磁盘按代码选中的 selected_runbook_id 加载
+  → relevant_runbook 从磁盘按 selected_runbook_id 加载
+  → novel_scenario / novel_reason / coverage_confidence
 ```
+
+离线 golden harness：`run_runbook_eval()` = retrieve + Step1（`eval_runbook.py`）。
 
 ### 阈值（`app/config.py`，可由环境变量覆盖）
 
@@ -290,9 +308,10 @@ symptom_query（incident 描述 + 遥测规则提取）
 | `runbook_relevance_threshold` | 0.55 | 阶段 A 最高分低于此 → `novel_scenario=true` |
 | `runbook_coverage_threshold` | 0.70 | 阶段 B 低于此 → novel |
 | `runbook_disambiguation_gap` | 0.12 | top1−top2 过小且 top1<0.75 → novel（消歧失败） |
+| `diagnosis_confidence_threshold` | 0.55 | diagnose Step3 总分低于此 → 跳过 decide（见 KB-01） |
 | `retrieval_hybrid_top_k` | 20 | hybrid 召回上限 |
 | `retrieval_rerank_chunk_top_k` | 10 | rerank 后进入 parent 扩展的 chunk 数 |
-| `retrieval_final_top_k` | 3 | 送入 eval 的 parent 候选数 |
+| `retrieval_final_top_k` | 3 | 送入 Step1 rubric 的 parent 候选数 |
 
 ### `novel_reason` 枚举
 
@@ -324,11 +343,14 @@ retrieve / rubric 选错 runbook（如 crashloop vs memory-leak）。
 | 字段 | 位置 | 说明 |
 |------|------|------|
 | `thread_id` | step / result | LangGraph checkpoint 线程 ID |
-| `response.symptom_query` | step | eval 用的检索 query |
-| `response.novel_reason` | step | 覆盖裁决原因码 |
+| `response.symptom_query` | step | 检索 query |
+| `response.novel_reason` | step | 覆盖裁决原因码（diagnose Step1） |
 | `response.runbook_eval_reasoning` | step | finalize 规则生成的裁决说明（非 LLM 输出） |
 | `response.selected_runbook_id` | step | 代码选中的 runbook stem（relevance top1 过阈值后） |
 | `response.coverage_confidence` | step | 阶段 B 分数 |
+| `response.diagnosis_confidence` | step | diagnose Step3 总分（RCA rubric + runbook_support） |
+| `response.confidence_sufficient` | step | `diagnosis_confidence >= diagnosis_confidence_threshold` |
+| `response.needs_human_review` | step | 与 `confidence_sufficient` 相反（观测字段，不驱动 approve） |
 | `rag` | step | `rag_snapshot_from_state` 紧凑快照（含候选 retrieval 分、`runbook_eval_reasoning`，无全文） |
 | `graph_state.runbook_candidates` | step | 紧凑候选列表（最多 5 条） |
 | `embeddings` / `langsmith` | result 顶栏 | 运行环境标记 |
@@ -362,7 +384,8 @@ CHECKPOINTER=memory LLM_MODE=real .venv/bin/python scripts/run_scenarios.py --sc
 | 路由错了 | `builder.py`、`decide_outcome`、`needs_approval` |
 | 工具没执行 | `approve` 拒绝？无 tool_calls？ |
 | 假恢复 | `eval_remediation`、real LLM summary |
-| novel 不对 | `eval_runbook`、`novel_reason`、`runbook_eval_reasoning`、`rag/ingest`、hybrid/rerank 分数 |
+| novel 不对 | `retrieve_runbooks`、`diagnose` Step1、`novel_reason`、`runbook_eval_reasoning`、`rag/ingest`、hybrid/rerank 分数 |
+| 误跳过 decide | `diagnosis_confidence`、`confidence_sufficient`、`diagnose_spec` RCA rubric |
 | 混沌不对 | simulator `admin/state`、`fault_phase` |
 
 ---
@@ -396,24 +419,33 @@ cd ops-backend-simulator && python3 -m pytest tests/test_chaos_exhaust.py tests/
 
 ## 变更记录
 
+### 2026-07-01 · 主图重构：retrieve_runbooks + diagnose 三步
+
+- 图路径：`eval_runbook` → `retrieve_runbooks`（纯检索）；`eval_diagnosis` 并入 `diagnose`（Step1 runbook rubric + Step2 RCA + Step3 置信度）。
+- KB-01：`confidence < 0.55` → `decide_outcome=skipped_low_confidence`，跳过 decide 直进 summarize → KB 写回。
+- KB-02：novel + 高置信仍 `actionable`，但 **novel 必 approve** 后再 write。
+- `run_scenarios` 导出 `diagnosis_confidence` / `confidence_sufficient` / `needs_human_review`。
+- 详见 [`graph-agent-architecture.md`](graph-agent-architecture.md) §9、[`rag-architecture-and-tests.md`](rag-architecture-and-tests.md) §9。
+
 ### 2026-06-30 · RemediationEvalAssessment coerce（eval_remediation 节点）
 
 - `eval_schemas.coerce_remediation_eval_assessment()`：缺省 `reasoning`、别名 `is_resolved`/`symptoms` 等归一化
 - 修复 real LLM（DeepSeek `json_mode`）在 `eval_remediation` 节点因缺 `reasoning` 硬崩；见 [`decide-remediation-architecture.md`](decide-remediation-architecture.md) §10
 
-### 2026-06-30 · real LLM 表征：DEC-02 / LOOP-02 走 `uncertain` 归因（调查备忘）
+### 2026-06-30 · real LLM 表征：DEC-02 / LOOP-02 走 `uncertain` 归因（历史备忘，部分已缓解）
+
+> **2026-07-01 后**：`eval_diagnosis` 已删除；诊断置信与 decide assessment 分裂问题已收敛到 `diagnose` 单节点 + 代码路由。下列因素在 real LLM 下仍可能导致 DEC-02 / LOOP-02 不稳定，供排查参考。
 
 coerce 修复后场景可跑通；**同配置多次 real LLM 结果不稳定**（诊断脚本 `data/diag_dec02_loop02_out.txt` 一次 PASS、早前一次 FAIL）。
 
 | 因素 | 说明 |
 |------|------|
-| **RAG 选篇偏差** | 告警文案偏 QPS/限流时，`runbook_eval` 常选 `ecomm-manager-rate-limit`（relevance/coverage 双 1.0），而非专篇 `ecomm-manager-chaos-oos` / `chaos-morph`；morph 后证据已变（NPE / `order_amount_error_rate`）但 runbook 上下文仍限流篇 |
-| **eval_diagnosis vs decide 分裂** | morph 后 `diagnosis_eval_reasoning` 常写「超出 runbook / ambiguous / human review」，但 decide 独立 assessment；成功跑时仍可 `out_of_scope` 或第 2 轮 `toggle_feature_flag` |
-| **`DECIDE_RETRY_GUIDANCE`** | `remediation_context.py` 明示「或 classify **uncertain**」；与 chaos-oos 阶段 B 应有的 **`out_of_scope`** 竞争，FAIL 跑时常见第 2 轮 `uncertain` |
+| **RAG 选篇偏差** | 告警文案偏 QPS/限流时，Step1 常选 `ecomm-manager-rate-limit`（relevance/coverage 双 1.0），而非专篇 `ecomm-manager-chaos-oos` / `chaos-morph`；morph 后证据已变但 runbook 上下文仍限流篇 |
+| **`DECIDE_RETRY_GUIDANCE`** | `remediation_context.py` 明示「或 classify **uncertain**」；与 chaos-oos 阶段 B 应有的 **`out_of_scope`** 竞争 |
 | **tool_select 降级** | `decide_node`：assessment=`actionable` 但 LLM 未产出 `tool_calls` → `_downgrade_uncertain`（LOOP-02 FAIL 路径之一） |
-| **mock 对照** | `mock_row_for_state` + diagnose mock 在 `remediation_attempt≥1` 强制切 phase；real LLM 无此捷径 |
+| **mock 对照** | mock 在 `remediation_attempt≥1` 强制切 phase；real LLM 无此捷径 |
 
-**后续改进方向**（未实现）：混沌告警模板 + 专篇 runbook 检索加权；收紧 retry guidance（morph 后优先 OOS / 换工具，不把 uncertain 与 OOS 并列）；可选将 `diagnosis_eval_reasoning` 中「超出 runbook」信号注入 decide prompt。
+**后续改进方向**（未实现）：混沌告警模板 + 专篇 runbook 检索加权；收紧 retry guidance（morph 后优先 OOS / 换工具）。
 
 ### 2026-06-30 · run_scenarios mock scenario 与 decide 矩阵对齐
 

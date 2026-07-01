@@ -64,7 +64,7 @@ EMBEDDINGS_PROVIDER=qwen .venv/bin/python scripts/rag_eval.py --reindex --stage 
 | `retrieval` | hybrid → rerank → top-3 | 不涉及 |
 | `coverage` | 上述 + per-doc rubric + `finalize_runbook_eval` | golden **oracle**（为 top-3 每篇打完美/低分 rubric，隔离检索与真实 LLM） |
 
-**Coverage oracle 行为**（`eval_runbook._mock_llm_output_oracle`）：
+**Coverage oracle 行为**（`diagnose_runbook_step._mock_llm_output_oracle`）：
 
 - LLM 结构化输出仅为 `RunbookEvalLLMOutput.rubrics`（`RunbookPerDocRubric` 列表，含 Stage A+B）
 - `expected_novel=true`：所有候选打低分 rubric → finalize 判 `low_relevance` / `low_coverage`
@@ -113,6 +113,10 @@ EMBEDDINGS_PROVIDER=qwen LLM_MODE=real \
 4. 用 `qwen` 复测并对比 `local-hash` 与语义 embedding 差距
 
 ## 变更记录
+
+### 2026-07-01 · Coverage oracle 路径
+
+- Oracle 实现迁至 `diagnose_runbook_step._mock_llm_output_oracle`（图内 Step1）；golden harness 仍经 `run_runbook_eval()`。
 
 ### 2026-06-30 · DeepSeek chat + Qwen embedding
 

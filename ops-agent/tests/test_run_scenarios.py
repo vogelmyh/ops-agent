@@ -114,6 +114,9 @@ def test_run_kb_01_mock_scenario_runner():
     assert step0["rag"].get("novel_reason")
     assert step0["rag"].get("runbook_eval_reasoning")
     assert step0["response"]["symptom_query"]
+    assert step0["response"]["decide_outcome"] == "skipped_low_confidence"
+    assert step0["response"]["confidence_sufficient"] is False
+    assert step0["response"]["diagnosis_confidence"] is not None
 
 
 def test_run_kb_02_mock_scenario_runner():
@@ -125,6 +128,7 @@ def test_run_kb_02_mock_scenario_runner():
     rag = result["steps"][0]["rag"]
     assert rag["novel_scenario"] is True
     assert result["steps"][0]["response"]["decide_outcome"] == "actionable"
+    assert result["steps"][0]["response"]["confidence_sufficient"] is True
 
 
 def test_run_scenarios_cli_mock_llm_kb01():
