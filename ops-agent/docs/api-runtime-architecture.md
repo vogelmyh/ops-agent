@@ -102,7 +102,7 @@ RAG 检索阈值等见 [rag-architecture-and-tests.md](rag-architecture-and-test
 - **mock**：节点使用 `*_spec.py` 或 fixture 结构化输出（`graph_paths`、CI）
 - **real**：`ChatOpenAI`（可配置 `openai_base_url` / `openai_model`）
 
-**推荐组合**：chat 走 DeepSeek V4（`OPENAI_BASE_URL=https://api.deepseek.com`，`deepseek-v4-flash` / `deepseek-v4-pro`）；embedding 走 Qwen DashScope（`EMBEDDINGS_PROVIDER=qwen`，`QWEN_API_KEY`）。两套凭证互不干扰。DeepSeek chat 在 `get_chat_model()` 默认关闭 thinking；`invoke_structured()` 对 DeepSeek 使用 `json_mode`（API 不支持 `json_schema`），并补 JSON 提示。
+**推荐组合**：chat 走 DeepSeek V4（`OPENAI_BASE_URL=https://api.deepseek.com`，`deepseek-v4-flash` / `deepseek-v4-pro`）；embedding 走 Qwen DashScope（`EMBEDDINGS_PROVIDER=qwen`，`QWEN_API_KEY`）。两套凭证互不干扰。DeepSeek chat 在 `get_chat_model()` 默认关闭 thinking；`invoke_structured()` 对 DeepSeek 使用 `json_mode`（API 不支持 `json_schema`），并补 JSON 提示。SDK/`parsing_error` 降级时 fallback 仍绑定 `json_object`，并在解析前去除 markdown JSON 围栏。
 
 ### 5.2 Checkpointer
 
@@ -129,8 +129,9 @@ RAG 检索阈值等见 [rag-architecture-and-tests.md](rag-architecture-and-test
 |------|------|
 | `tests/test_tracing.py` | LangSmith / env cache |
 | `tests/test_eval.py` | API 级 eval smoke |
-| `tests/test_llm_provider.py` | LLM 供应商检测、`invoke_structured` 路由 |
-| `tests/test_run_scenarios.py` | CLI + checkpoint 清理 |
+| `tests/test_llm_provider.py` | LLM 供应商检测、`invoke_structured` 路由、JSON 围栏剥离 |
+| `tests/test_decide_spec.py` | `DecideAssessment` LLM JSON coerce |
+| `tests/test_run_scenarios.py` | CLI + checkpoint 清理；`check_dec_01_passed` 契约 |
 
 图业务断言在 `tests/graph_paths/`，不在此重复。
 
@@ -171,6 +172,7 @@ curl -s localhost:8000/readyz | jq .
 
 ## 10. 版本注记
 
+- **2026-06-30**：`invoke_structured()` fallback 收紧：plain 重试仍绑 `json_object`；`strip_json_markdown()` 去围栏；区分 JSON 语法错误与 schema 校验失败。`DecideAssessment` coerce 见 [`decide-remediation-architecture.md`](decide-remediation-architecture.md) §10。
 - **2026-06-30**：推荐 **DeepSeek V4 chat + Qwen embedding** 组合：`get_chat_model()` 对 DeepSeek 默认 `thinking: disabled`；`invoke_structured()` 对 DeepSeek 使用 `json_mode` + JSON 提示（不走 DashScope fallback）。见 `.env.example`。
 - **2026-06-30**：`invoke_structured()` 在 SDK `ValidationError` 时降级 plain invoke；裸 rubric 数组包装见 [`rag-architecture-and-tests.md`](rag-architecture-and-tests.md) §9。
 - **2026-06-30**：`invoke_structured()` 对 DashScope/Qwen 增加 `include_raw` 与 `AIMessage` 文本 JSON 兜底解析；嵌套 rubric 归一化见 [`rag-architecture-and-tests.md`](rag-architecture-and-tests.md) §9。

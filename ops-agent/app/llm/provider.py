@@ -1,6 +1,7 @@
 from typing import Any, TypeVar
 
 import json
+import re
 
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, SystemMessage
@@ -13,6 +14,7 @@ from app.config import Settings, get_settings
 T = TypeVar("T", bound=BaseModel)
 
 _JSON_OUTPUT_HINT = "\n\nRespond with a valid JSON object matching the required schema."
+_JSON_FENCE_RE = re.compile(r"^```(?:json)?\s*\n?(.*?)\n?```\s*$", re.DOTALL | re.IGNORECASE)
 
 
 class MockChatModel(BaseChatModel):
@@ -124,9 +126,27 @@ def _ai_message_text(message: AIMessage) -> str:
     return _message_content_text(message).strip()
 
 
+def strip_json_markdown(text: str) -> str:
+    """Remove optional ```json fences before json.loads."""
+    stripped = text.strip()
+    match = _JSON_FENCE_RE.match(stripped)
+    if match:
+        return match.group(1).strip()
+    return stripped
+
+
 def _parse_schema_from_ai_text(schema: type[T], text: str) -> T:
-    payload = json.loads(text)
-    return schema.model_validate(payload)
+    cleaned = strip_json_markdown(text)
+    try:
+        payload = json.loads(cleaned)
+    except json.JSONDecodeError as exc:
+        msg = f"LLM output is not valid JSON for {schema.__name__}"
+        raise ValueError(msg) from exc
+    try:
+        return schema.model_validate(payload)
+    except ValidationError as exc:
+        msg = f"LLM JSON failed schema validation for {schema.__name__}"
+        raise ValueError(msg) from exc
 
 
 def _parse_schema_from_ai_message(schema: type[T], message: AIMessage) -> T | None:
@@ -142,7 +162,7 @@ def _parse_schema_from_ai_message(schema: type[T], message: AIMessage) -> T | No
         return None
     try:
         return _parse_schema_from_ai_text(schema, text)
-    except (json.JSONDecodeError, ValidationError, ValueError):
+    except ValueError:
         return None
 
 
@@ -151,14 +171,51 @@ def _invoke_plain_json_fallback(
     schema: type[T],
     messages: list[BaseMessage],
 ) -> T:
-    """Plain chat invoke when SDK structured parse fails (DashScope shape drift)."""
-    response = llm.invoke(messages)
-    if isinstance(response, AIMessage):
-        parsed = _parse_schema_from_ai_message(schema, response)
-        if parsed is not None:
-            return parsed
+    """Retry with json_object response_format when SDK structured parse fails."""
+    json_llm = llm.bind(response_format={"type": "json_object"})
+    response = json_llm.invoke(messages)
+    if not isinstance(response, AIMessage):
+        msg = "Plain JSON fallback did not receive an AIMessage"
+        raise ValueError(msg)
+
+    json_error: ValueError | None = None
+    schema_error: ValueError | None = None
+    try:
+        return _parse_schema_from_ai_text(schema, _ai_message_text(response))
+    except ValueError as exc:
+        if "not valid JSON" in str(exc):
+            json_error = exc
+        else:
+            schema_error = exc
+
+    if schema_error is not None:
+        raise schema_error
     msg = "Plain JSON fallback could not parse structured output from AIMessage"
-    raise ValueError(msg)
+    raise ValueError(msg) from json_error
+
+
+def _resolve_structured_invoke_result(
+    llm: BaseChatModel,
+    schema: type[T],
+    messages: list[BaseMessage],
+    result: dict[str, Any],
+) -> T:
+    parsed = result.get("parsed")
+    if parsed is not None:
+        if isinstance(parsed, schema):
+            return parsed
+        return schema.model_validate(parsed)
+
+    raw = result.get("raw")
+    if isinstance(raw, AIMessage):
+        from_text = _parse_schema_from_ai_message(schema, raw)
+        if from_text is not None:
+            return from_text
+
+    if result.get("parsing_error") is not None:
+        return _invoke_plain_json_fallback(llm, schema, messages)
+
+    return _invoke_plain_json_fallback(llm, schema, messages)
 
 
 def _invoke_dashscope_structured(
@@ -173,24 +230,7 @@ def _invoke_dashscope_structured(
     except ValidationError:
         return _invoke_plain_json_fallback(llm, schema, messages)
 
-    parsed = result.get("parsed")
-    if parsed is not None:
-        if isinstance(parsed, schema):
-            return parsed
-        return schema.model_validate(parsed)
-
-    raw = result.get("raw")
-    if isinstance(raw, AIMessage):
-        from_text = _parse_schema_from_ai_message(schema, raw)
-        if from_text is not None:
-            return from_text
-
-    parsing_error = result.get("parsing_error")
-    if parsing_error is not None:
-        from_fallback = _invoke_plain_json_fallback(llm, schema, messages)
-        return from_fallback
-
-    return _invoke_plain_json_fallback(llm, schema, messages)
+    return _resolve_structured_invoke_result(llm, schema, messages, result)
 
 
 def _invoke_deepseek_structured(
@@ -211,22 +251,7 @@ def _invoke_deepseek_structured(
     except ValidationError:
         return _invoke_plain_json_fallback(llm, schema, messages)
 
-    parsed = result.get("parsed")
-    if parsed is not None:
-        if isinstance(parsed, schema):
-            return parsed
-        return schema.model_validate(parsed)
-
-    raw = result.get("raw")
-    if isinstance(raw, AIMessage):
-        from_text = _parse_schema_from_ai_message(schema, raw)
-        if from_text is not None:
-            return from_text
-
-    if result.get("parsing_error") is not None:
-        return _invoke_plain_json_fallback(llm, schema, messages)
-
-    return _invoke_plain_json_fallback(llm, schema, messages)
+    return _resolve_structured_invoke_result(llm, schema, messages, result)
 
 
 def invoke_structured(

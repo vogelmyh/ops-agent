@@ -149,3 +149,54 @@ def test_run_scenarios_cli_mock_llm_kb01():
     assert payload[0]["passed"] is True
     assert payload[0]["llm"] == "mock"
     assert payload[0]["steps"][0]["rag"]["symptom_query"]
+
+
+def test_check_dec_01_passed_novel_hitl_path():
+    from types import SimpleNamespace
+
+    from scripts.run_scenarios import check_dec_01_passed
+
+    resp = SimpleNamespace(
+        decide_outcome="out_of_scope",
+        execution_results=[],
+        novel_scenario=True,
+        status="awaiting_runbook_notes",
+    )
+    meta = {"pending_node": "request_runbook_notes", "pending_interrupt": True}
+    sim_before = {"phase": "BROKEN"}
+    sim_after = {"recovered": False}
+    assert check_dec_01_passed(resp, meta, sim_before=sim_before, sim_after=sim_after)
+
+
+def test_check_dec_01_passed_completed_when_not_novel():
+    from types import SimpleNamespace
+
+    from scripts.run_scenarios import check_dec_01_passed
+
+    resp = SimpleNamespace(
+        decide_outcome="out_of_scope",
+        execution_results=[],
+        novel_scenario=False,
+        status="completed",
+    )
+    meta = {"pending_interrupt": False, "pending_node": None}
+    assert check_dec_01_passed(
+        resp, meta, sim_before={"phase": "BROKEN"}, sim_after={"recovered": False},
+    )
+
+
+def test_check_dec_01_fails_when_novel_but_completed_status():
+    from types import SimpleNamespace
+
+    from scripts.run_scenarios import check_dec_01_passed
+
+    resp = SimpleNamespace(
+        decide_outcome="out_of_scope",
+        execution_results=[],
+        novel_scenario=True,
+        status="completed",
+    )
+    meta = {"pending_node": None, "pending_interrupt": False}
+    assert not check_dec_01_passed(
+        resp, meta, sim_before={"phase": "BROKEN"}, sim_after={"recovered": False},
+    )
