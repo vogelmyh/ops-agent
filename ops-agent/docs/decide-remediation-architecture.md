@@ -139,6 +139,7 @@ BACKEND_MODE=real BACKEND_BASE_URL=http://127.0.0.1:8081 \
 |------|------|
 | **改 run_scenarios 场景断言** | `scripts/run_scenarios.py` + `tests/test_run_scenarios.py` + [`test-scenario-trajectories.md`](test-scenario-trajectories.md) §变更记录 |
 | **改 DecideAssessment schema / coerce** | `decide_spec.py` → `coerce_decide_assessment()` + `tests/test_decide_spec.py`；`invoke_structured` 行为见 [`api-runtime-architecture.md`](api-runtime-architecture.md) |
+| **改 RemediationEvalAssessment schema / coerce** | `eval_schemas.py` → `coerce_remediation_eval_assessment()` + `tests/test_eval_schemas.py` |
 | **新写工具** | `write_tools.py` + `TOOL_RISK` + mock 后端 / simulator `apply_ops` + runbook 步骤 |
 | **改 decide 逻辑** | `decide.py` + `decide_spec.py` mock 矩阵 + `test_dec.py` |
 | **改审批规则** | `policy.compute_needs_approval` + `test_hitl.py` |
@@ -167,6 +168,7 @@ LLM_MODE=real .venv/bin/python eval/run_eval.py   # 可选，需 API key
 
 ## 10. 版本注记
 
+- **2026-06-30**：`RemediationEvalAssessment` 增加 `coerce_remediation_eval_assessment()`（缺省 `reasoning`、别名 `resolved`/`residual_symptoms` 归一化），修复 DeepSeek `json_mode` 下 `eval_remediation` 节点字段漂移硬崩。
 - **2026-06-30**：`DecideAssessment` 增加 `coerce_decide_assessment()`（`classification`→`outcome`、列表字段与缺省 `reasoning` 归一化），修复 DeepSeek `json_mode` 下 decide 节点字段漂移硬崩。DEC-01 场景断言见 [`test-scenario-trajectories.md`](test-scenario-trajectories.md) §变更记录。
 - **2026-06-30**：`invoke_structured()` 对 DeepSeek chat 使用 `json_mode` + thinking 关闭；`decide` / `eval_remediation` / `eval_diagnosis` 经此入口自动受益。详见 [`api-runtime-architecture.md`](api-runtime-architecture.md) §5.1、§10。
 - **2026-06-30**：`decide.py`、`eval_remediation.py` 的 structured output 调用改为 `invoke_structured()`，与 `app/llm/provider.py` 的 DashScope JSON 提示兼容层对齐。

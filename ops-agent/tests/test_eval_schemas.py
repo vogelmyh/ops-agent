@@ -138,3 +138,38 @@ def test_bare_rubric_array_wrapped():
     output = RunbookEvalLLMOutput.model_validate(bare)
     assert len(output.rubrics) == 1
     assert output.rubrics[0].service_scope_match == 0.25
+
+
+def test_coerce_remediation_eval_missing_reasoning_defaults_empty():
+    from app.graph.eval_schemas import RemediationEvalAssessment, coerce_remediation_eval_assessment
+
+    model = RemediationEvalAssessment.model_validate(coerce_remediation_eval_assessment({
+        "resolved": False,
+        "residual_symptoms": ["QPS still low"],
+    }))
+    assert model.reasoning == ""
+    assert model.resolved is False
+    assert model.residual_symptoms == ["QPS still low"]
+
+
+def test_coerce_remediation_eval_reasoning_from_explanation_alias():
+    from app.graph.eval_schemas import RemediationEvalAssessment, coerce_remediation_eval_assessment
+
+    model = RemediationEvalAssessment.model_validate(coerce_remediation_eval_assessment({
+        "is_resolved": True,
+        "explanation": "Metrics recovered after config patch.",
+    }))
+    assert model.resolved is True
+    assert model.reasoning == "Metrics recovered after config patch."
+    assert model.residual_symptoms == []
+
+
+def test_coerce_remediation_eval_residual_symptoms_from_string():
+    from app.graph.eval_schemas import RemediationEvalAssessment, coerce_remediation_eval_assessment
+
+    model = RemediationEvalAssessment.model_validate(coerce_remediation_eval_assessment({
+        "resolved": "false",
+        "symptoms": "admin_api_qps still depressed",
+    }))
+    assert model.resolved is False
+    assert model.residual_symptoms == ["admin_api_qps still depressed"]
