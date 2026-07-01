@@ -403,16 +403,17 @@ cd ops-backend-simulator && python3 -m pytest tests/test_chaos_exhaust.py tests/
 
 ### 2026-06-30 · real LLM 表征：DEC-02 / LOOP-02 走 `uncertain` 归因（调查备忘）
 
-coerce 修复后场景可跑通，但 real LLM 仍可能 **FAIL**（非 schema 问题）：
+coerce 修复后场景可跑通；**同配置多次 real LLM 结果不稳定**（诊断脚本 `data/diag_dec02_loop02_out.txt` 一次 PASS、早前一次 FAIL）。
 
-| 场景 | 现象 | 主要归因 |
-|------|------|----------|
-| DEC-02 | 第 2 轮 decide → `uncertain`（期望 `out_of_scope`） | `DECIDE_RETRY_GUIDANCE` 明示「或 classify uncertain」与 OOS 冲突；morph 后 diagnose 根因若未收敛到逻辑 Bug，assessment 倾向 uncertain |
-| LOOP-02 | 仅 1 轮 `patch_config` 后 `uncertain` | 第 2 轮应 `toggle_feature_flag`；可能 assessment=actionable 但 tool_select 无 tool_calls → `_downgrade_uncertain`；或 runbook 未命中 `chaos-morph` |
+| 因素 | 说明 |
+|------|------|
+| **RAG 选篇偏差** | 告警文案偏 QPS/限流时，`runbook_eval` 常选 `ecomm-manager-rate-limit`（relevance/coverage 双 1.0），而非专篇 `ecomm-manager-chaos-oos` / `chaos-morph`；morph 后证据已变（NPE / `order_amount_error_rate`）但 runbook 上下文仍限流篇 |
+| **eval_diagnosis vs decide 分裂** | morph 后 `diagnosis_eval_reasoning` 常写「超出 runbook / ambiguous / human review」，但 decide 独立 assessment；成功跑时仍可 `out_of_scope` 或第 2 轮 `toggle_feature_flag` |
+| **`DECIDE_RETRY_GUIDANCE`** | `remediation_context.py` 明示「或 classify **uncertain**」；与 chaos-oos 阶段 B 应有的 **`out_of_scope`** 竞争，FAIL 跑时常见第 2 轮 `uncertain` |
+| **tool_select 降级** | `decide_node`：assessment=`actionable` 但 LLM 未产出 `tool_calls` → `_downgrade_uncertain`（LOOP-02 FAIL 路径之一） |
+| **mock 对照** | `mock_row_for_state` + diagnose mock 在 `remediation_attempt≥1` 强制切 phase；real LLM 无此捷径 |
 
-**mock 对照**：`decide_spec.mock_row_for_state` + `diagnose` mock 矩阵在 `remediation_attempt≥1` 时强制 phase 切换，real LLM 无此捷径。
-
-**后续改进方向**（未实现）：收紧 `DECIDE_RETRY_GUIDANCE`（morph 后优先 OOS / 换工具）；runbook 检索强化 chaos 专篇；或 decide prompt 补充 morph 二阶段示例。
+**后续改进方向**（未实现）：混沌告警模板 + 专篇 runbook 检索加权；收紧 retry guidance（morph 后优先 OOS / 换工具，不把 uncertain 与 OOS 并列）；可选将 `diagnosis_eval_reasoning` 中「超出 runbook」信号注入 decide prompt。
 
 ### 2026-06-30 · run_scenarios mock scenario 与 decide 矩阵对齐
 
