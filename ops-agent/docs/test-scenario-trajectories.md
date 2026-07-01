@@ -208,10 +208,18 @@ stateDiagram-v2
 
 **输入**：simulator `ecomm-manager-discount-bug`。
 
-| Step | 节点链 | 关键 state / response |
-|------|--------|------------------------|
-| 1 | … → decide | `out_of_scope`，无 tool_calls |
-| 2 | summarize | `completed`，无 `execution_results` |
+**核心判定**（`run_scenarios.check_dec_01_passed`）：`decide_outcome=out_of_scope`、无 `execution_results`、simulator 保持 `BROKEN` 且未 `recovered`。
+
+**终止状态**（由 `novel_scenario` 分支决定，见 `builder._route_after_summarize`）：
+
+| 条件 | Step | 节点链 | 关键 response |
+|------|------|--------|----------------|
+| `novel_scenario=true`（real LLM 常见：KB 无折扣逻辑 runbook） | 1 | … → decide → summarize | `out_of_scope`，无 tool_calls |
+| | 2 | summarize → `request_runbook_notes` | `status=awaiting_runbook_notes`，`pending_node=request_runbook_notes` |
+| `novel_scenario=false`（mock 或检索命中 runbook） | 1 | … → decide → summarize | `out_of_scope` |
+| | 2 | summarize → END | `status=completed` |
+
+**不应出现**：`actionable`、`execution_results` 非空、simulator `recovered=true`。
 
 ---
 
@@ -387,6 +395,11 @@ cd ops-backend-simulator && python3 -m pytest tests/test_chaos_exhaust.py tests/
 ---
 
 ## 变更记录
+
+### 2026-06-30 · DEC-01 场景断言与 novel 写回链对齐
+
+- `run_scenarios.check_dec_01_passed`：`novel_scenario=true` 时期望 `awaiting_runbook_notes`（summarize 后进入 KB 写回 HITL），不再错误要求 `status=completed`
+- real LLM + discount-bug 典型路径：OOS 决策正确 + 停在 `request_runbook_notes` 即通过
 
 ### 2026-06-30 · RAG eval 重构
 

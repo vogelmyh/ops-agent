@@ -231,6 +231,7 @@ CHECKPOINTER=memory .venv/bin/python scripts/run_scenarios.py --scenarios KB-01 
 
 ## 9. 版本注记
 
+- **2026-06-30**：结构化输出 fallback 收紧 + `DecideAssessment` coerce + DEC-01 场景断言对齐 novel 写回链；详见 [`api-runtime-architecture.md`](api-runtime-architecture.md) §10、[`decide-remediation-architecture.md`](decide-remediation-architecture.md) §10、[`test-scenario-trajectories.md`](test-scenario-trajectories.md) §变更记录。
 - **2026-06-30**：推荐 **DeepSeek V4 chat + Qwen embedding**；`invoke_structured()` 供应商分流见 [`api-runtime-architecture.md`](api-runtime-architecture.md) §10、[`rag-architecture-and-tests.md`](rag-architecture-and-tests.md) §9。
 - 2026-06-30：文档规范 — 各组件 §「改动同步指南」要求每次修改后追加版本注记/变更记录；RAG eval 重构摘要见 [`rag-architecture-and-tests.md`](rag-architecture-and-tests.md) §9。
 - 2026-06：文档体系初版（总览 + 5 组件文档 + 已有 RAG / 场景目录）。

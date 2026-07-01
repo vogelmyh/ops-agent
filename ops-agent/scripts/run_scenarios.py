@@ -260,6 +260,37 @@ def run_kb_02() -> dict[str, Any]:
     return _result("KB-02", "novel actionable then runbook writeback", passed=passed, steps=steps, t0=t0, backend="mock")
 
 
+def check_dec_01_passed(
+    resp,
+    meta: dict[str, Any],
+    *,
+    sim_before: dict[str, Any],
+    sim_after: dict[str, Any],
+) -> bool:
+    """DEC-01 pass criteria aligned with graph routing (builder._route_after_summarize).
+
+    Core: discount-bug → decide out_of_scope, no writes, simulator stays BROKEN.
+    Terminal status depends on novel_scenario:
+    - novel=true  → summarize then request_runbook_notes (awaiting_runbook_notes)
+    - novel=false → summarize then END (completed)
+    """
+    core = (
+        resp.decide_outcome == "out_of_scope"
+        and not resp.execution_results
+        and sim_before.get("phase") == "BROKEN"
+        and sim_after.get("recovered") is False
+    )
+    if not core:
+        return False
+    if resp.novel_scenario:
+        return (
+            resp.status == "awaiting_runbook_notes"
+            and meta.get("pending_node") == "request_runbook_notes"
+            and meta.get("pending_interrupt") is True
+        )
+    return resp.status == "completed"
+
+
 def run_dec_01() -> dict[str, Any]:
     """DEC-01: static out_of_scope (discount-bug)."""
     _start_simulator()
@@ -281,12 +312,8 @@ def run_dec_01() -> dict[str, Any]:
     sim_after = client.get("/admin/state").json()
     steps = [_step("1_start_diagnosis", resp, meta, thread_id, {"simulator_after": sim_after})]
 
-    passed = bool(
-        resp.decide_outcome == "out_of_scope"
-        and not resp.execution_results
-        and resp.status == "completed"
-        and sim_before.get("phase") == "BROKEN"
-        and sim_after.get("recovered") is False
+    passed = check_dec_01_passed(
+        resp, meta, sim_before=sim_before, sim_after=sim_after,
     )
     return _result("DEC-01", "static out_of_scope", passed=passed, steps=steps, t0=t0, backend="simulator")
 

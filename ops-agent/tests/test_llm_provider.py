@@ -2,17 +2,20 @@
 
 from unittest.mock import MagicMock, patch
 
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from app.config import Settings
+from app.graph.decide_spec import DecideAssessment, DecideOutcome
 from app.graph.eval_schemas import RunbookEvalLLMOutput
 from app.llm.provider import (
+    _invoke_plain_json_fallback,
     _is_deepseek_chat,
     _needs_dashscope_json_hint,
     _parse_schema_from_ai_text,
     ensure_json_in_messages,
     get_chat_model,
     invoke_structured,
+    strip_json_markdown,
 )
 
 
@@ -156,3 +159,37 @@ def test_parse_schema_from_ai_text_bare_rubric_array():
     output = _parse_schema_from_ai_text(RunbookEvalLLMOutput, text)
     assert len(output.rubrics) == 1
     assert output.rubrics[0].doc_id == "ecomm-cache-redis-memory-full"
+
+
+def test_strip_json_markdown_removes_fence():
+    fenced = """```json
+{"outcome": "uncertain", "reasoning": "need logs"}
+```"""
+    assert strip_json_markdown(fenced).startswith("{")
+
+
+def test_parse_schema_from_ai_text_decide_assessment_with_classification():
+    text = """{
+      "classification": "out_of_scope",
+      "recommendations": "Escalate to dev team"
+    }"""
+    output = _parse_schema_from_ai_text(DecideAssessment, text)
+    assert output.outcome == DecideOutcome.OUT_OF_SCOPE
+    assert output.recommendations == ["Escalate to dev team"]
+    assert output.reasoning == ""
+
+
+def test_plain_json_fallback_binds_json_object():
+    llm = MagicMock()
+    bound = MagicMock()
+    llm.bind.return_value = bound
+    bound.invoke.return_value = AIMessage(content=(
+        '{"classification": "uncertain", "reasoning": "ambiguous", "recommendations": []}'
+    ))
+    result = _invoke_plain_json_fallback(
+        llm,
+        DecideAssessment,
+        [HumanMessage(content="Assess incident.")],
+    )
+    llm.bind.assert_called_once_with(response_format={"type": "json_object"})
+    assert result.outcome == DecideOutcome.UNCERTAIN

@@ -5,7 +5,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.adapters.mock_data import get_mock_scenario
 
@@ -14,6 +14,67 @@ class DecideOutcome(str, Enum):
     ACTIONABLE = "actionable"
     UNCERTAIN = "uncertain"
     OUT_OF_SCOPE = "out_of_scope"
+
+
+_OUTCOME_ALIASES = ("classification", "decision", "outcome_type", "handleability")
+_OUTCOME_VALUE_MAP = {
+    "out-of-scope": "out_of_scope",
+    "out of scope": "out_of_scope",
+    "outofscope": "out_of_scope",
+    "action-able": "actionable",
+    "not_actionable": "uncertain",
+}
+
+
+def _as_str_list(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        text = value.strip()
+        return [text] if text else []
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    return [str(value).strip()] if str(value).strip() else []
+
+
+def _normalize_outcome_value(value: Any) -> Any:
+    if not isinstance(value, str):
+        return value
+    key = value.strip().lower().replace("-", "_").replace(" ", "_")
+    return _OUTCOME_VALUE_MAP.get(key, key)
+
+
+def coerce_decide_assessment(data: Any) -> Any:
+    """Normalize LLM JSON drift into flat DecideAssessment fields."""
+    if not isinstance(data, dict):
+        return data
+
+    out = dict(data)
+    if "outcome" not in out:
+        for alias in _OUTCOME_ALIASES:
+            if alias in out:
+                out["outcome"] = out.pop(alias)
+                break
+    if "outcome" in out:
+        out["outcome"] = _normalize_outcome_value(out["outcome"])
+
+    for key in ("recommendations", "knowledge_gaps"):
+        if key in out:
+            out[key] = _as_str_list(out[key])
+
+    if not out.get("reasoning"):
+        for alias in ("explanation", "summary", "rationale", "reason"):
+            if alias in out and out[alias]:
+                out["reasoning"] = str(out[alias])
+                break
+        else:
+            out.setdefault("reasoning", "")
+
+    hint = out.get("escalation_hint")
+    if isinstance(hint, str) and hint.strip().lower() in {"", "null", "none"}:
+        out["escalation_hint"] = None
+
+    return out
 
 
 class DecideAssessment(BaseModel):
@@ -33,6 +94,11 @@ class DecideAssessment(BaseModel):
         default=None,
         description="Suggested handoff team for out_of_scope, e.g. dev team / DBA / hardware ops",
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce_llm_assessment_shape(cls, data: Any) -> Any:
+        return coerce_decide_assessment(data)
 
 
 ASSESSMENT_SYSTEM_PROMPT = """\
