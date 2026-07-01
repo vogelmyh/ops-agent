@@ -8,18 +8,18 @@
 
 ## 1. RAG 在 Agent 中的职责
 
-RAG 挂在 LangGraph 节点 **`eval_runbook`**，职责是 **runbook coverage judgment**（知识库能否指导本次处置），不是通用问答检索。
+RAG 挂在 LangGraph 节点 **`retrieve_runbooks`**，职责是 **检索 top-K runbook 候选**（collect + hybrid search），**不**做 coverage 裁决。
+
+覆盖裁决（novel / selected runbook）在 **`diagnose` Step1**（沿用 runbook rubric + `finalize_runbook_eval`）。
 
 输出驱动后续图路由：
 
 | 输出 | 含义 | 下游影响 |
 |------|------|----------|
-| `novel_scenario=true` | KB 无可靠覆盖 | summarize 后可能触发 runbook HITL 写回 |
-| `novel_scenario=false` + `relevant_runbook` | 选中 runbook 全文 | `diagnose` / `decide` 引用 |
-| `novel_reason` | 裁决原因码 | 观测、调试、golden 归因 |
-| `selected_runbook_id` | 选中 runbook 文件名 stem | 磁盘加载、观测 |
+| `runbook_candidates` | top-3 候选 | diagnose Step1 输入 |
+| `symptom_query` | 检索 query | 观测 |
 
-`novel_scenario` 与 `decide_outcome=uncertain` **独立**：前者是 KB 覆盖；后者是处置能力/证据不足。
+`novel_scenario` 由 diagnose Step1 写入；`decide_outcome=skipped_low_confidence` 由 diagnose 置信度门槛写入。
 
 ---
 
@@ -444,6 +444,12 @@ CHECKPOINTER=memory EMBEDDINGS_PROVIDER=local-hash \
 ---
 
 ## 9. 版本注记
+
+### 2026-07-01 · 检索与覆盖裁决分离
+
+- 图节点 `eval_runbook` 拆为 `retrieve_runbooks`（纯检索）+ `diagnose` Step1（rubric + finalize）。
+- `run_runbook_eval()` 保留于 `eval_runbook.py` 供 golden harness（retrieve + Step1）。
+- Coverage golden 语义不变，入口改为 diagnose Step1。
 
 ### 2026-06-30 · RAG eval 重构（LLM rubrics + finalize 选篇）
 

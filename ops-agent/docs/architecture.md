@@ -66,16 +66,16 @@ RAG 语料运维补充：[`rag-eval-corpus.md`](rag-eval-corpus.md)。
 ```text
 START
   → triage                    # 解析 incident，定 service
-  → eval_runbook              # RAG：KB 覆盖裁决 → 见 RAG 文档
-  → diagnose                  # 根因 + evidence
-  → eval_diagnosis            # 诊断置信度 / needs_human_review
-  → decide                    # actionable | uncertain | out_of_scope
+  → retrieve_runbooks         # 检索 top-K runbook
+  → diagnose                  # Step1 rubric + RCA + 置信度
+       ├─ confidence 不足 → summarize
+       └─ else → decide
        ├─ uncertain / OOS → summarize → [novel? → KB HITL] → END
        ├─ actionable + needs_approval → approve → write_tools
        └─ actionable → write_tools
   → eval_remediation          # 写后验收
        ├─ resolved → summarize → …
-       └─ not resolved & attempt < max → eval_runbook（react 环）
+       └─ not resolved & attempt < max → retrieve_runbooks（react 环）
 ```
 
 默认 `max_remediation_attempts=3`（`app/config.py`）。

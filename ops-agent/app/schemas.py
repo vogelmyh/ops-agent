@@ -181,6 +181,9 @@ class DiagnoseResponse(BaseModel):
     selected_runbook_id: str | None = None
     coverage_confidence: float | None = None
     runbook_eval_reasoning: str | None = None
+    diagnosis_confidence: float | None = None
+    confidence_sufficient: bool | None = None
+    needs_human_review: bool | None = None
 
 
 class EscalationRequest(BaseModel):

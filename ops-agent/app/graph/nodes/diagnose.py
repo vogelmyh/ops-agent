@@ -1,159 +1,31 @@
+"""Diagnose node — Step1 runbook rubric, Step2 RCA, Step3 confidence rubric, code gates."""
+
+from __future__ import annotations
+
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from app.config import get_settings
+from app.graph.diagnose_runbook_step import (
+    run_diagnose_step1,
+    runbook_support_score,
+)
+from app.graph.diagnose_spec import (
+    CONFIDENCE_SYSTEM_PROMPT,
+    RCA_SYSTEM_PROMPT,
+    DiagnosisConfidenceRubric,
+    RootCauseDraft,
+    compute_confidence_score,
+    mock_confidence_rubric,
+)
+from app.graph.eval_schemas import RunbookCandidate
 from app.graph.remediation_context import format_remediation_context
+from app.graph.runbook_excerpt import excerpt_runbook
+from app.graph.runbook_eval_policy import thresholds_from_settings
 from app.graph.state import AgentState
-from app.llm.provider import get_chat_model
+from app.llm.provider import get_chat_model, invoke_structured
 from app.schemas import Evidence, StreamStatus
 
-
-def _build_evidence(service: str, data: dict) -> list[Evidence]:
-    ev: list[Evidence] = []
-
-    app_logs = data.get("app_logs")
-    if app_logs:
-        entries = app_logs.get("entries", [])
-        if entries:
-            ev.append(Evidence(
-                source="app_logs",
-                snippet=entries[0]["message"],
-                ref=f"query_app_logs:{service}",
-            ))
-
-    k8s_events = data.get("k8s_events")
-    if k8s_events:
-        events = k8s_events.get("events", [])
-        if events:
-            first = events[0]
-            ev.append(Evidence(
-                source="k8s_events",
-                snippet=f"[{first['reason']}] {first['message']}",
-                ref=f"query_k8s_events:{service}",
-            ))
-
-    status = data.get("status")
-    if status:
-        ev.append(Evidence(
-            source="status",
-            snippet=(
-                f"{status['replicas_ready']}/{status['replicas_desired']} ready, "
-                f"healthy={status['healthy']}"
-            ),
-            ref=f"get_service_status:{service}",
-        ))
-
-    metrics = data.get("metrics")
-    if metrics:
-        points = metrics.get("points", [])
-        if points:
-            last = points[-1]
-            ev.append(Evidence(
-                source="metrics",
-                snippet=f"{metrics['metric']}={last['value']} {metrics['unit']}",
-                ref=f"get_metrics:{service}",
-            ))
-
-    streams = data.get("streams")
-    if streams:
-        paused = [s for s in streams if s.get("status") == StreamStatus.PAUSED.value]
-        if paused:
-            ev.append(Evidence(
-                source="streams",
-                snippet=(
-                    f"stream {paused[0]['project']}/{paused[0]['stream']} "
-                    f"status={paused[0]['status']}"
-                ),
-                ref=f"get_stream_states:{service}",
-            ))
-
-    op = data.get("operation")
-    if op:
-        ev.append(Evidence(
-            source="operation",
-            snippet=op["message"],
-            ref=f"operation:{op['operation_id']}",
-        ))
-
-    runbooks = data.get("runbooks", [])
-    if runbooks:
-        ev.append(Evidence(
-            source="runbook",
-            snippet=runbooks[0]["content"][:200],
-            ref=runbooks[0]["doc_id"],
-        ))
-
-    return ev
-
-
-def _build_context(service: str, description: str, data: dict, relevant_runbook: str | None) -> str:
-    lines = [
-        "## Incident",
-        f"Service: {service}",
-        f"Description: {description}",
-    ]
-
-    app_logs = data.get("app_logs")
-    if app_logs:
-        lines.append("\n## Application Logs (log platform — business/runtime layer)")
-        for e in app_logs.get("entries", [])[:5]:
-            lines.append(f"  [{e['level']}] {e['message']}")
-
-    k8s_events = data.get("k8s_events")
-    if k8s_events:
-        lines.append("\n## K8s Infrastructure Events (K8s API — kubelet/scheduler/controller)")
-        for ev in k8s_events.get("events", [])[:4]:
-            lines.append(
-                f"  [{ev['type']}/{ev['reason']}] {ev['involved_object']}: {ev['message']}"
-            )
-
-    status = data.get("status")
-    if status:
-        lines.append("\n## Service Status (K8s resource snapshot)")
-        lines.append(
-            f"  healthy={status['healthy']}, "
-            f"{status['replicas_ready']}/{status['replicas_desired']} ready"
-        )
-        if status.get("message"):
-            lines.append(f"  note: {status['message']}")
-        for pod in status.get("pods", [])[:3]:
-            lines.append(
-                f"  pod {pod['name']}: phase={pod['phase']}, "
-                f"restarts={pod['restarts']}, image={pod['image']}"
-            )
-
-    metrics = data.get("metrics")
-    if metrics:
-        lines.append(f"\n## Key Metrics ({metrics['metric']}, unit={metrics['unit']})")
-        for p in metrics.get("points", []):
-            lines.append(f"  {p['timestamp']} → {p['value']}")
-
-    streams = data.get("streams")
-    if streams:
-        lines.append("\n## Event Streams")
-        for s in streams:
-            lines.append(
-                f"  {s['project']}/{s['stream']}: status={s['status']}, "
-                f"last_ingest={s.get('last_ingest_at')}"
-            )
-
-    op = data.get("operation")
-    if op:
-        lines.append("\n## Latest Platform Operation (audit record)")
-        lines.append(f"  action={op['action']}, status={op['status']}: {op['message']}")
-
-    if relevant_runbook:
-        lines.append("\n## Runbook Reference (LLM-evaluated as relevant)")
-        lines.append(relevant_runbook[:1200])
-    else:
-        runbooks = data.get("runbooks", [])
-        if runbooks:
-            lines.append("\n## Runbook Reference (retrieved, not validated)")
-            for rb in runbooks[:2]:
-                score_note = f" [score={rb.get('score', '?')}]" if rb.get("score") else ""
-                lines.append(f"  [{rb.get('title', '')}]{score_note}\n  {rb['content'][:400]}")
-
-    return "\n".join(lines)
-
+SKIPPED_LOW_CONFIDENCE = "skipped_low_confidence"
 
 _MOCK_ROOT_CAUSES: dict[tuple[str, str], str] = {
     ("ecomm-manager", "rate-limit"): (
@@ -201,56 +73,280 @@ _MOCK_ROOT_CAUSES: dict[tuple[str, str], str] = {
 }
 
 
+def _candidates_from_state(state: AgentState) -> list[RunbookCandidate]:
+    raw = state.get("runbook_candidates") or []
+    return [RunbookCandidate.model_validate(item) for item in raw]
+
+
+def _build_telemetry_context(service: str, description: str, data: dict) -> str:
+    lines = [
+        "## Incident",
+        f"Service: {service}",
+        f"Description: {description}",
+    ]
+
+    app_logs = data.get("app_logs")
+    if app_logs:
+        lines.append("\n## Application Logs")
+        for entry in app_logs.get("entries", [])[:5]:
+            lines.append(f"  [{entry['level']}] {entry['message']}")
+
+    k8s_events = data.get("k8s_events")
+    if k8s_events:
+        lines.append("\n## K8s Events")
+        for ev in k8s_events.get("events", [])[:4]:
+            lines.append(
+                f"  [{ev['type']}/{ev['reason']}] {ev['involved_object']}: {ev['message']}"
+            )
+
+    status = data.get("status")
+    if status:
+        lines.append("\n## Service Status")
+        lines.append(
+            f"  healthy={status['healthy']}, "
+            f"{status['replicas_ready']}/{status['replicas_desired']} ready"
+        )
+        if status.get("message"):
+            lines.append(f"  note: {status['message']}")
+
+    metrics = data.get("metrics")
+    if metrics:
+        lines.append(f"\n## Metrics ({metrics['metric']})")
+        for point in metrics.get("points", []):
+            lines.append(f"  {point['timestamp']} → {point['value']} {metrics.get('unit', '')}")
+
+    streams = data.get("streams")
+    if streams:
+        lines.append("\n## Event Streams")
+        for stream in streams:
+            lines.append(f"  {stream['project']}/{stream['stream']}: status={stream['status']}")
+
+    op = data.get("operation")
+    if op:
+        lines.append("\n## Latest Operation")
+        lines.append(f"  {op['action']}: {op['message']}")
+
+    return "\n".join(lines)
+
+
+def _citations_to_evidence(citations: list) -> list[Evidence]:
+    return [
+        Evidence(source=c.source, snippet=c.snippet, ref=c.ref)
+        for c in citations
+    ]
+
+
+def _mock_root_cause(state: AgentState, service: str) -> str:
+    from app.adapters.mock_data import get_mock_scenario
+
+    key = (service, get_mock_scenario(service))
+    scenario = get_mock_scenario(service)
+    if key in (
+        ("ecomm-manager", "chaos-morph"),
+        ("ecomm-manager", "chaos-exhaust"),
+        ("ecomm-manager", "chaos-oos"),
+    ):
+        if scenario == "chaos-oos" and state.get("remediation_attempt", 0) >= 1:
+            phase_key = ("ecomm-manager", "discount-bug")
+        elif state.get("remediation_attempt", 0) >= 1:
+            phase_key = ("ecomm-manager", "feature-flag")
+        else:
+            phase_key = ("ecomm-manager", "rate-limit")
+        return _MOCK_ROOT_CAUSES.get(phase_key, _MOCK_ROOT_CAUSES[key])
+    return _MOCK_ROOT_CAUSES.get(key, f"Unknown root cause for service {service}")
+
+
+def _build_evidence_from_data(service: str, data: dict, selected_doc_id: str | None) -> list[Evidence]:
+    ev: list[Evidence] = []
+
+    app_logs = data.get("app_logs")
+    if app_logs and app_logs.get("entries"):
+        ev.append(Evidence(
+            source="app_logs",
+            snippet=app_logs["entries"][0]["message"],
+            ref=f"query_app_logs:{service}",
+        ))
+
+    k8s_events = data.get("k8s_events")
+    if k8s_events and k8s_events.get("events"):
+        first = k8s_events["events"][0]
+        ev.append(Evidence(
+            source="k8s_events",
+            snippet=f"[{first['reason']}] {first['message']}",
+            ref=f"query_k8s_events:{service}",
+        ))
+
+    status = data.get("status")
+    if status:
+        ev.append(Evidence(
+            source="status",
+            snippet=(
+                f"{status['replicas_ready']}/{status['replicas_desired']} ready, "
+                f"healthy={status['healthy']}"
+            ),
+            ref=f"get_service_status:{service}",
+        ))
+
+    metrics = data.get("metrics")
+    if metrics and metrics.get("points"):
+        last = metrics["points"][-1]
+        ev.append(Evidence(
+            source="metrics",
+            snippet=f"{metrics['metric']}={last['value']} {metrics['unit']}",
+            ref=f"get_metrics:{service}",
+        ))
+
+    streams = data.get("streams")
+    if streams:
+        paused = [s for s in streams if s.get("status") == StreamStatus.PAUSED.value]
+        if paused:
+            ev.append(Evidence(
+                source="streams",
+                snippet=(
+                    f"stream {paused[0]['project']}/{paused[0]['stream']} "
+                    f"status={paused[0]['status']}"
+                ),
+                ref=f"get_stream_states:{service}",
+            ))
+
+    op = data.get("operation")
+    if op:
+        ev.append(Evidence(
+            source="operation",
+            snippet=op["message"],
+            ref=f"operation:{op['operation_id']}",
+        ))
+
+    if selected_doc_id:
+        ev.append(Evidence(
+            source="runbook",
+            snippet=f"Selected runbook {selected_doc_id}",
+            ref=selected_doc_id,
+        ))
+
+    return ev
+
+
+def _run_step2_rca(
+    state: AgentState,
+    *,
+    service: str,
+    incident_description: str,
+    data: dict,
+    novel_scenario: bool,
+    relevant_runbook: str | None,
+    settings,
+) -> tuple[str, list[Evidence]]:
+    if settings.llm_is_mock:
+        root = _mock_root_cause(state, service)
+        evidence = _build_evidence_from_data(
+            service,
+            data,
+            state.get("selected_runbook_id"),
+        )
+        return root, evidence
+
+    context = _build_telemetry_context(service, incident_description, data)
+    if not novel_scenario and relevant_runbook:
+        context = (
+            f"{context}\n\n## Validated Runbook Excerpt\n"
+            f"{excerpt_runbook(relevant_runbook)}"
+        )
+
+    prior_root = state.get("root_cause", "") if state.get("remediation_attempt", 0) >= 1 else None
+    remediation_block = format_remediation_context(state, prior_root_cause=prior_root or None)
+    if remediation_block:
+        context = f"{context}\n\n{remediation_block}"
+
+    draft = invoke_structured(
+        get_chat_model(settings=settings),
+        RootCauseDraft,
+        [
+            SystemMessage(content=RCA_SYSTEM_PROMPT),
+            HumanMessage(content=context),
+        ],
+        settings=settings,
+    )
+    return draft.root_cause.strip(), _citations_to_evidence(draft.evidence)
+
+
+def _run_step3_confidence(
+    *,
+    service: str,
+    root_cause: str,
+    evidence: list[Evidence],
+    settings,
+) -> DiagnosisConfidenceRubric:
+    if settings.llm_is_mock:
+        return mock_confidence_rubric(service)
+
+    evidence_text = "\n".join(f"- [{e.source}] {e.snippet}" for e in evidence) or "(none)"
+    return invoke_structured(
+        get_chat_model(settings=settings),
+        DiagnosisConfidenceRubric,
+        [
+            SystemMessage(content=CONFIDENCE_SYSTEM_PROMPT),
+            HumanMessage(content=(
+                f"Service: {service}\n"
+                f"Root cause:\n{root_cause}\n\n"
+                f"Evidence:\n{evidence_text}"
+            )),
+        ],
+        settings=settings,
+    )
+
+
 def diagnose_node(state: AgentState) -> dict:
     service = state["service"]
     incident = state["incident"]
     settings = get_settings()
     data = dict(state.get("collected_data") or {})
-    relevant_runbook = state.get("relevant_runbook")
+    candidates = _candidates_from_state(state)
 
-    evidence = _build_evidence(service, data)
+    step1 = run_diagnose_step1(
+        service,
+        incident.description,
+        collected_data=data,
+        candidates=candidates,
+        settings=settings,
+    )
+    candidates = _candidates_from_state({"runbook_candidates": step1.get("runbook_candidates", [])})
 
-    if settings.llm_is_mock:
-        from app.adapters.mock_data import get_mock_scenario
+    novel_scenario = step1["novel_scenario"]
+    relevant_runbook = step1.get("relevant_runbook")
+    selected_id = step1.get("selected_runbook_id")
 
-        key = (service, get_mock_scenario(service))
-        scenario = get_mock_scenario(service)
-        if key in (
-            ("ecomm-manager", "chaos-morph"),
-            ("ecomm-manager", "chaos-exhaust"),
-            ("ecomm-manager", "chaos-oos"),
-        ):
-            if scenario == "chaos-oos" and state.get("remediation_attempt", 0) >= 1:
-                phase_key = ("ecomm-manager", "discount-bug")
-            elif state.get("remediation_attempt", 0) >= 1:
-                phase_key = ("ecomm-manager", "feature-flag")
-            else:
-                phase_key = ("ecomm-manager", "rate-limit")
-            root = _MOCK_ROOT_CAUSES.get(phase_key, _MOCK_ROOT_CAUSES[key])
-        else:
-            root = _MOCK_ROOT_CAUSES.get(key, f"Unknown root cause for service {service}")
-    else:
-        context = _build_context(service, incident.description, data, relevant_runbook)
-        prior_root = state.get("root_cause", "") if state.get("remediation_attempt", 0) >= 1 else None
-        remediation_block = format_remediation_context(state, prior_root_cause=prior_root or None)
-        if remediation_block:
-            context = f"{context}\n\n{remediation_block}"
-        llm = get_chat_model(settings=settings)
-        messages = [
-            SystemMessage(content=(
-                "You are a senior cloud operations engineer. "
-                "You are given multi-source incident context: "
-                "application logs (business/runtime layer), "
-                "K8s infrastructure events (kubelet/scheduler/controller layer), "
-                "service status, metrics, platform operation records, and runbooks. "
-                "Write a concise root cause analysis in Chinese. "
-                "Be specific: cite the exact error message, metric value, or misconfiguration. "
-                "Use 2–4 sentences. Do not add remediation steps."
-            )),
-            HumanMessage(content=context),
-        ]
-        response = llm.invoke(messages)
-        root = response.content.strip()
+    root_cause, evidence = _run_step2_rca(
+        state,
+        service=service,
+        incident_description=incident.description,
+        data=data,
+        novel_scenario=novel_scenario,
+        relevant_runbook=relevant_runbook,
+        settings=settings,
+    )
+
+    confidence_rubric = _run_step3_confidence(
+        service=service,
+        root_cause=root_cause,
+        evidence=evidence,
+        settings=settings,
+    )
+
+    thresholds = thresholds_from_settings(settings)
+    selected_candidate = next((c for c in candidates if c.doc_id == selected_id), None)
+    support = runbook_support_score(
+        novel_scenario=novel_scenario,
+        selected=selected_candidate,
+        coverage_threshold=thresholds.coverage,
+    )
+    rca_sum, runbook_support, confidence_score = compute_confidence_score(
+        confidence_rubric,
+        runbook_support=support,
+    )
+    threshold = settings.diagnosis_confidence_threshold
+    confidence_sufficient = confidence_score >= threshold
+    needs_human_review = not confidence_sufficient
 
     findings = []
     if data.get("app_logs"):
@@ -260,9 +356,27 @@ def diagnose_node(state: AgentState) -> dict:
     if data.get("metrics"):
         findings.append({"source": "metrics", "data": data["metrics"]})
 
-    return {
-        "root_cause": root,
+    out: dict = {
+        **step1,
+        "root_cause": root_cause,
         "evidence": evidence,
         "findings": findings,
+        "rca_rubric_sum": rca_sum,
+        "runbook_support": runbook_support,
+        "diagnosis_confidence": confidence_score,
+        "confidence_sufficient": confidence_sufficient,
+        "needs_human_review": needs_human_review,
+        "diagnosis_reasoning": confidence_rubric.reasoning,
         "status": "diagnosed",
     }
+
+    if not confidence_sufficient:
+        out["decide_outcome"] = SKIPPED_LOW_CONFIDENCE
+        out["knowledge_gaps"] = [
+            f"Diagnosis confidence {confidence_score:.2f} below threshold {threshold:.2f}",
+        ]
+        out["recommendations"] = [
+            "Gather more telemetry or escalate to senior ops before automated remediation.",
+        ]
+
+    return out

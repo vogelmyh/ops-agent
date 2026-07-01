@@ -18,11 +18,11 @@
 图主路径：
 
 ```text
-triage → eval_runbook → diagnose → eval_diagnosis → decide
+triage → retrieve_runbooks → diagnose → decide
   ├─ uncertain / out_of_scope → summarize → [novel? → runbook HITL]
   └─ actionable → [approve?] → write_tools → eval_remediation
         ├─ resolved → summarize
-        └─ not resolved & attempt < max → eval_runbook → … (react 环)
+        └─ not resolved & attempt < max → retrieve_runbooks → … (react 环)
 ```
 
 默认 `max_remediation_attempts=3`。
