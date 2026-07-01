@@ -330,7 +330,7 @@ EMBEDDINGS_PROVIDER=qwen LLM_MODE=real \
 
 **规则**：LLM **不得**输出 `relevant_runbook` 全文、选篇或 reasoning；全文由 `resolve_selected_runbook()` 加载，选篇与 `runbook_eval_reasoning` 由 `finalize_runbook_eval()` / `build_eval_reasoning()` 生成。
 
-**LLM rubric 形状**：`RunbookPerDocRubric` 在 `eval_schemas.py` 入库前接受**扁平**或**嵌套**（`relevance` / `coverage`）JSON；`RunbookEvalLLMOutput` 接受 `{rubrics: [...]}` 或**裸数组** `[...]`。DashScope 自由 JSON 由 `coerce_*` 归一化；`invoke_structured()` 在 SDK `ValidationError` 时降级为 plain `AIMessage` 文本解析。
+**LLM rubric 形状**：`RunbookPerDocRubric` 在 `eval_schemas.py` 入库前接受**扁平**或**嵌套**（`relevance` / `coverage`）JSON；`RunbookEvalLLMOutput` 接受 `{rubrics: [...]}` 或**裸数组** `[...]`。DashScope 自由 JSON 由 `coerce_*` 归一化；`invoke_structured()` 在 SDK `ValidationError` 时降级为 plain `AIMessage` 文本解析。**Chat 供应商**：DeepSeek 走 `json_mode`（非 `json_schema`）；DashScope/Qwen chat 走 `include_raw` fallback；详见 [`api-runtime-architecture.md`](api-runtime-architecture.md) §5.1 与本文 §9。
 
 ---
 
@@ -487,3 +487,9 @@ CHECKPOINTER=memory EMBEDDINGS_PROVIDER=local-hash \
 ---
 
 - 2026-06：RAG hybrid + rerank + rubric eval + golden 46 条 + 55 runbooks + 三层评测（retrieval / coverage oracle / real LLM smoke）。
+
+### 2026-06-30 · DeepSeek chat + Qwen embedding（推荐组合）
+
+Chat 推荐 DeepSeek V4（`deepseek-v4-flash` / `deepseek-v4-pro` via `OPENAI_*`）；embedding 仍用 Qwen `text-embedding-v3`（`QWEN_*`）。`invoke_structured()` 对 DeepSeek 使用 `json_mode`（非 `json_schema`）；保留 `eval_schemas` rubric coerce 作形状防御。真实 LLM smoke：`RAG_EVAL_REAL_LLM=1 pytest tests/rag_eval/test_real_llm_smoke.py`（本分支已验证 10/10 通过）。
+
+**关键文件**：`app/llm/provider.py`、`.env.example`；**测试**：`tests/test_llm_provider.py`、`tests/rag_eval/test_real_llm_smoke.py`。

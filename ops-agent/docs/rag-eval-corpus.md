@@ -114,6 +114,11 @@ EMBEDDINGS_PROVIDER=qwen LLM_MODE=real \
 
 ## 变更记录
 
+### 2026-06-30 · DeepSeek chat + Qwen embedding
+
+- 推荐 real LLM 评测组合：`OPENAI_*` → DeepSeek V4 chat；`EMBEDDINGS_PROVIDER=qwen` + `QWEN_*` → `text-embedding-v3`（chat 与 embedding 凭证分离，无需 reindex）
+- L3 smoke：`RAG_EVAL_REAL_LLM=1 pytest tests/rag_eval/test_real_llm_smoke.py`；provider 细节见 [`rag-architecture-and-tests.md`](rag-architecture-and-tests.md) §9
+
 ### 2026-06-30 · RAG eval 重构
 
 - Coverage oracle：为 top-3 每篇输出 `RunbookPerDocRubric`；`expected_novel` 时全候选低分 rubric

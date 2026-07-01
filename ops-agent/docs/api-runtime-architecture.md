@@ -75,10 +75,14 @@ HTTP Request
 | `BACKEND_MODE` | mock | 见 [backend-adapters](backend-adapters-architecture.md) |
 | `BACKEND_BASE_URL` | http://localhost:8080 | |
 | `LLM_MODE` | mock | mock \| real |
-| `OPENAI_API_KEY` | — | real LLM |
-| `OPENAI_MODEL` | gpt-4o-mini | |
-| `OPENAI_MODEL_STRONG` | gpt-4o | 强模型节点 |
-| `EMBEDDINGS_PROVIDER` | local-hash | RAG 向量 |
+| `OPENAI_API_KEY` | — | real LLM（chat；OpenAI-compatible，推荐 DeepSeek） |
+| `OPENAI_BASE_URL` | https://api.openai.com/v1 | chat API base（推荐 `https://api.deepseek.com`） |
+| `OPENAI_MODEL` | gpt-4o-mini | 默认 chat 模型（推荐 `deepseek-v4-flash`） |
+| `OPENAI_MODEL_STRONG` | gpt-4o | 强模型节点（推荐 `deepseek-v4-pro`） |
+| `EMBEDDINGS_PROVIDER` | local-hash | RAG 向量（可与 chat 拆供应商） |
+| `EMBEDDINGS_MODEL` | text-embedding-v4 | embedding 模型（Qwen 常用 `text-embedding-v3`） |
+| `QWEN_API_KEY` | — | `EMBEDDINGS_PROVIDER=qwen` 时必填 |
+| `QWEN_BASE_URL` | DashScope compatible `/v1` | embedding endpoint |
 | `CHECKPOINTER` | sqlite | memory 适合测试 |
 | `CHECKPOINTER_SQLITE_PATH` | ./data/checkpoints.db | |
 | `LANGSMITH_TRACING` | false | 或 `LANGCHAIN_TRACING_V2` |
@@ -96,7 +100,9 @@ RAG 检索阈值等见 [rag-architecture-and-tests.md](rag-architecture-and-test
 ### 5.1 LLM_MODE
 
 - **mock**：节点使用 `*_spec.py` 或 fixture 结构化输出（`graph_paths`、CI）
-- **real**：`ChatOpenAI`（可配置 `openai_base_url`）
+- **real**：`ChatOpenAI`（可配置 `openai_base_url` / `openai_model`）
+
+**推荐组合**：chat 走 DeepSeek V4（`OPENAI_BASE_URL=https://api.deepseek.com`，`deepseek-v4-flash` / `deepseek-v4-pro`）；embedding 走 Qwen DashScope（`EMBEDDINGS_PROVIDER=qwen`，`QWEN_API_KEY`）。两套凭证互不干扰。DeepSeek chat 在 `get_chat_model()` 默认关闭 thinking；`invoke_structured()` 对 DeepSeek 使用 `json_mode`（API 不支持 `json_schema`），并补 JSON 提示。
 
 ### 5.2 Checkpointer
 
@@ -123,6 +129,7 @@ RAG 检索阈值等见 [rag-architecture-and-tests.md](rag-architecture-and-test
 |------|------|
 | `tests/test_tracing.py` | LangSmith / env cache |
 | `tests/test_eval.py` | API 级 eval smoke |
+| `tests/test_llm_provider.py` | LLM 供应商检测、`invoke_structured` 路由 |
 | `tests/test_run_scenarios.py` | CLI + checkpoint 清理 |
 
 图业务断言在 `tests/graph_paths/`，不在此重复。
@@ -164,6 +171,7 @@ curl -s localhost:8000/readyz | jq .
 
 ## 10. 版本注记
 
+- **2026-06-30**：推荐 **DeepSeek V4 chat + Qwen embedding** 组合：`get_chat_model()` 对 DeepSeek 默认 `thinking: disabled`；`invoke_structured()` 对 DeepSeek 使用 `json_mode` + JSON 提示（不走 DashScope fallback）。见 `.env.example`。
 - **2026-06-30**：`invoke_structured()` 在 SDK `ValidationError` 时降级 plain invoke；裸 rubric 数组包装见 [`rag-architecture-and-tests.md`](rag-architecture-and-tests.md) §9。
 - **2026-06-30**：`invoke_structured()` 对 DashScope/Qwen 增加 `include_raw` 与 `AIMessage` 文本 JSON 兜底解析；嵌套 rubric 归一化见 [`rag-architecture-and-tests.md`](rag-architecture-and-tests.md) §9。
 - **2026-06-30**：`app/llm/provider.py` 新增 `invoke_structured()` 与 `ensure_json_in_messages()`，适配 DashScope qwen3.x 在 `json_object` 模式下要求 messages 含 `json` 字样的 API 规则。

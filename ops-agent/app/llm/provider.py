@@ -49,17 +49,36 @@ class MockChatModel(BaseChatModel):
         return self
 
 
+def _is_deepseek_model(model: str) -> bool:
+    return (model or "").lower().startswith("deepseek")
+
+
+def _is_deepseek_chat(settings: Settings, *, model: str | None = None) -> bool:
+    """True when chat targets DeepSeek (by base URL or model id)."""
+    base = (settings.openai_base_url or "").lower()
+    if "deepseek" in base:
+        return True
+    if model is not None:
+        return _is_deepseek_model(model)
+    return _is_deepseek_model(settings.openai_model) or _is_deepseek_model(
+        settings.openai_model_strong
+    )
+
+
 def get_chat_model(*, strong: bool = False, settings: Settings | None = None) -> BaseChatModel:
     settings = settings or get_settings()
     if settings.llm_is_mock:
         return MockChatModel()
     model = settings.openai_model_strong if strong else settings.openai_model
-    return ChatOpenAI(
-        model=model,
-        api_key=settings.openai_api_key,
-        base_url=settings.openai_base_url,
-        temperature=0,
-    )
+    chat_kwargs: dict[str, Any] = {
+        "model": model,
+        "api_key": settings.openai_api_key,
+        "base_url": settings.openai_base_url,
+        "temperature": 0,
+    }
+    if _is_deepseek_chat(settings, model=model):
+        chat_kwargs["extra_body"] = {"thinking": {"type": "disabled"}}
+    return ChatOpenAI(**chat_kwargs)
 
 
 def _needs_dashscope_json_hint(settings: Settings) -> bool:
@@ -89,7 +108,7 @@ def _messages_contain_json(messages: list[BaseMessage]) -> bool:
 
 
 def ensure_json_in_messages(messages: list[BaseMessage]) -> list[BaseMessage]:
-    """DashScope qwen3.x requires 'json' in messages when using json_object response_format."""
+    """Ensure 'json' appears in messages for json_object response_format (DashScope / DeepSeek)."""
     if _messages_contain_json(messages):
         return messages
     out = list(messages)
@@ -174,6 +193,42 @@ def _invoke_dashscope_structured(
     return _invoke_plain_json_fallback(llm, schema, messages)
 
 
+def _invoke_deepseek_structured(
+    llm: BaseChatModel,
+    schema: type[T],
+    messages: list[BaseMessage],
+    **kwargs: Any,
+) -> T:
+    """DeepSeek V4: use json_object mode (json_schema response_format unavailable)."""
+    structured = llm.with_structured_output(
+        schema,
+        method="json_mode",
+        include_raw=True,
+        **kwargs,
+    )
+    try:
+        result = structured.invoke(messages)
+    except ValidationError:
+        return _invoke_plain_json_fallback(llm, schema, messages)
+
+    parsed = result.get("parsed")
+    if parsed is not None:
+        if isinstance(parsed, schema):
+            return parsed
+        return schema.model_validate(parsed)
+
+    raw = result.get("raw")
+    if isinstance(raw, AIMessage):
+        from_text = _parse_schema_from_ai_message(schema, raw)
+        if from_text is not None:
+            return from_text
+
+    if result.get("parsing_error") is not None:
+        return _invoke_plain_json_fallback(llm, schema, messages)
+
+    return _invoke_plain_json_fallback(llm, schema, messages)
+
+
 def invoke_structured(
     llm: BaseChatModel,
     schema: type[T],
@@ -182,10 +237,14 @@ def invoke_structured(
     settings: Settings | None = None,
     **kwargs: Any,
 ) -> T:
-    """Invoke LLM with structured output; inject JSON hint for DashScope/Qwen compatibility."""
+    """Invoke LLM with structured output; provider-specific JSON hints and fallbacks."""
     settings = settings or get_settings()
     if _needs_dashscope_json_hint(settings):
         messages = ensure_json_in_messages(messages)
         return _invoke_dashscope_structured(llm, schema, messages, **kwargs)
+
+    if _is_deepseek_chat(settings):
+        messages = ensure_json_in_messages(messages)
+        return _invoke_deepseek_structured(llm, schema, messages, **kwargs)
 
     return llm.with_structured_output(schema, **kwargs).invoke(messages)

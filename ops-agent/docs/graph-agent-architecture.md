@@ -145,6 +145,7 @@ CHECKPOINTER=memory .venv/bin/python scripts/run_scenarios.py \
 
 | 改动类型 | 必做 |
 |----------|------|
+| **改 LLM 供应商 / structured output 路由** | `app/llm/provider.py` + [`api-runtime-architecture.md`](api-runtime-architecture.md) §4/§5/§10；eval/decide 节点经 `invoke_structured()` 自动继承 |
 | **新增/删除节点** | 改 `builder.py` 边与 conditional edges；更新 `state.py` 字段；补 `graph_paths` 或集成测试 |
 | **改路由函数** | 检查 `route_after_decide` / `route_after_eval_remediation` / `route_after_summarize` 全分支 |
 | **新 HITL 中断** | `interrupt_before` 列表、`runner._status_from_pending`、`main.py` 新 resume 端点 |
@@ -177,4 +178,5 @@ CHECKPOINTER=memory .venv/bin/python scripts/run_scenarios.py --scenarios REM-01
 
 ## 9. 版本注记
 
+- **2026-06-30**：`invoke_structured()` 按供应商分流：DashScope/Qwen chat → JSON 提示 + fallback；DeepSeek → `json_mode` + JSON 提示；其他 → 默认 `with_structured_output`。
 - **2026-06-30**：eval/decide 节点的 structured output 调用统一改为 `invoke_structured()`，兼容 qwen3.7-plus（DashScope）JSON 模式约束。
