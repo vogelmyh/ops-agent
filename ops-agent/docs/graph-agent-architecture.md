@@ -11,8 +11,8 @@
 编排从 **incident 输入** 到 **总结 / KB 写回** 的完整诊断图：
 
 - 服务识别（`triage`）
-- 与 RAG 节点衔接（`eval_runbook` — 细节见 [RAG 文档](rag-architecture-and-tests.md)）
-- LLM 诊断与诊断评估（`diagnose`, `eval_diagnosis`）
+- 与 RAG 节点衔接（`retrieve_runbooks` — 细节见 [RAG 文档](rag-architecture-and-tests.md)）
+- LLM 诊断三步（`diagnose`：runbook rubric → RCA → 置信度）
 - 路由到决策、修复、总结子图（`decide`, `write_tools`, `eval_remediation`, `summarize`）
 - HITL 中断与 checkpoint 恢复（`approve`, KB 节点）
 
@@ -26,23 +26,23 @@
 
 ```text
 triage
-  → eval_runbook
+  → retrieve_runbooks
   → diagnose
-  → eval_diagnosis
-  → decide
-       ├─ route_after_decide: uncertain | out_of_scope → summarize
+       ├─ confidence < threshold → summarize
+       └─ else → decide
+       ├─ route_after_decide: out_of_scope | uncertain | skipped → summarize
        ├─ route_after_decide: actionable + needs_approval → approve → write_tools
        └─ route_after_decide: actionable → write_tools
   → eval_remediation
        ├─ route_after_eval_remediation: resolved → summarize
-       └─ not resolved & attempt < max → eval_runbook（react）
+       └─ not resolved & attempt < max → retrieve_runbooks（react）
   → summarize
        └─ route_after_summarize: novel_scenario → request_runbook_notes → … → ingest_runbook
 ```
 
 ### 2.2 采集子流程（`collection.collect`）
 
-`eval_runbook` 与 `diagnose` 前均会调用 `app/graph/collection.py`：
+`eval_runbook` 与 `retrieve_runbooks` 前均会调用 `app/graph/collection.py`：
 
 - 按 `service` 拉取 logs / metrics / status / k8s_events 等
 - 结果写入 `state.collected_data`，供症状抽取与诊断 prompt 使用
@@ -72,9 +72,8 @@ triage
 | 运行入口 | `app/graph/runner.py` |
 | 采集 | `app/graph/collection.py` |
 | triage | `app/graph/nodes/triage.py` |
-| diagnose | `app/graph/nodes/diagnose.py` |
-| eval_diagnosis | `app/graph/nodes/eval_diagnosis.py` |
-| eval_runbook | `app/graph/nodes/eval_runbook.py` |
+| retrieve_runbooks | `app/graph/nodes/retrieve_runbooks.py` |
+| diagnose | `app/graph/nodes/diagnose.py`, `diagnose_runbook_step.py`, `diagnose_spec.py` |
 | summarize | `app/graph/nodes/summarize.py` |
 | KB 节点 | `request_runbook_notes`, `draft_runbook`, `review_runbook`, `ingest_runbook` |
 | 决策/修复 | 见 [decide-remediation-architecture.md](decide-remediation-architecture.md) |
@@ -89,9 +88,10 @@ triage
 |------|--------|------|
 | `incident`, `service` | triage | 输入 |
 | `collected_data` | collection | 遥测 |
-| `symptom_query`, `novel_scenario`, `novel_reason`, `relevant_runbook`, `selected_runbook_id`, `runbook_eval_reasoning` | eval_runbook | RAG（细节见 RAG 文档） |
-| `root_cause`, `evidence`, `summary` | diagnose / summarize | 输出 |
-| `needs_human_review` | eval_diagnosis | 审批策略输入 |
+| `symptom_query`, `runbook_candidates` | retrieve_runbooks | 检索 |
+| `novel_scenario`, `novel_reason`, `relevant_runbook`, `selected_runbook_id`, `runbook_eval_reasoning` | diagnose Step1 | KB 覆盖 |
+| `root_cause`, `evidence`, `diagnosis_confidence`, `confidence_sufficient` | diagnose | 诊断 |
+| `needs_human_review` | diagnose（观测：`confidence < threshold`） | 不再驱动 approve |
 | `decision_class`, `decide_outcome` | decide | 路由 |
 | `remediation_attempt`, `incident_resolved` | eval_remediation | react 环 |
 
@@ -181,6 +181,7 @@ CHECKPOINTER=memory .venv/bin/python scripts/run_scenarios.py --scenarios REM-01
 
 ## 9. 版本注记
 
+- **2026-07-01**：主图重构：`eval_runbook` → `retrieve_runbooks`（纯检索）；`eval_diagnosis` 并入 `diagnose` 三步（Step1 runbook rubric + finalize、Step2 RCA、Step3 置信度 rubric）；`confidence < diagnosis_confidence_threshold` 时 `decide_outcome=skipped_low_confidence` 直进 summarize。
 - **2026-06-30**：`RemediationEvalAssessment` coerce（`eval_schemas.coerce_remediation_eval_assessment`）见 decide-remediation §10。
 - **2026-06-30**：DEC-01 `check_dec_01_passed` 对齐 `novel_scenario` 写回 HITL 路径；见 [`test-scenario-trajectories.md`](test-scenario-trajectories.md) §DEC-01。
 - **2026-06-30**：`invoke_structured()` fallback 绑定 `json_object` + markdown 围栏剥离；`DecideAssessment` coerce 见 decide-remediation §10。

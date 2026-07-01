@@ -24,7 +24,7 @@ class AgentState(TypedDict, total=False):
     recommendations: list[str]
     knowledge_gaps: list[str]
 
-    # eval_runbook
+    # retrieve_runbooks + diagnose Step1
     collected_data: dict[str, Any]
     symptom_query: str
     novel_scenario: bool
@@ -33,11 +33,16 @@ class AgentState(TypedDict, total=False):
     selected_runbook_id: str | None
     coverage_confidence: float | None
     runbook_candidates: list[dict[str, Any]]
+    runbook_rubrics: list[dict[str, Any]]
     runbook_eval_reasoning: str
 
-    # eval_diagnosis
+    # diagnose
     needs_human_review: bool
-    diagnosis_eval_reasoning: str
+    diagnosis_reasoning: str
+    diagnosis_confidence: float
+    rca_rubric_sum: float
+    runbook_support: float
+    confidence_sufficient: bool
 
     # eval_remediation (post write_tools)
     incident_resolved: bool

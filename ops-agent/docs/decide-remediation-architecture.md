@@ -20,15 +20,16 @@
 ## 2. 流程
 
 ```text
-eval_diagnosis
-  → decide
-       ├─ uncertain / out_of_scope → summarize（无写工具）
-       └─ actionable
-            ├─ needs_approval → approve [interrupt] → write_tools
-            └─ else → write_tools
+diagnose
+       ├─ confidence 不足 → summarize
+       └─ else → decide
+            ├─ out_of_scope → summarize（无写工具）
+            └─ actionable
+                 ├─ needs_approval → approve [interrupt] → write_tools
+                 └─ else → write_tools
   → eval_remediation
        ├─ incident_resolved → summarize
-       └─ else & attempt < max → eval_runbook（重新检索 + 可能再次 decide）
+       └─ else & attempt < max → retrieve_runbooks（重新检索 + 可能再次 decide）
 ```
 
 ### 2.1 decide 输入输出
@@ -43,9 +44,9 @@ eval_diagnosis
 
 - 任一 **HIGH** 风险工具（如 `rollback_deployment`）
 - `remediation_attempt >= 1` 且仍未 `incident_resolved`
-- `needs_human_review` 为真
+- `novel_scenario` 为真（KB 无覆盖时所有写操作需人审）
 
-风险表 `TOOL_RISK` 为权威来源，不由 LLM 声明风险等级。
+`needs_human_review` 仅表示诊断置信不足（观测）；**不**再参与 approve。
 
 ### 2.3 write_tools
 
@@ -168,6 +169,7 @@ LLM_MODE=real .venv/bin/python eval/run_eval.py   # 可选，需 API key
 
 ## 10. 版本注记
 
+- **2026-07-01**：审批策略：`novel_scenario` 触发 approve；移除 `needs_human_review` 审批项。decide assessment 仅 `actionable | out_of_scope`（`uncertain` 仅 tool_select 代码降级）。
 - **2026-06-30**：`RemediationEvalAssessment` 增加 `coerce_remediation_eval_assessment()`（缺省 `reasoning`、别名 `resolved`/`residual_symptoms` 归一化），修复 DeepSeek `json_mode` 下 `eval_remediation` 节点字段漂移硬崩。
 - **2026-06-30**：`DecideAssessment` 增加 `coerce_decide_assessment()`（`classification`→`outcome`、列表字段与缺省 `reasoning` 归一化），修复 DeepSeek `json_mode` 下 decide 节点字段漂移硬崩。DEC-01 场景断言见 [`test-scenario-trajectories.md`](test-scenario-trajectories.md) §变更记录。
 - **2026-06-30**：`invoke_structured()` 对 DeepSeek chat 使用 `json_mode` + thinking 关闭；`decide` / `eval_remediation` / `eval_diagnosis` 经此入口自动受益。详见 [`api-runtime-architecture.md`](api-runtime-architecture.md) §5.1、§10。

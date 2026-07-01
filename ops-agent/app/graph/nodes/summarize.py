@@ -27,7 +27,12 @@ def summarize_node(state: AgentState) -> dict:
     attempt = state.get("remediation_attempt", 0)
 
     if settings.llm_is_mock:
-        if exec_results:
+        if state.get("decide_outcome") == "skipped_low_confidence":
+            summary = (
+                f"{root} (evidence: {refs}; diagnosis confidence insufficient — "
+                "remediation skipped)"
+            )
+        elif exec_results:
             exec_msg = exec_results[-1].get("message", "")
             resolved_note = (
                 "verified resolved"

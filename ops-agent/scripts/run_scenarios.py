@@ -54,7 +54,9 @@ STATE_KEYS = (
     "relevant_runbook",
     "root_cause",
     "needs_human_review",
-    "diagnosis_eval_reasoning",
+    "diagnosis_reasoning",
+    "diagnosis_confidence",
+    "confidence_sufficient",
     "decide_outcome",
     "decision_class",
     "escalation_hint",
@@ -219,14 +221,14 @@ def run_kb_01() -> dict[str, Any]:
 
     passed = bool(
         steps[0]["response"]["novel_scenario"] is True
-        and steps[0]["response"]["decide_outcome"] == "uncertain"
+        and steps[0]["response"]["decide_outcome"] == "skipped_low_confidence"
         and steps[-1]["graph_state"].get("runbook_saved_path")
     )
     return _result("KB-01", "novel ambiguous runbook writeback", passed=passed, steps=steps, t0=t0, backend="mock")
 
 
 def run_kb_02() -> dict[str, Any]:
-    """KB-02: novel + clear OOM pattern ecomm-cache → actionable fix → runbook writeback."""
+    """KB-02: novel + clear OOM pattern ecomm-cache → approve → fix → runbook writeback."""
     _apply_ci_mock_env()
     os.environ["BACKEND_MODE"] = "mock"
     _reset_caches()
@@ -240,21 +242,26 @@ def run_kb_02() -> dict[str, Any]:
     thread_id, resp, meta = start_diagnosis(incident)
     steps.append(_step("1_start_diagnosis", resp, meta, thread_id))
 
-    if meta.get("pending_node") == "request_runbook_notes":
+    if meta.get("pending_node") == "approve":
+        resp = resume_approval(thread_id, approved=True)
+        steps.append(_step("2_resume_approval", resp, _pending_meta(thread_id), thread_id))
+
+    if resp.status == "awaiting_runbook_notes":
         resp = resume_runbook_notes(
             thread_id,
             "OOMKilled pod; rolling restart recovered cache connections.",
         )
-        steps.append(_step("2_resume_runbook_notes", resp, _pending_meta(thread_id), thread_id))
+        steps.append(_step("3_resume_runbook_notes", resp, _pending_meta(thread_id), thread_id))
 
     if resp.status == "awaiting_runbook_review":
         resp = resume_runbook_review(thread_id, approved=True)
-        steps.append(_step("3_resume_runbook_review", resp, _pending_meta(thread_id), thread_id))
+        steps.append(_step("4_resume_runbook_review", resp, _pending_meta(thread_id), thread_id))
 
+    resolved = any(s["response"].get("incident_resolved") for s in steps)
     passed = bool(
         steps[0]["response"]["novel_scenario"] is True
         and steps[0]["response"]["decide_outcome"] == "actionable"
-        and steps[0]["response"].get("incident_resolved") is True
+        and resolved
         and steps[-1]["graph_state"].get("runbook_saved_path")
     )
     return _result("KB-02", "novel actionable then runbook writeback", passed=passed, steps=steps, t0=t0, backend="mock")

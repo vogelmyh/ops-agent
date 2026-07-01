@@ -55,6 +55,7 @@ class Settings(BaseSettings):
     runbook_coverage_threshold: float = 0.70
     runbook_disambiguation_gap: float = 0.12
     runbook_disambiguation_top1_cap: float = 0.75
+    diagnosis_confidence_threshold: float = 0.55
 
     @property
     def backend_is_mock(self) -> bool:

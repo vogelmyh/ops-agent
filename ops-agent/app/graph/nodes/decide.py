@@ -51,8 +51,6 @@ def _run_assessment(state: AgentState, settings) -> DecideAssessment:
         service=service,
         root_cause=state.get("root_cause", ""),
         novel_scenario=state.get("novel_scenario"),
-        needs_human_review=state.get("needs_human_review"),
-        diagnosis_eval_reasoning=state.get("diagnosis_eval_reasoning", ""),
         relevant_runbook=(state.get("relevant_runbook") or "(none)")[:800],
         evidence=_evidence_text(state),
         remediation_context=_remediation_context_for_decide(state),

@@ -55,6 +55,9 @@ def _to_response(thread_id: str, result: dict, pending_node: str | None = None) 
         selected_runbook_id=result.get("selected_runbook_id"),
         coverage_confidence=result.get("coverage_confidence"),
         runbook_eval_reasoning=result.get("runbook_eval_reasoning"),
+        diagnosis_confidence=result.get("diagnosis_confidence"),
+        confidence_sufficient=result.get("confidence_sufficient"),
+        needs_human_review=result.get("needs_human_review"),
     )
 
 
