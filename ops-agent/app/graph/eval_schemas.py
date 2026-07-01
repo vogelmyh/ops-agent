@@ -245,6 +245,71 @@ class DiagnosisEvalAssessment(BaseModel):
     reasoning: str = Field(description="Brief explanation of diagnosis confidence")
 
 
+def _as_str_list(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        text = value.strip()
+        return [text] if text else []
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    return [str(value).strip()] if str(value).strip() else []
+
+
+_RESOLVED_TRUTHY = frozenset({"true", "yes", "resolved", "recovered", "fixed", "healthy"})
+_RESOLVED_FALSY = frozenset({"false", "no", "unresolved", "not_resolved", "failed", "broken"})
+
+
+def coerce_remediation_eval_assessment(data: Any) -> Any:
+    """Normalize LLM JSON drift into flat RemediationEvalAssessment fields."""
+    if not isinstance(data, dict):
+        return data
+
+    out = dict(data)
+    if "resolved" not in out:
+        for alias in ("is_resolved", "incident_resolved", "recovery", "fixed"):
+            if alias in out:
+                out["resolved"] = out.pop(alias)
+                break
+
+    resolved = out.get("resolved")
+    if isinstance(resolved, str):
+        key = resolved.strip().lower().replace("-", "_").replace(" ", "_")
+        if key in _RESOLVED_TRUTHY:
+            out["resolved"] = True
+        elif key in _RESOLVED_FALSY:
+            out["resolved"] = False
+
+    symptom_key = "residual_symptoms"
+    if symptom_key not in out:
+        for alias in ("remaining_symptoms", "symptoms", "residuals", "residual_issues"):
+            if alias in out:
+                out[symptom_key] = out.pop(alias)
+                break
+    if symptom_key in out:
+        out[symptom_key] = _as_str_list(out[symptom_key])
+    else:
+        out.setdefault(symptom_key, [])
+
+    if not out.get("reasoning"):
+        for alias in (
+            "explanation",
+            "summary",
+            "rationale",
+            "reason",
+            "verification_reasoning",
+            "assessment",
+            "comment",
+        ):
+            if alias in out and out[alias]:
+                out["reasoning"] = str(out[alias])
+                break
+        else:
+            out.setdefault("reasoning", "")
+
+    return out
+
+
 class RemediationEvalAssessment(BaseModel):
     resolved: bool = Field(description="True when post-remediation telemetry shows incident is fixed")
     reasoning: str = Field(description="Brief explanation of the verification outcome")
@@ -252,3 +317,8 @@ class RemediationEvalAssessment(BaseModel):
         default_factory=list,
         description="Remaining symptoms when resolved is false",
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce_llm_assessment_shape(cls, data: Any) -> Any:
+        return coerce_remediation_eval_assessment(data)

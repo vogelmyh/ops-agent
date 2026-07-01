@@ -396,6 +396,24 @@ cd ops-backend-simulator && python3 -m pytest tests/test_chaos_exhaust.py tests/
 
 ## 变更记录
 
+### 2026-06-30 · RemediationEvalAssessment coerce（eval_remediation 节点）
+
+- `eval_schemas.coerce_remediation_eval_assessment()`：缺省 `reasoning`、别名 `is_resolved`/`symptoms` 等归一化
+- 修复 real LLM（DeepSeek `json_mode`）在 `eval_remediation` 节点因缺 `reasoning` 硬崩；见 [`decide-remediation-architecture.md`](decide-remediation-architecture.md) §10
+
+### 2026-06-30 · real LLM 表征：DEC-02 / LOOP-02 走 `uncertain` 归因（调查备忘）
+
+coerce 修复后场景可跑通，但 real LLM 仍可能 **FAIL**（非 schema 问题）：
+
+| 场景 | 现象 | 主要归因 |
+|------|------|----------|
+| DEC-02 | 第 2 轮 decide → `uncertain`（期望 `out_of_scope`） | `DECIDE_RETRY_GUIDANCE` 明示「或 classify uncertain」与 OOS 冲突；morph 后 diagnose 根因若未收敛到逻辑 Bug，assessment 倾向 uncertain |
+| LOOP-02 | 仅 1 轮 `patch_config` 后 `uncertain` | 第 2 轮应 `toggle_feature_flag`；可能 assessment=actionable 但 tool_select 无 tool_calls → `_downgrade_uncertain`；或 runbook 未命中 `chaos-morph` |
+
+**mock 对照**：`decide_spec.mock_row_for_state` + `diagnose` mock 矩阵在 `remediation_attempt≥1` 时强制 phase 切换，real LLM 无此捷径。
+
+**后续改进方向**（未实现）：收紧 `DECIDE_RETRY_GUIDANCE`（morph 后优先 OOS / 换工具）；runbook 检索强化 chaos 专篇；或 decide prompt 补充 morph 二阶段示例。
+
 ### 2026-06-30 · run_scenarios mock scenario 与 decide 矩阵对齐
 
 - `run_dec_01` / `run_loop_*` / `run_dec_02`：`set_mock_scenario` 须在 `_reset_caches()` **之后**（`reset_mock_scenarios` 会清掉先前设置）
