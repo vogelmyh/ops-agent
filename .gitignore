@@ -18,9 +18,12 @@ ops-agent/build/
 
 # Runtime / local data (do not commit secrets or ephemeral state)
 ops-agent/data/checkpoints.db
+ops-agent/data/checkpoints.db-*
 ops-agent/data/.rag_indexed_*
 ops-agent/data/audit.jsonl
 ops-agent/data/incident_memory.jsonl
+ops-agent/data/eval_report_run.txt
+ops-agent/data/diag_*.txt
 ops-agent/data/**/chroma*/
 
 # Java (ops-backend)
