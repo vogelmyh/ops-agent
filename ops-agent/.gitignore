@@ -5,6 +5,7 @@ __pycache__/
 data/chroma/
 data/.rag_indexed
 data/checkpoints.db
+data/checkpoints.db-*
 data/audit.jsonl
 data/incident_memory.jsonl
 eval/report.json
