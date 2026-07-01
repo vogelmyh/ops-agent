@@ -165,4 +165,5 @@ LLM_MODE=real .venv/bin/python eval/run_eval.py   # 可选，需 API key
 
 ## 10. 版本注记
 
+- **2026-06-30**：`invoke_structured()` 对 DeepSeek chat 使用 `json_mode` + thinking 关闭；`decide` / `eval_remediation` / `eval_diagnosis` 经此入口自动受益。详见 [`api-runtime-architecture.md`](api-runtime-architecture.md) §5.1、§10。
 - **2026-06-30**：`decide.py`、`eval_remediation.py` 的 structured output 调用改为 `invoke_structured()`，与 `app/llm/provider.py` 的 DashScope JSON 提示兼容层对齐。

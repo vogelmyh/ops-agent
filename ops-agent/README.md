@@ -51,7 +51,7 @@ python -m pytest tests/ -q
 
 ## 环境变量
 
-见 `.env.example`。常用：`BACKEND_MODE=mock|real`、`LLM_MODE=mock|real`、`EMBEDDINGS_PROVIDER=local-hash`、`CHECKPOINTER=sqlite|memory`。
+见 `.env.example`。常用：`BACKEND_MODE=mock|real`、`LLM_MODE=mock|real`、`EMBEDDINGS_PROVIDER=local-hash`、`CHECKPOINTER=sqlite|memory`。推荐 real 组合：DeepSeek chat（`OPENAI_*`）+ Qwen embedding（`EMBEDDINGS_PROVIDER=qwen`，`text-embedding-v3`）。
 
 ## 与后端联调
 

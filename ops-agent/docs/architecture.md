@@ -117,9 +117,9 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 | 目的 | 环境 |
 |------|------|
 | 离线开发 / CI | `BACKEND_MODE=mock` `LLM_MODE=mock` `CHECKPOINTER=memory` |
-| 真实 LLM 表征 | `LLM_MODE=real` + `OPENAI_API_KEY` |
+| 真实 LLM 表征 | `LLM_MODE=real` + `OPENAI_API_KEY`（推荐 DeepSeek V4 chat） |
 | Simulator 联调 | `BACKEND_MODE=real` `BACKEND_BASE_URL=http://127.0.0.1:8081` — 见 [backend-adapters](backend-adapters-architecture.md) |
-| 语义 RAG 评测 | `EMBEDDINGS_PROVIDER=qwen` + `scripts/rag_eval.py` |
+| 语义 RAG 评测 | `EMBEDDINGS_PROVIDER=qwen` + `QWEN_API_KEY` + `scripts/rag_eval.py`（chat 与 embedding 可拆供应商） |
 
 ### 4.3 脚本入口
 
@@ -231,5 +231,6 @@ CHECKPOINTER=memory .venv/bin/python scripts/run_scenarios.py --scenarios KB-01 
 
 ## 9. 版本注记
 
+- **2026-06-30**：推荐 **DeepSeek V4 chat + Qwen embedding**；`invoke_structured()` 供应商分流见 [`api-runtime-architecture.md`](api-runtime-architecture.md) §10、[`rag-architecture-and-tests.md`](rag-architecture-and-tests.md) §9。
 - 2026-06-30：文档规范 — 各组件 §「改动同步指南」要求每次修改后追加版本注记/变更记录；RAG eval 重构摘要见 [`rag-architecture-and-tests.md`](rag-architecture-and-tests.md) §9。
 - 2026-06：文档体系初版（总览 + 5 组件文档 + 已有 RAG / 场景目录）。
