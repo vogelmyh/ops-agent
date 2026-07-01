@@ -34,7 +34,7 @@ diagnose
 
 ### 2.1 decide 输入输出
 
-- **输入**：`root_cause`, `evidence`, `relevant_runbook`, `novel_scenario`, `needs_human_review`, `collected_data`
+- **输入**：`root_cause`, `evidence`, `relevant_runbook`, `novel_scenario`, `collected_data`（信任上游 diagnose，不重复校验诊断置信）
 - **输出**：`decision_class`, `decide_outcome`, `escalation_hint`, `recommendations`, `knowledge_gaps`
 - **实现**：`app/graph/nodes/decide.py` + `app/graph/decide_spec.py`（mock LLM 结构化输出）
 
@@ -105,7 +105,7 @@ diagnose
 ### 6.1 本组件测什么
 
 - **decide 三分支**：mock LLM 固定 `decide_outcome` 后是否进入 summarize / approve / write_tools
-- **审批**：HIGH 风险工具、`needs_human_review`、二次修复未恢复时是否 `needs_approval`
+- **审批**：HIGH 风险工具、`novel_scenario`、二次修复未恢复时是否 `needs_approval`
 - **eval_remediation**：mock 写后遥测下 `incident_resolved` 与 react 回边
 - **LOOP**：混沌 / 不可恢复场景下诚实终止（常与 simulator 或 `mock_remediation` 配合）
 
@@ -169,8 +169,8 @@ LLM_MODE=real .venv/bin/python eval/run_eval.py   # 可选，需 API key
 
 ## 10. 版本注记
 
-- **2026-07-01**：审批策略：`novel_scenario` 触发 approve；移除 `needs_human_review` 审批项。decide assessment 仅 `actionable | out_of_scope`（`uncertain` 仅 tool_select 代码降级）。
+- **2026-07-01**：审批策略：`novel_scenario` 触发 approve；移除 `needs_human_review` 审批项。decide assessment 仅 `actionable | out_of_scope`（`uncertain` 仅 tool_select 代码降级）；decide 输入与 §6.1 测试说明已同步。
 - **2026-06-30**：`RemediationEvalAssessment` 增加 `coerce_remediation_eval_assessment()`（缺省 `reasoning`、别名 `resolved`/`residual_symptoms` 归一化），修复 DeepSeek `json_mode` 下 `eval_remediation` 节点字段漂移硬崩。
 - **2026-06-30**：`DecideAssessment` 增加 `coerce_decide_assessment()`（`classification`→`outcome`、列表字段与缺省 `reasoning` 归一化），修复 DeepSeek `json_mode` 下 decide 节点字段漂移硬崩。DEC-01 场景断言见 [`test-scenario-trajectories.md`](test-scenario-trajectories.md) §变更记录。
-- **2026-06-30**：`invoke_structured()` 对 DeepSeek chat 使用 `json_mode` + thinking 关闭；`decide` / `eval_remediation` / `eval_diagnosis` 经此入口自动受益。详见 [`api-runtime-architecture.md`](api-runtime-architecture.md) §5.1、§10。
+- **2026-06-30**：`invoke_structured()` 对 DeepSeek chat 使用 `json_mode` + thinking 关闭；`decide` / `eval_remediation` / `diagnose` 经此入口自动受益。详见 [`api-runtime-architecture.md`](api-runtime-architecture.md) §5.1、§10。
 - **2026-06-30**：`decide.py`、`eval_remediation.py` 的 structured output 调用改为 `invoke_structured()`，与 `app/llm/provider.py` 的 DashScope JSON 提示兼容层对齐。

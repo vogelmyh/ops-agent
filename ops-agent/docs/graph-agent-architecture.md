@@ -42,7 +42,7 @@ triage
 
 ### 2.2 采集子流程（`collection.collect`）
 
-`eval_runbook` 与 `retrieve_runbooks` 前均会调用 `app/graph/collection.py`：
+`retrieve_runbooks` 前均会调用 `app/graph/collection.py`：
 
 - 按 `service` 拉取 logs / metrics / status / k8s_events 等
 - 结果写入 `state.collected_data`，供症状抽取与诊断 prompt 使用
@@ -112,7 +112,7 @@ triage
 
 - **路由契约**：给定 mock LLM 固定输出，图是否走到预期节点与 `status`
 - **HITL 恢复**：approve / notes / review 后 state 与 response 字段
-- **react 环**：未解决时是否回到 `eval_runbook` 且 `remediation_attempt` 递增
+- **react 环**：未解决时是否回到 `retrieve_runbooks` 且 `remediation_attempt` 递增
 
 **不测**：RAG recall 数值（见 RAG 文档）、真实 LLM 措辞。
 
@@ -152,8 +152,8 @@ CHECKPOINTER=memory .venv/bin/python scripts/run_scenarios.py \
 | **新增/删除节点** | 改 `builder.py` 边与 conditional edges；更新 `state.py` 字段；补 `graph_paths` 或集成测试 |
 | **改路由函数** | 检查 `route_after_decide` / `route_after_eval_remediation` / `route_after_summarize` 全分支 |
 | **新 HITL 中断** | `interrupt_before` 列表、`runner._status_from_pending`、`main.py` 新 resume 端点 |
-| **改 collection 字段** | 同步 `diagnose` / `eval_runbook` prompt 与 `mock_data` 投影 |
-| **改 eval_runbook / RAG 裁决** | 见 [`rag-architecture-and-tests.md`](rag-architecture-and-tests.md) §5，非本组件 |
+| **改 collection 字段** | 同步 `diagnose` / `retrieve_runbooks` prompt 与 `mock_data` 投影 |
+| **改 retrieve / Step1 / RAG 裁决** | 见 [`rag-architecture-and-tests.md`](rag-architecture-and-tests.md) §5，非本组件 |
 | **挂载 investigation 扩展** | 取消 `INVESTIGATE_EXTENSION` 注释块；补 LOOP/DEC 场景与 runner status |
 
 **不要**在本文件重复维护 RAG 阈值或工具风险表 — 链到对应组件文档。
@@ -181,7 +181,7 @@ CHECKPOINTER=memory .venv/bin/python scripts/run_scenarios.py --scenarios REM-01
 
 ## 9. 版本注记
 
-- **2026-07-01**：主图重构：`eval_runbook` → `retrieve_runbooks`（纯检索）；`eval_diagnosis` 并入 `diagnose` 三步（Step1 runbook rubric + finalize、Step2 RCA、Step3 置信度 rubric）；`confidence < diagnosis_confidence_threshold` 时 `decide_outcome=skipped_low_confidence` 直进 summarize。
+- **2026-07-01**：主图重构：`eval_runbook` → `retrieve_runbooks`（纯检索）；`eval_diagnosis` 并入 `diagnose` 三步（Step1 runbook rubric + finalize、Step2 RCA、Step3 置信度 rubric）；`confidence < diagnosis_confidence_threshold` 时 `decide_outcome=skipped_low_confidence` 直进 summarize。同步指南与 react 环文档已对齐。
 - **2026-06-30**：`RemediationEvalAssessment` coerce（`eval_schemas.coerce_remediation_eval_assessment`）见 decide-remediation §10。
 - **2026-06-30**：DEC-01 `check_dec_01_passed` 对齐 `novel_scenario` 写回 HITL 路径；见 [`test-scenario-trajectories.md`](test-scenario-trajectories.md) §DEC-01。
 - **2026-06-30**：`invoke_structured()` fallback 绑定 `json_object` + markdown 围栏剥离；`DecideAssessment` coerce 见 decide-remediation §10。

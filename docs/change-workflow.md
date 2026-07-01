@@ -28,7 +28,7 @@ git diff
 
 | 改动触及 | 主文档（`ops-agent/docs/`） |
 |----------|----------------------------|
-| `app/rag/`, `eval_runbook`, `runbook_eval_policy` | `rag-architecture-and-tests.md` §5 |
+| `app/rag/`, `retrieve_runbooks`, `diagnose_runbook_step`, `runbook_eval_policy` | `rag-architecture-and-tests.md` §5 |
 | `builder.py`, `nodes/`（非 RAG）, `runner.py` | `graph-agent-architecture.md` |
 | `decide`, `tools/`, `eval_remediation` | `decide-remediation-architecture.md` |
 | `app/adapters/`, simulator 联调 | `backend-adapters-architecture.md` + `ops-backend-simulator/README.md` |

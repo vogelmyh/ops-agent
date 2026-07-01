@@ -14,7 +14,11 @@ ROOT = Path(__file__).resolve().parents[1]
 # path fragment → (docs, make targets); first match wins per category but all matches merge targets
 RULES: list[tuple[str, list[str], list[str]]] = [
     ("ops-agent/app/rag/", ["ops-agent/docs/rag-architecture-and-tests.md §5"], ["test-rag"]),
+    ("ops-agent/app/graph/nodes/retrieve_runbooks", ["ops-agent/docs/rag-architecture-and-tests.md §5.2"], ["test-rag", "test-graph"]),
+    ("ops-agent/app/graph/diagnose_runbook_step", ["ops-agent/docs/rag-architecture-and-tests.md §5.5–5.6"], ["test-rag"]),
     ("ops-agent/app/graph/nodes/eval_runbook", ["ops-agent/docs/rag-architecture-and-tests.md §5.5–5.6"], ["test-rag"]),
+    ("ops-agent/app/graph/nodes/diagnose", ["ops-agent/docs/graph-agent-architecture.md", "ops-agent/docs/test-scenario-trajectories.md"], ["test-graph", "test-api"]),
+    ("ops-agent/app/graph/diagnose_spec", ["ops-agent/docs/graph-agent-architecture.md"], ["test-graph"]),
     ("ops-agent/app/graph/runbook_eval_policy", ["ops-agent/docs/rag-architecture-and-tests.md §5.6"], ["test-rag"]),
     ("ops-agent/app/graph/eval_schemas", ["ops-agent/docs/rag-architecture-and-tests.md §5.5"], ["test-rag"]),
     ("ops-agent/app/rag/eval_harness", ["ops-agent/docs/rag-architecture-and-tests.md §5.8"], ["test-rag"]),
@@ -43,7 +47,7 @@ RULES: list[tuple[str, list[str], list[str]]] = [
     ("ops-agent/app/observability/", ["ops-agent/docs/api-runtime-architecture.md"], ["test-api"]),
     ("ops-agent/tests/test_tracing", ["ops-agent/docs/api-runtime-architecture.md"], ["test-api"]),
     ("ops-agent/tests/test_eval", ["ops-agent/docs/api-runtime-architecture.md"], ["test-api"]),
-    ("ops-agent/tests/test_health", ["ops-agent/docs/api-runtime-architecture.md"], ["test-api"]),
+    ("ops-agent/scripts/run_scenarios.py", ["ops-agent/docs/test-scenario-trajectories.md"], ["test-api"]),
     ("ops-agent/app/graph/nodes/", ["ops-agent/docs/graph-agent-architecture.md"], ["test-graph"]),
     ("ops-backend/", ["ops-backend/README.md"], []),
     ("deploy/", ["ops-agent/docs/architecture.md §4"], []),

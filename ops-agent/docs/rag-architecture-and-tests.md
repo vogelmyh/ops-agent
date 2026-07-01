@@ -25,6 +25,10 @@ RAG 挂在 LangGraph 节点 **`retrieve_runbooks`**，职责是 **检索 top-K r
 
 ## 2. 端到端流水线
 
+**图内分两节点**；离线 golden 仍用 `run_runbook_eval()` 串联。
+
+### 2.0 `retrieve_runbooks`（纯检索）
+
 ```text
 incident.description + collect(遥测)
   → extract_symptoms()           # symptom_query
@@ -32,10 +36,17 @@ incident.description + collect(遥测)
        hybrid top-20 (向量+BM25 RRF)
        → rerank top-10 (lexical)
        → expand_chunks_to_parent_runbooks()
-       → top-3 RunbookCandidate
+       → top-3 RunbookCandidate → state
+```
+
+### 2.0b `diagnose` Step1（覆盖裁决）
+
+```text
+runbook_candidates
   → LLM RunbookEvalLLMOutput     # rubrics: list[RunbookPerDocRubric]（每篇 Stage A+B）
   → finalize_runbook_eval()      # 代码选篇 + 阈值终裁 + 规则生成 reasoning
   → load_runbook_by_stem()       # relevant_runbook 全文
+  → novel_scenario / novel_reason / coverage_confidence
 ```
 
 ```mermaid
@@ -47,13 +58,13 @@ flowchart LR
         A --> C
         B --> C
     end
-    subgraph retrieval [Retrieval app/rag]
+    subgraph retrieval [Retrieval retrieve_runbooks]
         D[hybrid_search_chunks]
         E[rerank_chunks]
         F[expand_chunks_to_parent_runbooks]
         D --> E --> F
     end
-    subgraph eval [Eval app/graph]
+    subgraph step1 [Diagnose Step1 diagnose_runbook_step]
         G[LLM rubric]
         H[finalize_runbook_eval]
         I[state + DiagnoseResponse]
@@ -67,8 +78,9 @@ flowchart LR
 
 | 入口 | 文件 | 说明 |
 |------|------|------|
-| 图节点 | `app/graph/nodes/eval_runbook.py` → `eval_runbook_node()` | LangGraph 调用 |
-| 可测核心 | `app/graph/nodes/eval_runbook.py` → `run_runbook_eval()` | 支持 `collected_data` 覆盖、`golden_oracle` mock |
+| 图节点（检索） | `app/graph/nodes/retrieve_runbooks.py` → `retrieve_runbooks_node()` | LangGraph 调用 |
+| 图节点（Step1） | `app/graph/diagnose_runbook_step.py` → `run_diagnose_step1()` | 由 `diagnose` 节点编排 |
+| 离线 harness | `app/graph/nodes/eval_runbook.py` → `run_runbook_eval()` | retrieve + Step1；`golden_oracle` mock |
 | 检索编排 | `app/graph/collection.py` → `retrieve_runbook_candidates()` | 封装 `app/rag/retrieval.py` |
 | Query | `app/graph/collection.py` → `extract_symptoms()` | 规则拼接 query |
 
@@ -89,6 +101,7 @@ flowchart LR
 
 | 文件 | 职责 |
 |------|------|
+| `diagnose_runbook_step.py` | Step1 LLM rubric、`RUNBOOK_EVAL_SYSTEM_PROMPT`、mock oracle |
 | `eval_schemas.py` | `RunbookCandidate`、`RunbookEvalLLMOutput`（仅 `rubrics`）、`RunbookPerDocRubric`、`RunbookEvalResult` |
 | `runbook_eval_policy.py` | `finalize_runbook_eval()`、阈值、`novel_reason`、`build_eval_reasoning()`、服务 scope 强制 |
 | `rag_observability.py` | `rag_snapshot_from_state()`、紧凑候选（无全文） |
@@ -282,7 +295,7 @@ EMBEDDINGS_PROVIDER=qwen LLM_MODE=real \
 
 **BM25 索引失效**：`app/rag/bm25_index.py` → `invalidate_bm25_cache()`；`reindex()` 已调用。
 
-**改 `retrieval_final_top_k`**：同步 `eval_runbook.py` 中 `_format_candidates_for_eval` 的展示上限（当前 `[:3]` 与配置一致）。
+**改 `retrieval_final_top_k`**：同步 `diagnose_runbook_step.py` 中 `_format_candidates_for_eval` 的展示上限（当前 `[:3]` 与配置一致）。
 
 ---
 
@@ -310,22 +323,22 @@ EMBEDDINGS_PROVIDER=qwen LLM_MODE=real \
 | `scripts/rag_corpus_specs.py` | 扩充篇目源数据 |
 | `app/graph/runbook_eval_policy.py` → `runbook_declared_service` | 若改「仅适用于服务」格式 |
 | `tests/graph_paths/test_kb.py` | 若影响 KB 场景绑定的 runbook |
-| mock：`eval_runbook._mock_select_doc_id` | `KNOWN_SERVICES` 场景名与 doc_id 对齐 |
+| mock：`diagnose_runbook_step._mock_select_doc_id` | `KNOWN_SERVICES` 场景名与 doc_id 对齐 |
 
 ---
 
 ### 5.5 改动 LLM rubric / prompt / `RunbookEvalLLMOutput`
 
-**涉及文件**：`app/graph/nodes/eval_runbook.py`（`RUNBOOK_EVAL_SYSTEM_PROMPT`）, `eval_schemas.py`
+**涉及文件**：`app/graph/diagnose_runbook_step.py`（`RUNBOOK_EVAL_SYSTEM_PROMPT`）, `eval_schemas.py`
 
 | 必须同步 | 原因 |
 |----------|------|
 | `app/graph/runbook_eval_policy.py` → `attach_llm_rubrics` | rubric 字段合并 |
 | `tests/test_runbook_eval_policy.py` | finalize 输入形态 |
-| `app/graph/nodes/eval_runbook.py` → `_mock_llm_output` / `_mock_llm_output_oracle` | mock / golden oracle rubric 形态 |
+| `app/graph/diagnose_runbook_step.py` → `_mock_llm_output` / `_mock_llm_output_oracle` | mock / golden oracle rubric 形态 |
 | `tests/rag_eval/test_coverage_golden.py` | coverage 门槛（经 `eval_harness` 调用 oracle） |
 | `tests/rag_eval/test_real_llm_smoke.py` | 真实 LLM 行为 |
-| `tests/test_rag_integration.py` | `eval_runbook_node` 契约 |
+| `tests/test_rag_integration.py` | `run_runbook_eval` / `eval_runbook_node` harness 契约 |
 | `app/graph/rag_observability.py` | 紧凑候选中的 relevance 维度 |
 
 **规则**：LLM **不得**输出 `relevant_runbook` 全文、选篇或 reasoning；全文由 `resolve_selected_runbook()` 加载，选篇与 `runbook_eval_reasoning` 由 `finalize_runbook_eval()` / `build_eval_reasoning()` 生成。
@@ -421,8 +434,10 @@ CHECKPOINTER=memory EMBEDDINGS_PROVIDER=local-hash \
 
 | 符号 | 文件 |
 |------|------|
-| `eval_runbook_node` | `app/graph/nodes/eval_runbook.py` |
-| `run_runbook_eval` | 同上 |
+| `retrieve_runbooks_node` | `app/graph/nodes/retrieve_runbooks.py` |
+| `run_diagnose_step1` | `app/graph/diagnose_runbook_step.py` |
+| `run_runbook_eval` | `app/graph/nodes/eval_runbook.py`（harness） |
+| `eval_runbook_node` | 同上（deprecated，仅测试） |
 | `retrieve_runbook_candidates` | `app/graph/collection.py` |
 | `retrieve_ranked_parent_chunks` | `app/rag/retrieval.py` |
 | `finalize_runbook_eval` | `app/graph/runbook_eval_policy.py` |
@@ -449,7 +464,7 @@ CHECKPOINTER=memory EMBEDDINGS_PROVIDER=local-hash \
 
 - 图节点 `eval_runbook` 拆为 `retrieve_runbooks`（纯检索）+ `diagnose` Step1（rubric + finalize）。
 - `run_runbook_eval()` 保留于 `eval_runbook.py` 供 golden harness（retrieve + Step1）。
-- Coverage golden 语义不变，入口改为 diagnose Step1。
+- Coverage golden 语义不变，入口改为 diagnose Step1；文档 §2/§5/§7 与 `test-scenario-trajectories.md` 已同步。
 
 ### 2026-06-30 · RAG eval 重构（LLM rubrics + finalize 选篇）
 

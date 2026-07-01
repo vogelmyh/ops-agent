@@ -39,7 +39,7 @@
 | 文档 | 代码主路径 | 说明 |
 |------|------------|------|
 | [**graph-agent-architecture.md**](graph-agent-architecture.md) | `app/graph/builder.py`, `runner.py`, `collection.py` | LangGraph 主图、HITL 恢复、react 环 |
-| [**rag-architecture-and-tests.md**](rag-architecture-and-tests.md) | `app/rag/`, `eval_runbook`, `runbook_eval_policy` | 混合检索、覆盖裁决、golden 评测 |
+| [**rag-architecture-and-tests.md**](rag-architecture-and-tests.md) | `app/rag/`, `retrieve_runbooks`, `diagnose_runbook_step`, `runbook_eval_policy` | 混合检索、覆盖裁决、golden 评测 |
 | [**decide-remediation-architecture.md**](decide-remediation-architecture.md) | `decide*`, `tools/`, `eval_remediation` | 决策三分支、审批、写工具、验收 |
 | [**backend-adapters-architecture.md**](backend-adapters-architecture.md) | `app/adapters/` | mock/real 遥测与写路径；Simulator 联调 |
 | [**kb-lifecycle-architecture.md**](kb-lifecycle-architecture.md) | notes → draft → review → `ingest_runbook` | novel 场景 KB 写回（与 RAG 读路径分离） |

@@ -14,7 +14,7 @@
 summarize → request_runbook_notes → draft_runbook → review_runbook → ingest_runbook
 ```
 
-与 RAG **读路径** 分离：读路径在 `eval_runbook`；写路径在本子链。
+与 RAG **读路径** 分离：读路径在 `retrieve_runbooks` + `diagnose` Step1；写路径在本子链。
 
 ---
 
@@ -63,7 +63,7 @@ summarize → request_runbook_notes → draft_runbook → review_runbook → ing
 
 | 字段 | 说明 |
 |------|------|
-| `novel_scenario`, `novel_reason` | 来自 eval_runbook，决定是否进入 KB 链 |
+| `novel_scenario`, `novel_reason` | 来自 diagnose Step1（runbook rubric + finalize），决定是否进入 KB 链 |
 | `runbook_notes` | HITL 输入 |
 | `runbook_draft` | LLM 草稿 |
 | `runbook_approved` | 审核结果 |
@@ -108,7 +108,7 @@ CHECKPOINTER=memory .venv/bin/python scripts/run_scenarios.py --scenarios KB-01 
 | **改 draft prompt / 格式** | `draft_runbook.py`；确保 ingest slug 规则仍适用 |
 | **改 ingest 路径或 reindex** | `ingest_runbook.py` + RAG ingest 文档 |
 | **新 KB 场景** | `test-scenario-trajectories.md` KB 表 + graph_paths fixture |
-| **novel 判定逻辑** | 改 **RAG** `eval_runbook` / policy，非本链 |
+| **novel 判定逻辑** | 改 **RAG** `diagnose_runbook_step` / `runbook_eval_policy`，非本链 |
 
 ---
 
@@ -132,4 +132,8 @@ CHECKPOINTER=memory .venv/bin/python scripts/run_scenarios.py --scenarios KB-01 
 
 ## 9. 版本注记
 
-（暂无组件级变更；合入 KB 链 / ingest 相关修改时在此追加摘要。）
+### 2026-07-01 · novel 来源与 KB-01/02 轨迹对齐
+
+- `novel_scenario` 改由 diagnose Step1 写入（非图节点 `eval_runbook`）。
+- KB-01：低置信 `skipped_low_confidence` 仍进入 summarize → KB 写回链。
+- KB-02：novel + actionable 需先 `approve` 再 write，修复后同样进入写回链。
