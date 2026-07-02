@@ -7,20 +7,17 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from app.config import get_settings
 from app.graph.runbook_coverage import (
     evaluate_runbook_coverage,
-    runbook_support_score,
 )
 from app.graph.diagnose_spec import (
     CONFIDENCE_SYSTEM_PROMPT,
     RCA_SYSTEM_PROMPT,
     DiagnosisConfidenceRubric,
     RootCauseDraft,
-    compute_confidence_score,
     mock_confidence_rubric,
 )
 from app.graph.eval_schemas import RunbookCandidate
 from app.graph.remediation_context import format_remediation_context
 from app.graph.runbook_excerpt import excerpt_runbook
-from app.graph.runbook_eval_policy import thresholds_from_settings
 from app.graph.state import AgentState
 from app.llm.provider import get_chat_model, invoke_structured
 from app.schemas import Evidence, StreamStatus
@@ -301,20 +298,16 @@ def diagnose_node(state: AgentState) -> dict:
     incident = state["incident"]
     settings = get_settings()
     data = dict(state.get("collected_data") or {})
-    candidates = _candidates_from_state(state)
-
     coverage = evaluate_runbook_coverage(
         service,
         incident.description,
         collected_data=data,
-        candidates=candidates,
+        candidates=_candidates_from_state(state),
         settings=settings,
     )
-    candidates = _candidates_from_state({"runbook_candidates": coverage.get("runbook_candidates", [])})
 
     novel_scenario = coverage["novel_scenario"]
     relevant_runbook = coverage.get("relevant_runbook")
-    selected_id = coverage.get("selected_runbook_id")
 
     root_cause, evidence = _run_rca(
         state,
@@ -333,17 +326,7 @@ def diagnose_node(state: AgentState) -> dict:
         settings=settings,
     )
 
-    thresholds = thresholds_from_settings(settings)
-    selected_candidate = next((c for c in candidates if c.doc_id == selected_id), None)
-    support = runbook_support_score(
-        novel_scenario=novel_scenario,
-        selected=selected_candidate,
-        coverage_threshold=thresholds.coverage,
-    )
-    rca_sum, runbook_support, confidence_score = compute_confidence_score(
-        confidence_rubric,
-        runbook_support=support,
-    )
+    confidence_score = confidence_rubric.confidence_score
     threshold = settings.diagnosis_confidence_threshold
     confidence_sufficient = confidence_score >= threshold
     needs_human_review = not confidence_sufficient
@@ -361,8 +344,6 @@ def diagnose_node(state: AgentState) -> dict:
         "root_cause": root_cause,
         "evidence": evidence,
         "findings": findings,
-        "rca_rubric_sum": rca_sum,
-        "runbook_support": runbook_support,
         "diagnosis_confidence": confidence_score,
         "confidence_sufficient": confidence_sufficient,
         "needs_human_review": needs_human_review,

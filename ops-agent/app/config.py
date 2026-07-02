@@ -52,9 +52,6 @@ class Settings(BaseSettings):
     retrieval_rrf_k: int = 60
     retrieval_rerank_min_score: float = 0.15
     runbook_relevance_threshold: float = 0.55
-    runbook_coverage_threshold: float = 0.70
-    runbook_disambiguation_gap: float = 0.12
-    runbook_disambiguation_top1_cap: float = 0.75
     diagnosis_confidence_threshold: float = 0.55
 
     @property

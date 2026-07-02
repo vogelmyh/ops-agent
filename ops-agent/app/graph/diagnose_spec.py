@@ -62,9 +62,9 @@ class DiagnosisConfidenceRubric(BaseModel):
     reasoning: str = ""
 
     @property
-    def rca_rubric_sum(self) -> float:
+    def confidence_score(self) -> float:
         return min(
-            0.75,
+            1.0,
             self.evidence_grounding
             + self.causal_specificity
             + self.alternative_excluded
@@ -115,14 +115,3 @@ def mock_confidence_rubric(service: str) -> DiagnosisConfidenceRubric:
         contradiction_clear=0.20,
         reasoning="Diagnosis aligns with telemetry and selected runbook context.",
     )
-
-
-def compute_confidence_score(
-    rubric: DiagnosisConfidenceRubric,
-    *,
-    runbook_support: float,
-) -> tuple[float, float, float]:
-    """Return (rca_rubric_sum, runbook_support, confidence_score)."""
-    rca_sum = rubric.rca_rubric_sum
-    support = max(0.0, min(0.25, runbook_support))
-    return rca_sum, support, min(1.0, rca_sum + support)

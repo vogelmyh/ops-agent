@@ -5,9 +5,11 @@ from __future__ import annotations
 from typing import Any
 
 
-def _relevance_score_from_dict(relevance: dict[str, Any]) -> float | None:
+def _match_score_from_relevance(relevance: dict[str, Any]) -> float | None:
     if not relevance:
         return None
+    if relevance.get("match_score") is not None:
+        return relevance["match_score"]
     if relevance.get("relevance_score") is not None:
         return relevance["relevance_score"]
     if relevance.get("service_scope_match", 0) <= 0:
@@ -21,24 +23,9 @@ def _relevance_score_from_dict(relevance: dict[str, Any]) -> float | None:
     return min(1.0, float(total))
 
 
-def _coverage_score_from_dict(coverage: dict[str, Any]) -> float | None:
-    if not coverage:
-        return None
-    if coverage.get("coverage_confidence") is not None:
-        return coverage["coverage_confidence"]
-    total = (
-        coverage.get("root_cause_fit", 0)
-        + coverage.get("remediation_fit", 0)
-        + coverage.get("forbidden_clear", 0)
-        + coverage.get("verification_fit", 0)
-    )
-    return min(1.0, float(total))
-
-
 def compact_runbook_candidate(candidate: dict[str, Any]) -> dict[str, Any]:
     """Shrink one :class:`RunbookCandidate` dict for traces (omit full content)."""
     relevance = candidate.get("relevance") or {}
-    coverage = candidate.get("coverage") or {}
     scores = candidate.get("retrieval_scores") or {}
     return {
         "doc_id": candidate.get("doc_id"),
@@ -48,8 +35,7 @@ def compact_runbook_candidate(candidate: dict[str, Any]) -> dict[str, Any]:
             "bm25_score": scores.get("bm25_score"),
             "rerank_score": scores.get("rerank_score"),
         },
-        "relevance_score": _relevance_score_from_dict(relevance),
-        "coverage_confidence": _coverage_score_from_dict(coverage),
+        "match_score": _match_score_from_relevance(relevance),
         "match_signals": (relevance.get("match_signals") or [])[:5],
         "conflict_signals": (relevance.get("conflict_signals") or [])[:5],
     }
@@ -71,7 +57,7 @@ def rag_snapshot_from_state(state: dict[str, Any] | None) -> dict[str, Any]:
         "novel_scenario": state.get("novel_scenario"),
         "novel_reason": state.get("novel_reason"),
         "selected_runbook_id": state.get("selected_runbook_id"),
-        "coverage_confidence": state.get("coverage_confidence"),
+        "match_score": state.get("match_score"),
         "runbook_eval_reasoning": state.get("runbook_eval_reasoning"),
         "relevant_runbook_title": _title_from_runbook(relevant),
         "relevant_runbook_chars": len(relevant) if relevant else 0,

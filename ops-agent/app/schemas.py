@@ -179,7 +179,7 @@ class DiagnoseResponse(BaseModel):
     symptom_query: str | None = None
     novel_reason: str | None = None
     selected_runbook_id: str | None = None
-    coverage_confidence: float | None = None
+    match_score: float | None = None
     runbook_eval_reasoning: str | None = None
     diagnosis_confidence: float | None = None
     confidence_sufficient: bool | None = None

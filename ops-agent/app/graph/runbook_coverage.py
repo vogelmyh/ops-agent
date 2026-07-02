@@ -12,8 +12,7 @@ from app.graph.eval_schemas import (
     RunbookPerDocRubric,
 )
 from app.graph.runbook_eval_policy import (
-    compute_coverage_score,
-    compute_relevance_score,
+    compute_match_score,
     finalize_runbook_eval,
     thresholds_from_settings,
 )
@@ -21,8 +20,8 @@ from app.llm.provider import get_chat_model, invoke_structured
 
 RUNBOOK_RUBRIC_SYSTEM_PROMPT = """\
 You are the runbook coverage evaluation module of an ops agent.
-Score **every** retrieved runbook candidate using the rubrics below.
-Do NOT copy runbook full text into your output — only doc_id, numeric scores, signals, and coverage_notes.
+Score **every** retrieved runbook candidate using the relevance rubric below.
+Do NOT copy runbook full text into your output — only doc_id, numeric scores, and signals.
 
 Output a single list `rubrics`: one entry per candidate doc_id provided (no other top-level fields).
 
@@ -36,16 +35,7 @@ Score each dimension 0, 0.15, or 0.25 (service_scope_match: only 0 or 0.25):
 
 List concrete tokens in match_signals / conflict_signals.
 
-## fit (per doc_id, score all candidates)
-Score each dimension 0, 0.15, or 0.25:
-- root_cause_fit: 根因 converges with evidence
-- remediation_fit: 处置 tools exist in catalog and args are inferable
-- forbidden_clear: no conflict with 勿用手段
-- verification_fit: 验证 criteria are observable
-
-Optional short coverage_notes per candidate.
-
-Do NOT output selected_doc_id, suggested_novel, novel_scenario, or reasoning — code applies thresholds after your rubric scores.
+Do NOT output selected_doc_id, suggested_novel, novel_scenario, or reasoning — code ranks by match_score after your rubric scores.
 """
 
 _EVAL_DISPLAY_CHARS_PER_DOC = 4000
@@ -66,7 +56,7 @@ def _mock_select_doc_id(service: str, candidates: list[RunbookCandidate]) -> str
     return candidates[0].doc_id
 
 
-def _high_match_rubric(doc_id: str, *, notes: str = "") -> RunbookPerDocRubric:
+def _high_match_rubric(doc_id: str) -> RunbookPerDocRubric:
     return RunbookPerDocRubric(
         doc_id=doc_id,
         service_scope_match=0.25,
@@ -74,15 +64,10 @@ def _high_match_rubric(doc_id: str, *, notes: str = "") -> RunbookPerDocRubric:
         telemetry_match=0.25,
         exclusion_clear=0.15,
         match_signals=[f"strong match for {doc_id}"],
-        root_cause_fit=0.25,
-        remediation_fit=0.25,
-        forbidden_clear=0.20,
-        verification_fit=0.20,
-        coverage_notes=notes,
     )
 
 
-def _low_match_rubric(doc_id: str, *, notes: str = "") -> RunbookPerDocRubric:
+def _low_match_rubric(doc_id: str) -> RunbookPerDocRubric:
     return RunbookPerDocRubric(
         doc_id=doc_id,
         service_scope_match=0.25,
@@ -90,11 +75,6 @@ def _low_match_rubric(doc_id: str, *, notes: str = "") -> RunbookPerDocRubric:
         telemetry_match=0.05,
         exclusion_clear=0.05,
         conflict_signals=[f"weak match for {doc_id}"],
-        root_cause_fit=0.10,
-        remediation_fit=0.10,
-        forbidden_clear=0.10,
-        verification_fit=0.10,
-        coverage_notes=notes,
     )
 
 
@@ -106,10 +86,7 @@ def mock_llm_output_oracle(
 ) -> RunbookEvalLLMOutput:
     if expected_novel:
         return RunbookEvalLLMOutput(
-            rubrics=[
-                _low_match_rubric(c.doc_id, notes="oracle: KB does not cover this incident")
-                for c in candidates
-            ],
+            rubrics=[_low_match_rubric(c.doc_id) for c in candidates],
         )
     if not expected_doc_id:
         return RunbookEvalLLMOutput(
@@ -125,10 +102,7 @@ def mock_llm_output_oracle(
     rubrics = []
     for candidate in candidates:
         if candidate.doc_id == expected_doc_id:
-            rubrics.append(_high_match_rubric(
-                candidate.doc_id,
-                notes="oracle: full coverage",
-            ))
+            rubrics.append(_high_match_rubric(candidate.doc_id))
         else:
             rubrics.append(_low_match_rubric(candidate.doc_id))
     return RunbookEvalLLMOutput(rubrics=rubrics)
@@ -140,10 +114,7 @@ def mock_llm_output(service: str, candidates: list[RunbookCandidate]) -> Runbook
 
     if service in _NOVEL_SERVICES:
         return RunbookEvalLLMOutput(
-            rubrics=[
-                _low_match_rubric(c.doc_id, notes="mock: no reliable KB coverage")
-                for c in candidates
-            ],
+            rubrics=[_low_match_rubric(c.doc_id) for c in candidates],
         )
 
     from app.graph.collection import KNOWN_SERVICES
@@ -158,10 +129,7 @@ def mock_llm_output(service: str, candidates: list[RunbookCandidate]) -> Runbook
     rubrics = []
     for candidate in candidates:
         if candidate.doc_id == doc_id:
-            rubrics.append(_high_match_rubric(
-                candidate.doc_id,
-                notes="mock: runbook guides remediation",
-            ))
+            rubrics.append(_high_match_rubric(candidate.doc_id))
         else:
             rubrics.append(_low_match_rubric(candidate.doc_id))
     return RunbookEvalLLMOutput(rubrics=rubrics)
@@ -185,41 +153,20 @@ def _format_candidates_for_eval(candidates: list[RunbookCandidate]) -> str:
     return "\n\n---\n\n".join(blocks)
 
 
-def runbook_support_score(
-    *,
-    novel_scenario: bool,
-    selected: RunbookCandidate | None,
-    coverage_threshold: float,
-) -> float:
-    """Code-owned runbook support component for confidence (max 0.25)."""
-    if novel_scenario or selected is None or selected.coverage is None:
-        return 0.0
-    rel = compute_relevance_score(selected.relevance) if selected.relevance else 0.0
-    cov = compute_coverage_score(selected.coverage, rel)
-    if coverage_threshold <= 0:
-        return 0.0
-    return min(0.25, 0.25 * (cov / coverage_threshold))
-
-
 def coverage_result_to_state(result, candidates: list[RunbookCandidate]) -> dict:
     rubrics = []
     for candidate in result.candidates:
         if candidate.relevance is not None:
             rubrics.append({
                 "doc_id": candidate.doc_id,
-                "relevance_score": compute_relevance_score(candidate.relevance),
-                "coverage_score": (
-                    compute_coverage_score(candidate.coverage, compute_relevance_score(candidate.relevance))
-                    if candidate.coverage is not None
-                    else None
-                ),
+                "match_score": compute_match_score(candidate.relevance),
             })
     return {
         "novel_scenario": result.novel_scenario,
         "novel_reason": result.novel_reason,
         "relevant_runbook": result.relevant_runbook,
         "selected_runbook_id": result.selected_doc_id,
-        "coverage_confidence": result.coverage_confidence,
+        "match_score": result.match_score,
         "runbook_rubrics": rubrics,
         "runbook_eval_reasoning": result.reasoning,
         "runbook_candidates": [c.model_dump() for c in result.candidates],

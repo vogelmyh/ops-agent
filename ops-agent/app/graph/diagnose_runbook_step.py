@@ -7,7 +7,6 @@ from app.graph.runbook_coverage import (  # noqa: F401
     mock_llm_output,
     mock_llm_output_oracle,
     run_diagnose_step1,
-    runbook_support_score,
     step1_result_to_state,
 )
 
@@ -18,6 +17,5 @@ __all__ = [
     "mock_llm_output",
     "mock_llm_output_oracle",
     "run_diagnose_step1",
-    "runbook_support_score",
     "step1_result_to_state",
 ]
