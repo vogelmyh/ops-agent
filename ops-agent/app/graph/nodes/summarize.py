@@ -23,7 +23,7 @@ def summarize_node(state: AgentState) -> dict:
 
     refs = ", ".join(e.ref for e in evidence[:4])
     resolved = state.get("incident_resolved")
-    remediation_reasoning = state.get("remediation_eval_reasoning", "")
+    remediation_reasoning = state.get("remediation_verify_reasoning", "")
     attempt = state.get("remediation_attempt", 0)
 
     if settings.llm_is_mock:

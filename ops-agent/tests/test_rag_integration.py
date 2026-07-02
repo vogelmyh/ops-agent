@@ -11,6 +11,8 @@ os.environ["LLM_MODE"] = "mock"
 os.environ["EMBEDDINGS_PROVIDER"] = "local-hash"
 os.environ["CHECKPOINTER"] = "memory"
 
+pytestmark = pytest.mark.rag_coverage
+
 from app.adapters.mock_data import reset_mock_scenarios, set_mock_scenario
 from app.config import get_settings
 from app.graph.collection import collect, extract_symptoms, retrieve_runbooks, serialize_collected

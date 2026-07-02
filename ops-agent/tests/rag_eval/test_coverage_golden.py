@@ -14,7 +14,7 @@ from app.config import get_settings
 from app.rag.eval_harness import evaluate_coverage_golden
 from tests.rag_eval.golden import GOLDEN_CASES
 
-pytestmark = pytest.mark.rag_eval
+pytestmark = pytest.mark.rag_coverage
 
 
 @pytest.fixture

@@ -15,8 +15,9 @@ ROOT = Path(__file__).resolve().parents[1]
 RULES: list[tuple[str, list[str], list[str]]] = [
     ("ops-agent/app/rag/", ["ops-agent/docs/rag-architecture-and-tests.md §5"], ["test-rag"]),
     ("ops-agent/app/graph/nodes/retrieve_runbooks", ["ops-agent/docs/rag-architecture-and-tests.md §5.2"], ["test-rag", "test-graph"]),
-    ("ops-agent/app/graph/diagnose_runbook_step", ["ops-agent/docs/rag-architecture-and-tests.md §5.5–5.6"], ["test-rag"]),
-    ("ops-agent/app/graph/nodes/eval_runbook", ["ops-agent/docs/rag-architecture-and-tests.md §5.5–5.6"], ["test-rag"]),
+    ("ops-agent/app/graph/runbook_coverage", ["ops-agent/docs/rag-architecture-and-tests.md §5.5–5.6"], ["test-rag-coverage"]),
+    ("ops-agent/app/graph/diagnose_runbook_step", ["ops-agent/docs/rag-architecture-and-tests.md §5.5–5.6"], ["test-rag-coverage"]),
+    ("ops-agent/app/graph/nodes/eval_runbook", ["ops-agent/docs/rag-architecture-and-tests.md §5.5–5.6"], ["test-rag-coverage"]),
     ("ops-agent/app/graph/nodes/diagnose", ["ops-agent/docs/graph-agent-architecture.md", "ops-agent/docs/test-scenario-trajectories.md"], ["test-graph", "test-api"]),
     ("ops-agent/app/graph/diagnose_spec", ["ops-agent/docs/graph-agent-architecture.md"], ["test-graph"]),
     ("ops-agent/app/graph/runbook_eval_policy", ["ops-agent/docs/rag-architecture-and-tests.md §5.6"], ["test-rag"]),
@@ -27,14 +28,15 @@ RULES: list[tuple[str, list[str], list[str]]] = [
     ("ops-agent/tests/test_hybrid_retrieval", ["ops-agent/docs/rag-architecture-and-tests.md"], ["test-rag"]),
     ("ops-agent/tests/test_runbook_eval_policy", ["ops-agent/docs/rag-architecture-and-tests.md §5.6"], ["test-rag"]),
     ("ops-agent/data/runbooks/", ["ops-agent/docs/rag-architecture-and-tests.md §5.4"], ["test-rag"]),
-    ("ops-agent/app/graph/builder", ["ops-agent/docs/graph-agent-architecture.md"], ["test-graph"]),
-    ("ops-agent/app/graph/runner", ["ops-agent/docs/graph-agent-architecture.md"], ["test-graph"]),
+    ("ops-agent/app/graph/builder", ["ops-agent/docs/graph-agent-architecture.md", "ops-agent/docs/architecture.md"], ["test-graph"]),
+    ("ops-agent/app/graph/runner", ["ops-agent/docs/graph-agent-architecture.md", "ops-agent/docs/architecture.md"], ["test-graph"]),
     ("ops-agent/app/graph/collection", ["ops-agent/docs/graph-agent-architecture.md", "ops-agent/docs/rag-architecture-and-tests.md §5.1"], ["test-graph", "test-rag"]),
-    ("ops-agent/app/graph/state", ["ops-agent/docs/graph-agent-architecture.md"], ["test-graph"]),
+    ("ops-agent/app/graph/state", ["ops-agent/docs/graph-agent-architecture.md", "ops-agent/docs/api-runtime-architecture.md"], ["test-graph"]),
     ("ops-agent/tests/graph_paths/", ["ops-agent/docs/graph-agent-architecture.md"], ["test-graph"]),
     ("ops-agent/app/graph/decide", ["ops-agent/docs/decide-remediation-architecture.md"], ["test-graph"]),
     ("ops-agent/app/graph/decide_spec", ["ops-agent/docs/decide-remediation-architecture.md"], ["test-graph"]),
     ("ops-agent/app/graph/nodes/decide", ["ops-agent/docs/decide-remediation-architecture.md"], ["test-graph"]),
+    ("ops-agent/app/graph/nodes/verify_remediation", ["ops-agent/docs/decide-remediation-architecture.md"], ["test-graph"]),
     ("ops-agent/app/graph/nodes/eval_remediation", ["ops-agent/docs/decide-remediation-architecture.md"], ["test-graph"]),
     ("ops-agent/app/graph/nodes/approve", ["ops-agent/docs/decide-remediation-architecture.md"], ["test-graph"]),
     ("ops-agent/app/tools/", ["ops-agent/docs/decide-remediation-architecture.md"], ["test-graph"]),
@@ -65,7 +67,7 @@ DOC_ONLY_PREFIXES = (
 )
 DOC_ONLY_SUFFIXES = (".md", ".mdc")
 
-TARGET_ORDER = ["test-rag", "test-graph", "test-simulator", "test-api", "test"]
+TARGET_ORDER = ["test-rag", "test-rag-retrieval", "test-rag-coverage", "test-graph", "test-simulator", "test-api", "test"]
 
 
 @dataclass

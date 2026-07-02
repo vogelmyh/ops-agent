@@ -78,7 +78,7 @@ def coerce_decide_assessment(data: Any) -> Any:
 
 
 class DecideAssessment(BaseModel):
-    """Step 1 structured output — handleability only, no tool_calls."""
+    """Handleability assessment structured output — no tool_calls."""
 
     outcome: DecideOutcome
     reasoning: str = Field(description="One or two sentences explaining the classification")

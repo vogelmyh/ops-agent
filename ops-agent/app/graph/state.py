@@ -24,7 +24,7 @@ class AgentState(TypedDict, total=False):
     recommendations: list[str]
     knowledge_gaps: list[str]
 
-    # retrieve_runbooks + diagnose Step1
+    # retrieve_runbooks + diagnose coverage phase
     collected_data: dict[str, Any]
     symptom_query: str
     novel_scenario: bool
@@ -44,10 +44,10 @@ class AgentState(TypedDict, total=False):
     runbook_support: float
     confidence_sufficient: bool
 
-    # eval_remediation (post write_tools)
+    # verify_remediation (post write_tools)
     incident_resolved: bool
     remediation_attempt: int
-    remediation_eval_reasoning: str
+    remediation_verify_reasoning: str
     remediation_history: list[dict[str, Any]]
 
     # INVESTIGATE_EXTENSION: fields used by extensions/investigation when re-attached

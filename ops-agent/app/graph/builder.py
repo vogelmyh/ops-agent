@@ -9,7 +9,7 @@ from app.graph.nodes.approve import approve_node
 from app.graph.nodes.decide import decide_node
 from app.graph.nodes.diagnose import SKIPPED_LOW_CONFIDENCE, diagnose_node
 from app.graph.nodes.draft_runbook import draft_runbook_node
-from app.graph.nodes.eval_remediation import eval_remediation_node
+from app.graph.nodes.verify_remediation import verify_remediation_node
 from app.graph.nodes.ingest_runbook import ingest_runbook_node
 from app.graph.nodes.request_runbook_notes import request_runbook_notes_node
 from app.graph.nodes.retrieve_runbooks import retrieve_runbooks_node
@@ -51,7 +51,7 @@ def _route_after_approve(state: AgentState) -> str:
     return "summarize"
 
 
-def _route_after_eval_remediation(state: AgentState) -> str:
+def _route_after_verify_remediation(state: AgentState) -> str:
     if state.get("incident_resolved"):
         return "summarize"
     settings = get_settings()
@@ -81,7 +81,7 @@ def build_graph():
     graph.add_node("decide", decide_node)
     graph.add_node("approve", approve_node)
     graph.add_node("write_tools", write_tools_node)
-    graph.add_node("eval_remediation", eval_remediation_node)
+    graph.add_node("verify_remediation", verify_remediation_node)
     graph.add_node("summarize", summarize_node)
     graph.add_node("request_runbook_notes", request_runbook_notes_node)
     graph.add_node("draft_runbook", draft_runbook_node)
@@ -110,10 +110,10 @@ def build_graph():
         _route_after_approve,
         {"write_tools": "write_tools", "summarize": "summarize"},
     )
-    graph.add_edge("write_tools", "eval_remediation")
+    graph.add_edge("write_tools", "verify_remediation")
     graph.add_conditional_edges(
-        "eval_remediation",
-        _route_after_eval_remediation,
+        "verify_remediation",
+        _route_after_verify_remediation,
         {"summarize": "summarize", "retrieve_runbooks": "retrieve_runbooks"},
     )
     graph.add_conditional_edges(

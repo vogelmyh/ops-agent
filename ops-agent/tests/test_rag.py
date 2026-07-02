@@ -11,6 +11,8 @@ import pytest
 
 os.environ.setdefault("BACKEND_MODE", "mock")
 
+pytestmark = pytest.mark.rag_only
+
 from app.adapters.mock_data import reset_mock_scenarios
 from app.rag.ingest import (
     SECTION_MAX_CHARS,
@@ -22,7 +24,6 @@ from app.rag.ingest import (
 )
 from app.rag.store import filter_by_relevance
 from app.graph.collection import extract_symptoms
-from app.graph.nodes.diagnose import diagnose_node
 
 # ---------------------------------------------------------------------------
 # Fixtures

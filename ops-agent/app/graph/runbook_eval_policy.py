@@ -434,3 +434,7 @@ def finalize_runbook_eval(
             thresholds=th,
         ),
     )
+
+
+# Preferred name for coverage finalize (alias).
+finalize_runbook_coverage = finalize_runbook_eval

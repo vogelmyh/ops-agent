@@ -13,7 +13,7 @@
 - **decide**：`actionable` | `uncertain` | `out_of_scope` + `recommendations` / `knowledge_gaps`
 - **approve**：高风险或策略触发的 HITL 闸门
 - **write_tools**：LangGraph `ToolNode` 执行写工具
-- **eval_remediation**：对比写前后遥测，判定 `incident_resolved`
+- **verify_remediation**：对比写前后遥测，判定 `incident_resolved`
 
 ---
 
@@ -27,7 +27,7 @@ diagnose
             └─ actionable
                  ├─ needs_approval → approve [interrupt] → write_tools
                  └─ else → write_tools
-  → eval_remediation
+  → verify_remediation
        ├─ incident_resolved → summarize
        └─ else & attempt < max → retrieve_runbooks（重新检索 + 可能再次 decide）
 ```
@@ -54,10 +54,10 @@ diagnose
 - 经 `backend_client` 调用 mock 或 real 后端（见 [backend-adapters](backend-adapters-architecture.md)）
 - 结果以 `ToolMessage` 进入 `messages`，API 通过 `execution_results` 暴露
 
-### 2.4 eval_remediation
+### 2.4 verify_remediation
 
 - 再次 `collection.collect` 获取写后遥测
-- LLM（或 mock）对比前后状态 → `incident_resolved`, `remediation_eval_reasoning`
+- LLM（或 mock）对比前后状态 → `incident_resolved`, `remediation_verify_reasoning`
 - 递增 `remediation_attempt`，追加 `remediation_history`
 
 ---
@@ -68,11 +68,11 @@ diagnose
 |------|------|
 | decide 节点 | `app/graph/nodes/decide.py` |
 | decide mock 规格 | `app/graph/decide_spec.py` |
-| eval_remediation | `app/graph/nodes/eval_remediation.py` |
+| verify_remediation | `app/graph/nodes/verify_remediation.py` |
 | approve | `app/graph/nodes/approve.py` |
 | 写工具 | `app/tools/write_tools.py` |
 | 风险策略 | `app/tools/policy.py` |
-| 图边 | `app/graph/builder.py` (`route_after_decide`, `route_after_eval_remediation`) |
+| 图边 | `app/graph/builder.py` (`route_after_decide`, `route_after_verify_remediation`) |
 | 离线 eval | `eval/run_eval.py`, `eval/dataset.jsonl` |
 
 ---
@@ -84,7 +84,7 @@ diagnose
 | `MAX_REMEDIATION_ATTEMPTS` | react 上限（默认 3） |
 | `decide_outcome` | 路由主开关 |
 | `needs_approval` | 是否中断在 approve |
-| `incident_resolved` | eval_remediation 输出 |
+| `incident_resolved` | verify_remediation 输出 |
 | `remediation_attempt` | 当前尝试次数 |
 | `messages` | 含 tool_calls / ToolMessage |
 
@@ -106,7 +106,7 @@ diagnose
 
 - **decide 三分支**：mock LLM 固定 `decide_outcome` 后是否进入 summarize / approve / write_tools
 - **审批**：HIGH 风险工具、`novel_scenario`、二次修复未恢复时是否 `needs_approval`
-- **eval_remediation**：mock 写后遥测下 `incident_resolved` 与 react 回边
+- **verify_remediation**：mock 写后遥测下 `incident_resolved` 与 react 回边
 - **LOOP**：混沌 / 不可恢复场景下诚实终止（常与 simulator 或 `mock_remediation` 配合）
 
 ### 6.2 测试文件
@@ -114,7 +114,7 @@ diagnose
 | 层 | 路径 |
 |----|------|
 | 图路径 | `tests/graph_paths/test_rem.py`, `test_dec.py`, `test_loop.py`, `test_hitl.py` |
-| 策略单元 | `tests/test_policy.py`（若有）, `decide` / `eval_remediation` 相关 tests |
+| 策略单元 | `tests/test_policy.py`（若有）, `decide` / `verify_remediation` 相关 tests（`tests/test_eval_remediation.py`） |
 | LLM eval | `eval/run_eval.py` + `eval/dataset.jsonl`（15 场景，需 `LLM_MODE=real`） |
 
 场景轨迹表：**不重复**，见 [`test-scenario-trajectories.md`](test-scenario-trajectories.md)。
@@ -144,7 +144,7 @@ BACKEND_MODE=real BACKEND_BASE_URL=http://127.0.0.1:8081 \
 | **新写工具** | `write_tools.py` + `TOOL_RISK` + mock 后端 / simulator `apply_ops` + runbook 步骤 |
 | **改 decide 逻辑** | `decide.py` + `decide_spec.py` mock 矩阵 + `test_dec.py` |
 | **改审批规则** | `policy.compute_needs_approval` + `test_hitl.py` |
-| **改验收标准** | `eval_remediation.py` + `mock_remediation` / simulator 写后投影 |
+| **改验收标准** | `verify_remediation.py` + `mock_remediation` / simulator 写后投影 |
 | **新 DEC/REM/LOOP 场景** | 更新 `test-scenario-trajectories.md` + graph_paths fixture |
 
 ---
@@ -169,6 +169,7 @@ LLM_MODE=real .venv/bin/python eval/run_eval.py   # 可选，需 API key
 
 ## 10. 版本注记
 
+- **2026-07-01**：图节点 `eval_remediation` 重命名为 **`verify_remediation`**；state 字段 `remediation_verify_reasoning`（别名兼容 `remediation_eval_reasoning`）。
 - **2026-07-01**：审批策略：`novel_scenario` 触发 approve；移除 `needs_human_review` 审批项。decide assessment 仅 `actionable | out_of_scope`（`uncertain` 仅 tool_select 代码降级）；decide 输入与 §6.1 测试说明已同步。
 - **2026-06-30**：`RemediationEvalAssessment` 增加 `coerce_remediation_eval_assessment()`（缺省 `reasoning`、别名 `resolved`/`residual_symptoms` 归一化），修复 DeepSeek `json_mode` 下 `eval_remediation` 节点字段漂移硬崩。
 - **2026-06-30**：`DecideAssessment` 增加 `coerce_decide_assessment()`（`classification`→`outcome`、列表字段与缺省 `reasoning` 归一化），修复 DeepSeek `json_mode` 下 decide 节点字段漂移硬崩。DEC-01 场景断言见 [`test-scenario-trajectories.md`](test-scenario-trajectories.md) §变更记录。

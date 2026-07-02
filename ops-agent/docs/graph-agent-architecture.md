@@ -13,7 +13,7 @@
 - 服务识别（`triage`）
 - 与 RAG 节点衔接（`retrieve_runbooks` — 细节见 [RAG 文档](rag-architecture-and-tests.md)）
 - LLM 诊断三步（`diagnose`：runbook rubric → RCA → 置信度）
-- 路由到决策、修复、总结子图（`decide`, `write_tools`, `eval_remediation`, `summarize`）
+- 路由到决策、修复、总结子图（`decide`, `write_tools`, `verify_remediation`, `summarize`）
 - HITL 中断与 checkpoint 恢复（`approve`, KB 节点）
 
 **不负责**：RAG 检索实现、写工具 HTTP 调用、LLM provider 初始化（见对应组件文档）。
@@ -33,8 +33,8 @@ triage
        ├─ route_after_decide: out_of_scope | uncertain | skipped → summarize
        ├─ route_after_decide: actionable + needs_approval → approve → write_tools
        └─ route_after_decide: actionable → write_tools
-  → eval_remediation
-       ├─ route_after_eval_remediation: resolved → summarize
+  → verify_remediation
+       ├─ route_after_verify_remediation: resolved → summarize
        └─ not resolved & attempt < max → retrieve_runbooks（react）
   → summarize
        └─ route_after_summarize: novel_scenario → request_runbook_notes → … → ingest_runbook
@@ -73,7 +73,7 @@ triage
 | 采集 | `app/graph/collection.py` |
 | triage | `app/graph/nodes/triage.py` |
 | retrieve_runbooks | `app/graph/nodes/retrieve_runbooks.py` |
-| diagnose | `app/graph/nodes/diagnose.py`, `diagnose_runbook_step.py`, `diagnose_spec.py` |
+| diagnose | `app/graph/nodes/diagnose.py`, `runbook_coverage.py`, `diagnose_spec.py` |
 | summarize | `app/graph/nodes/summarize.py` |
 | KB 节点 | `request_runbook_notes`, `draft_runbook`, `review_runbook`, `ingest_runbook` |
 | 决策/修复 | 见 [decide-remediation-architecture.md](decide-remediation-architecture.md) |
@@ -89,11 +89,11 @@ triage
 | `incident`, `service` | triage | 输入 |
 | `collected_data` | collection | 遥测 |
 | `symptom_query`, `runbook_candidates` | retrieve_runbooks | 检索 |
-| `novel_scenario`, `novel_reason`, `relevant_runbook`, `selected_runbook_id`, `runbook_eval_reasoning` | diagnose Step1 | KB 覆盖 |
+| `novel_scenario`, `novel_reason`, `relevant_runbook`, `selected_runbook_id`, `runbook_eval_reasoning` | diagnose coverage | KB 覆盖 |
 | `root_cause`, `evidence`, `diagnosis_confidence`, `confidence_sufficient` | diagnose | 诊断 |
 | `needs_human_review` | diagnose（观测：`confidence < threshold`） | 不再驱动 approve |
 | `decision_class`, `decide_outcome` | decide | 路由 |
-| `remediation_attempt`, `incident_resolved` | eval_remediation | react 环 |
+| `remediation_attempt`, `incident_resolved` | verify_remediation | react 环 |
 
 完整定义：`app/graph/state.py`。
 
@@ -150,10 +150,10 @@ CHECKPOINTER=memory .venv/bin/python scripts/run_scenarios.py \
 | **改 DecideAssessment coerce** | `decide_spec.py` + [`decide-remediation-architecture.md`](decide-remediation-architecture.md) §7/§10 |
 | **改 RemediationEvalAssessment coerce** | `eval_schemas.py` + [`decide-remediation-architecture.md`](decide-remediation-architecture.md) §7/§10 |
 | **新增/删除节点** | 改 `builder.py` 边与 conditional edges；更新 `state.py` 字段；补 `graph_paths` 或集成测试 |
-| **改路由函数** | 检查 `route_after_decide` / `route_after_eval_remediation` / `route_after_summarize` 全分支 |
+| **改路由函数** | 检查 `route_after_decide` / `route_after_verify_remediation` / `route_after_summarize` 全分支 |
 | **新 HITL 中断** | `interrupt_before` 列表、`runner._status_from_pending`、`main.py` 新 resume 端点 |
 | **改 collection 字段** | 同步 `diagnose` / `retrieve_runbooks` prompt 与 `mock_data` 投影 |
-| **改 retrieve / Step1 / RAG 裁决** | 见 [`rag-architecture-and-tests.md`](rag-architecture-and-tests.md) §5，非本组件 |
+| **改 retrieve / coverage / RAG 裁决** | 见 [`rag-architecture-and-tests.md`](rag-architecture-and-tests.md) §5，非本组件 |
 | **挂载 investigation 扩展** | 取消 `INVESTIGATE_EXTENSION` 注释块；补 LOOP/DEC 场景与 runner status |
 
 **不要**在本文件重复维护 RAG 阈值或工具风险表 — 链到对应组件文档。
@@ -181,7 +181,8 @@ CHECKPOINTER=memory .venv/bin/python scripts/run_scenarios.py --scenarios REM-01
 
 ## 9. 版本注记
 
-- **2026-07-01**：主图重构：`eval_runbook` → `retrieve_runbooks`（纯检索）；`eval_diagnosis` 并入 `diagnose` 三步（Step1 runbook rubric + finalize、Step2 RCA、Step3 置信度 rubric）；`confidence < diagnosis_confidence_threshold` 时 `decide_outcome=skipped_low_confidence` 直进 summarize。同步指南与 react 环文档已对齐。
+- **2026-07-01**：命名清理：`eval_remediation` → `verify_remediation`；diagnose coverage / rca / confidence；双轨 RAG 测试见 [`rag-architecture-and-tests.md`](rag-architecture-and-tests.md) §4。
+- **2026-07-01**：主图重构：`eval_runbook` → `retrieve_runbooks`（纯检索）；`eval_diagnosis` 并入 `diagnose` 三阶段（coverage runbook rubric + finalize、rca、confidence rubric）；`confidence < diagnosis_confidence_threshold` 时 `decide_outcome=skipped_low_confidence` 直进 summarize。同步指南与 react 环文档已对齐。
 - **2026-06-30**：`RemediationEvalAssessment` coerce（`eval_schemas.coerce_remediation_eval_assessment`）见 decide-remediation §10。
 - **2026-06-30**：DEC-01 `check_dec_01_passed` 对齐 `novel_scenario` 写回 HITL 路径；见 [`test-scenario-trajectories.md`](test-scenario-trajectories.md) §DEC-01。
 - **2026-06-30**：`invoke_structured()` fallback 绑定 `json_object` + markdown 围栏剥离；`DecideAssessment` coerce 见 decide-remediation §10。

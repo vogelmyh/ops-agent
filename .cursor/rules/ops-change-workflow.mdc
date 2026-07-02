@@ -10,7 +10,7 @@ alwaysApply: true
 1. 先读 `docs/change-workflow.md` 与 `AGENTS.md`
 2. 根据 `git diff` 路径，打开 `ops-agent/docs/` 下对应组件的 **「Agent 改动同步指南」**
 3. **在写代码前**输出「同步计划」（必改/不必改的代码、测试、文档、验证命令），等用户确认
-4. 改后执行计划中的 `make test-rag` / `make test-graph` / `make test`，并汇报结果
+4. 改后执行计划中的 `make test-rag-retrieval` / `make test-rag-coverage` / `make test-rag` / `make test-graph` / `make test-api` / `make test`，并汇报结果
 5. 更新相关文档的**版本注记或变更记录**
 
 RAG 改动以 `ops-agent/docs/rag-architecture-and-tests.md` §5 为权威清单。

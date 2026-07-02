@@ -36,6 +36,8 @@ packages = ["app"]
 testpaths = ["tests"]
 pythonpath = ["."]
 markers = [
-    "rag_eval: RAG golden-set offline retrieval evaluation",
+    "rag_only: Track A — retrieval-only RAG tests (no coverage rubric)",
+    "rag_coverage: Track B — retrieve + runbook coverage rubric / finalize",
+    "rag_eval: deprecated alias for rag_coverage (golden-set offline eval)",
     "real_llm_rag: real LLM rubric eval (requires API key)",
 ]

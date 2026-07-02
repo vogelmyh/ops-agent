@@ -1,4 +1,4 @@
-.PHONY: test test-rag test-graph test-api test-simulator graph-paths scenarios demo eval build up down k8s-dry-run impact install-hooks pre-commit-check
+.PHONY: test test-rag test-rag-retrieval test-rag-coverage test-graph test-api test-simulator graph-paths scenarios demo eval build up down k8s-dry-run impact install-hooks pre-commit-check
 
 PY = cd ops-agent && .venv/bin/python
 SIM_PY = $(PY)
@@ -6,9 +6,17 @@ SIM_PY = $(PY)
 test:
 	$(PY) -m pytest tests/ -q
 
-test-rag:
-	$(PY) -m pytest tests/test_rag.py tests/test_runbook_eval_policy.py tests/test_eval_schemas.py \
-	  tests/test_hybrid_retrieval.py tests/test_rag_integration.py tests/rag_eval/ -q
+test-rag-retrieval:
+	$(PY) -m pytest tests/test_rag.py tests/test_hybrid_retrieval.py \
+	  tests/rag_eval/test_retrieval_golden.py tests/rag_eval/test_retrieve_runbooks_node.py \
+	  tests/rag_eval/test_golden_select.py -q
+
+test-rag-coverage:
+	$(PY) -m pytest tests/test_runbook_eval_policy.py tests/test_eval_schemas.py \
+	  tests/test_rag_integration.py tests/rag_eval/test_coverage_golden.py \
+	  tests/rag_eval/test_real_llm_smoke.py -q
+
+test-rag: test-rag-retrieval test-rag-coverage
 
 test-graph:
 	cd ops-agent && CHECKPOINTER=memory LLM_MODE=mock .venv/bin/python -m pytest tests/graph_paths/ -q

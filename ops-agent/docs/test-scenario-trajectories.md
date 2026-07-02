@@ -22,7 +22,7 @@ triage → retrieve_runbooks → diagnose
   ├─ confidence < threshold → summarize（decide_outcome=skipped_low_confidence）→ [novel? → runbook HITL]
   └─ else → decide
         ├─ uncertain（tool_select 降级）/ out_of_scope → summarize → [novel? → runbook HITL]
-        └─ actionable → [approve?] → write_tools → eval_remediation
+        └─ actionable → [approve?] → write_tools → verify_remediation
               ├─ resolved → summarize
               └─ not resolved & attempt < max → retrieve_runbooks → … (react 环)
 ```
@@ -41,7 +41,7 @@ triage → retrieve_runbooks → diagnose
 |------|------|
 | **REM** | 主路径修复 — actionable、write、验收通过 |
 | **HITL** | 人机协同闸门 — approve / runbook notes / review |
-| **LOOP** | 处置反馈环 — eval_remediation、重试、morph |
+| **LOOP** | 处置反馈环 — verify_remediation、重试、morph |
 | **DEC** | 决策与诚实终止 — `skipped_low_confidence`（诊断门槛）/ `uncertain`（tool 降级）/ `out_of_scope` |
 | **KB** | 知识与 runbook 生命周期 — novel、写回、入库 |
 | **RAG** | 检索质量 — 漏匹配、误匹配 |
@@ -106,7 +106,7 @@ triage → retrieve_runbooks → diagnose
 |------|--------|------------------------|
 | 1 | triage → … → decide | `novel_scenario=false`, `decide_outcome=actionable` |
 | 2 | write_tools（自动） | `patch_config` |
-| 3 | eval_remediation | `incident_resolved=true`, `remediation_attempt=1` |
+| 3 | verify_remediation | `incident_resolved=true`, `remediation_attempt=1` |
 | 4 | summarize | `status=completed` |
 
 **不应出现**：`pending_node=approve`、`out_of_scope`。
@@ -122,7 +122,7 @@ triage → retrieve_runbooks → diagnose
 | 1 | … → decide | `actionable`, `needs_approval=true`, `rollback_deployment` |
 | 2 | approve（interrupt） | `awaiting_approval` |
 | 3 | resume `approved=true` → write_tools | 执行 rollback |
-| 4 | eval_remediation | `incident_resolved=true` |
+| 4 | verify_remediation | `incident_resolved=true` |
 | 5 | summarize | `completed` |
 
 ---
@@ -267,7 +267,7 @@ stateDiagram-v2
 | 1 | … → diagnose → decide | `novel_scenario=true`, `confidence_sufficient=true`, `actionable`, `needs_approval=true` |
 | 2 | approve（interrupt） | `awaiting_approval` |
 | 3 | resume `approved=true` → write_tools | `restart_pods` |
-| 4 | eval_remediation | `incident_resolved=true` |
+| 4 | verify_remediation | `incident_resolved=true` |
 | 5 | summarize → notes → draft → review | HITL 写回链 |
 | 8 | ingest | `runbook_saved_path` 非空 |
 
@@ -289,7 +289,7 @@ symptom_query（incident 描述 + 遥测规则提取）
   → top-3 RunbookCandidate → state.runbook_candidates
 ```
 
-**`diagnose` Step1（覆盖裁决，沿用 runbook rubric）**
+**`diagnose` coverage（覆盖裁决，runbook rubric）**
 
 ```text
 runbook_candidates
@@ -299,7 +299,7 @@ runbook_candidates
   → novel_scenario / novel_reason / coverage_confidence
 ```
 
-离线 golden harness：`run_runbook_eval()` = retrieve + Step1（`eval_runbook.py`）。
+离线 golden harness：`run_retrieve_and_coverage()`（别名 `run_runbook_eval()`）= retrieve + coverage（`eval_runbook.py`）。
 
 ### 阈值（`app/config.py`，可由环境变量覆盖）
 
@@ -311,7 +311,7 @@ runbook_candidates
 | `diagnosis_confidence_threshold` | 0.55 | diagnose Step3 总分低于此 → 跳过 decide（见 KB-01） |
 | `retrieval_hybrid_top_k` | 20 | hybrid 召回上限 |
 | `retrieval_rerank_chunk_top_k` | 10 | rerank 后进入 parent 扩展的 chunk 数 |
-| `retrieval_final_top_k` | 3 | 送入 Step1 rubric 的 parent 候选数 |
+| `retrieval_final_top_k` | 3 | 送入 coverage rubric 的 parent 候选数 |
 
 ### `novel_reason` 枚举
 
@@ -344,7 +344,7 @@ retrieve / rubric 选错 runbook（如 crashloop vs memory-leak）。
 |------|------|------|
 | `thread_id` | step / result | LangGraph checkpoint 线程 ID |
 | `response.symptom_query` | step | 检索 query |
-| `response.novel_reason` | step | 覆盖裁决原因码（diagnose Step1） |
+| `response.novel_reason` | step | 覆盖裁决原因码（diagnose coverage） |
 | `response.runbook_eval_reasoning` | step | finalize 规则生成的裁决说明（非 LLM 输出） |
 | `response.selected_runbook_id` | step | 代码选中的 runbook stem（relevance top1 过阈值后） |
 | `response.coverage_confidence` | step | 阶段 B 分数 |
@@ -383,8 +383,8 @@ CHECKPOINTER=memory LLM_MODE=real .venv/bin/python scripts/run_scenarios.py --sc
 |------|--------|
 | 路由错了 | `builder.py`、`decide_outcome`、`needs_approval` |
 | 工具没执行 | `approve` 拒绝？无 tool_calls？ |
-| 假恢复 | `eval_remediation`、real LLM summary |
-| novel 不对 | `retrieve_runbooks`、`diagnose` Step1、`novel_reason`、`runbook_eval_reasoning`、`rag/ingest`、hybrid/rerank 分数 |
+| 假恢复 | `verify_remediation`、real LLM summary |
+| novel 不对 | `retrieve_runbooks`、`diagnose` coverage、`novel_reason`、`runbook_eval_reasoning`、`rag/ingest`、hybrid/rerank 分数 |
 | 误跳过 decide | `diagnosis_confidence`、`confidence_sufficient`、`diagnose_spec` RCA rubric |
 | 混沌不对 | simulator `admin/state`、`fault_phase` |
 
@@ -419,18 +419,23 @@ cd ops-backend-simulator && python3 -m pytest tests/test_chaos_exhaust.py tests/
 
 ## 变更记录
 
+### 2026-07-01 · 命名清理 + 双轨 RAG 测试
+
+- 图节点 `eval_remediation` → **`verify_remediation`**；diagnose **coverage / rca / confidence**；harness `run_retrieve_and_coverage()`。
+- Makefile：`test-rag-retrieval` / `test-rag-coverage` / `test-rag`；详见 [`rag-architecture-and-tests.md`](rag-architecture-and-tests.md) §4。
+
 ### 2026-07-01 · 主图重构：retrieve_runbooks + diagnose 三步
 
-- 图路径：`eval_runbook` → `retrieve_runbooks`（纯检索）；`eval_diagnosis` 并入 `diagnose`（Step1 runbook rubric + Step2 RCA + Step3 置信度）。
+- 图路径：`eval_runbook` → `retrieve_runbooks`（纯检索）；`eval_diagnosis` 并入 `diagnose`（coverage + rca + confidence）。
 - KB-01：`confidence < 0.55` → `decide_outcome=skipped_low_confidence`，跳过 decide 直进 summarize → KB 写回。
 - KB-02：novel + 高置信仍 `actionable`，但 **novel 必 approve** 后再 write。
 - `run_scenarios` 导出 `diagnosis_confidence` / `confidence_sufficient` / `needs_human_review`。
 - 详见 [`graph-agent-architecture.md`](graph-agent-architecture.md) §9、[`rag-architecture-and-tests.md`](rag-architecture-and-tests.md) §9。
 
-### 2026-06-30 · RemediationEvalAssessment coerce（eval_remediation 节点）
+### 2026-06-30 · RemediationEvalAssessment coerce（verify_remediation 节点）
 
 - `eval_schemas.coerce_remediation_eval_assessment()`：缺省 `reasoning`、别名 `is_resolved`/`symptoms` 等归一化
-- 修复 real LLM（DeepSeek `json_mode`）在 `eval_remediation` 节点因缺 `reasoning` 硬崩；见 [`decide-remediation-architecture.md`](decide-remediation-architecture.md) §10
+- 修复 real LLM（DeepSeek `json_mode`）在 `verify_remediation` 节点因缺 `reasoning` 硬崩；见 [`decide-remediation-architecture.md`](decide-remediation-architecture.md) §10
 
 ### 2026-06-30 · real LLM 表征：DEC-02 / LOOP-02 走 `uncertain` 归因（历史备忘，部分已缓解）
 
@@ -440,7 +445,7 @@ coerce 修复后场景可跑通；**同配置多次 real LLM 结果不稳定**�
 
 | 因素 | 说明 |
 |------|------|
-| **RAG 选篇偏差** | 告警文案偏 QPS/限流时，Step1 常选 `ecomm-manager-rate-limit`（relevance/coverage 双 1.0），而非专篇 `ecomm-manager-chaos-oos` / `chaos-morph`；morph 后证据已变但 runbook 上下文仍限流篇 |
+| **RAG 选篇偏差** | 告警文案偏 QPS/限流时，coverage 常选 `ecomm-manager-rate-limit`（relevance/coverage 双 1.0），而非专篇 `ecomm-manager-chaos-oos` / `chaos-morph`；morph 后证据已变但 runbook 上下文仍限流篇 |
 | **`DECIDE_RETRY_GUIDANCE`** | `remediation_context.py` 明示「或 classify **uncertain**」；与 chaos-oos 阶段 B 应有的 **`out_of_scope`** 竞争 |
 | **tool_select 降级** | `decide_node`：assessment=`actionable` 但 LLM 未产出 `tool_calls` → `_downgrade_uncertain`（LOOP-02 FAIL 路径之一） |
 | **mock 对照** | mock 在 `remediation_attempt≥1` 强制切 phase；real LLM 无此捷径 |
