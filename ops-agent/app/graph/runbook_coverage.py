@@ -17,6 +17,7 @@ from app.graph.runbook_eval_policy import (
     finalize_runbook_eval,
     thresholds_from_settings,
 )
+from app.llm.provider import get_chat_model, invoke_structured
 
 RUNBOOK_RUBRIC_SYSTEM_PROMPT = """\
 You are the runbook coverage evaluation module of an ops agent.

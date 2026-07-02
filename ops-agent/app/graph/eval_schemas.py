@@ -83,6 +83,20 @@ def _field_or_default(
     return default
 
 
+def _coerce_str_list(value: Any) -> list[str]:
+    if value is None or value == "":
+        return []
+    if isinstance(value, list):
+        return [str(v).strip() for v in value if str(v).strip()]
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return []
+        parts = [p.strip() for p in text.replace(";", ",").split(",") if p.strip()]
+        return parts if len(parts) > 1 else [text]
+    return [str(value).strip()]
+
+
 def coerce_runbook_per_doc_rubric(data: Any) -> Any:
     """Normalize LLM rubric JSON: flat fields or nested relevance/coverage groups."""
     if not isinstance(data, dict):
@@ -91,7 +105,19 @@ def coerce_runbook_per_doc_rubric(data: Any) -> Any:
     rel = _nested_dict(data.get("relevance"))
     cov = _nested_dict(data.get("coverage"))
     if not rel and not cov:
-        return data
+        out = dict(data)
+        changed = False
+        if "match_signals" in out:
+            coerced = _coerce_str_list(out["match_signals"])
+            if coerced != out["match_signals"]:
+                out["match_signals"] = coerced
+                changed = True
+        if "conflict_signals" in out:
+            coerced = _coerce_str_list(out["conflict_signals"])
+            if coerced != out["conflict_signals"]:
+                out["conflict_signals"] = coerced
+                changed = True
+        return out if changed else data
 
     doc_id = (
         data.get("doc_id")
@@ -105,8 +131,8 @@ def coerce_runbook_per_doc_rubric(data: Any) -> Any:
         "symptom_match": _field_or_default(rel, data, "symptom_match", 0.0),
         "telemetry_match": _field_or_default(rel, data, "telemetry_match", 0.0),
         "exclusion_clear": _field_or_default(rel, data, "exclusion_clear", 0.0),
-        "match_signals": _field_or_default(rel, data, "match_signals", []),
-        "conflict_signals": _field_or_default(rel, data, "conflict_signals", []),
+        "match_signals": _coerce_str_list(_field_or_default(rel, data, "match_signals", [])),
+        "conflict_signals": _coerce_str_list(_field_or_default(rel, data, "conflict_signals", [])),
         "root_cause_fit": _field_or_default(cov, data, "root_cause_fit", 0.0),
         "remediation_fit": _field_or_default(cov, data, "remediation_fit", 0.0),
         "forbidden_clear": _field_or_default(cov, data, "forbidden_clear", 0.0),
