@@ -11,7 +11,7 @@ from app.graph.eval_schemas import (
 from app.graph.runbook_eval_policy import (
     attach_llm_rubrics,
     candidate_from_retrieval_dict,
-    compute_relevance_score,
+    compute_match_score,
     finalize_runbook_eval,
 )
 
@@ -28,13 +28,6 @@ def _nested_crashloop_rubric() -> dict:
             "match_signals": ["CrashLoopBackOff", "BackOff"],
             "conflict_signals": [],
         },
-        "coverage": {
-            "root_cause_fit": 0.25,
-            "remediation_fit": 0.25,
-            "forbidden_clear": 0.25,
-            "verification_fit": 0.25,
-            "coverage_notes": "matches bad image crashloop",
-        },
     }
 
 
@@ -45,12 +38,8 @@ def test_flat_rubric_unchanged():
         symptom_match=0.25,
         telemetry_match=0.25,
         exclusion_clear=0.15,
-        root_cause_fit=0.25,
-        remediation_fit=0.25,
-        forbidden_clear=0.20,
-        verification_fit=0.20,
     )
-    assert compute_relevance_score(flat.to_relevance()) == 0.9
+    assert compute_match_score(flat.to_relevance()) == 0.9
 
 
 def test_nested_rubric_coerced():
@@ -58,9 +47,7 @@ def test_nested_rubric_coerced():
     assert rubric.doc_id == "ecomm-order-crashloop"
     assert rubric.service_scope_match == 0.25
     assert rubric.symptom_match == 0.25
-    assert rubric.root_cause_fit == 0.25
-    assert rubric.coverage_notes == "matches bad image crashloop"
-    assert compute_relevance_score(rubric.to_relevance()) == 1.0
+    assert compute_match_score(rubric.to_relevance()) == 1.0
 
 
 def test_coerce_helper_preserves_flat_input():
@@ -86,18 +73,11 @@ def test_nested_via_runbook_eval_llm_output():
                     "match_signals": ["ecomm-order"],
                     "conflict_signals": ["OOMKilled"],
                 },
-                "coverage": {
-                    "root_cause_fit": 0.0,
-                    "remediation_fit": 0.0,
-                    "forbidden_clear": 0.0,
-                    "verification_fit": 0.0,
-                    "coverage_notes": "wrong runbook",
-                },
             },
         ],
     })
     assert len(output.rubrics) == 2
-    assert compute_relevance_score(output.rubrics[0].to_relevance()) == 1.0
+    assert compute_match_score(output.rubrics[0].to_relevance()) == 1.0
     assert output.rubrics[1].symptom_match == 0.0
 
 
@@ -111,7 +91,6 @@ def test_partial_nested_relevance_only():
     })
     assert rubric.service_scope_match == 0.25
     assert rubric.symptom_match == 0.15
-    assert rubric.root_cause_fit == 0.0
 
 
 def test_nested_rubric_finalize_selects_crashloop():

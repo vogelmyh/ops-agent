@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field, computed_field, model_validator
 
 
 # ---------------------------------------------------------------------------
-# Runbook coverage eval (PR1 contracts — used by runbook_eval_policy; PR2 wires LLM)
+# Runbook coverage eval (relevance-only rubric → match_score)
 # ---------------------------------------------------------------------------
 
 class RetrievalScores(BaseModel):
@@ -20,7 +20,7 @@ class RetrievalScores(BaseModel):
 
 
 class RunbookRelevanceRubric(BaseModel):
-    """Stage A: symptom–runbook fit. Each dimension 0, 0.15, or 0.25 (service_scope: 0 or 0.25)."""
+    """Per-doc match rubric. Each dimension 0, 0.15, or 0.25 (service_scope: 0 or 0.25)."""
 
     doc_id: str
     service_scope_match: float = Field(default=0.0, ge=0.0, le=0.25)
@@ -41,28 +41,6 @@ class RunbookRelevanceRubric(BaseModel):
             + self.symptom_match
             + self.telemetry_match
             + self.exclusion_clear,
-        )
-
-
-class RunbookCoverageRubric(BaseModel):
-    """Stage B: whether the runbook can safely guide remediation for this incident."""
-
-    doc_id: str
-    root_cause_fit: float = Field(default=0.0, ge=0.0, le=0.25)
-    remediation_fit: float = Field(default=0.0, ge=0.0, le=0.25)
-    forbidden_clear: float = Field(default=0.0, ge=0.0, le=0.25)
-    verification_fit: float = Field(default=0.0, ge=0.0, le=0.25)
-    coverage_notes: str = ""
-
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def coverage_confidence(self) -> float:
-        return min(
-            1.0,
-            self.root_cause_fit
-            + self.remediation_fit
-            + self.forbidden_clear
-            + self.verification_fit,
         )
 
 
@@ -98,13 +76,12 @@ def _coerce_str_list(value: Any) -> list[str]:
 
 
 def coerce_runbook_per_doc_rubric(data: Any) -> Any:
-    """Normalize LLM rubric JSON: flat fields or nested relevance/coverage groups."""
+    """Normalize LLM rubric JSON: flat fields or nested relevance group."""
     if not isinstance(data, dict):
         return data
 
     rel = _nested_dict(data.get("relevance"))
-    cov = _nested_dict(data.get("coverage"))
-    if not rel and not cov:
+    if not rel:
         out = dict(data)
         changed = False
         if "match_signals" in out:
@@ -119,12 +96,7 @@ def coerce_runbook_per_doc_rubric(data: Any) -> Any:
                 changed = True
         return out if changed else data
 
-    doc_id = (
-        data.get("doc_id")
-        or rel.get("doc_id")
-        or cov.get("doc_id")
-        or ""
-    )
+    doc_id = data.get("doc_id") or rel.get("doc_id") or ""
     return {
         "doc_id": doc_id,
         "service_scope_match": _field_or_default(rel, data, "service_scope_match", 0.0),
@@ -133,16 +105,11 @@ def coerce_runbook_per_doc_rubric(data: Any) -> Any:
         "exclusion_clear": _field_or_default(rel, data, "exclusion_clear", 0.0),
         "match_signals": _coerce_str_list(_field_or_default(rel, data, "match_signals", [])),
         "conflict_signals": _coerce_str_list(_field_or_default(rel, data, "conflict_signals", [])),
-        "root_cause_fit": _field_or_default(cov, data, "root_cause_fit", 0.0),
-        "remediation_fit": _field_or_default(cov, data, "remediation_fit", 0.0),
-        "forbidden_clear": _field_or_default(cov, data, "forbidden_clear", 0.0),
-        "verification_fit": _field_or_default(cov, data, "verification_fit", 0.0),
-        "coverage_notes": _field_or_default(cov, data, "coverage_notes", ""),
     }
 
 
 class RunbookPerDocRubric(BaseModel):
-    """Merged Stage A + B rubric for one candidate — sole element of LLM structured output."""
+    """Per-candidate relevance rubric — sole element of LLM structured output."""
 
     doc_id: str
     service_scope_match: float = Field(default=0.0, ge=0.0, le=0.25)
@@ -151,11 +118,6 @@ class RunbookPerDocRubric(BaseModel):
     exclusion_clear: float = Field(default=0.0, ge=0.0, le=0.25)
     match_signals: list[str] = Field(default_factory=list)
     conflict_signals: list[str] = Field(default_factory=list)
-    root_cause_fit: float = Field(default=0.0, ge=0.0, le=0.25)
-    remediation_fit: float = Field(default=0.0, ge=0.0, le=0.25)
-    forbidden_clear: float = Field(default=0.0, ge=0.0, le=0.25)
-    verification_fit: float = Field(default=0.0, ge=0.0, le=0.25)
-    coverage_notes: str = ""
 
     @model_validator(mode="before")
     @classmethod
@@ -163,12 +125,7 @@ class RunbookPerDocRubric(BaseModel):
         return coerce_runbook_per_doc_rubric(data)
 
     @classmethod
-    def from_relevance_coverage(
-        cls,
-        relevance: RunbookRelevanceRubric,
-        coverage: RunbookCoverageRubric | None = None,
-    ) -> "RunbookPerDocRubric":
-        cov = coverage or RunbookCoverageRubric(doc_id=relevance.doc_id)
+    def from_relevance(cls, relevance: RunbookRelevanceRubric) -> "RunbookPerDocRubric":
         return cls(
             doc_id=relevance.doc_id,
             service_scope_match=relevance.service_scope_match,
@@ -177,11 +134,6 @@ class RunbookPerDocRubric(BaseModel):
             exclusion_clear=relevance.exclusion_clear,
             match_signals=list(relevance.match_signals),
             conflict_signals=list(relevance.conflict_signals),
-            root_cause_fit=cov.root_cause_fit,
-            remediation_fit=cov.remediation_fit,
-            forbidden_clear=cov.forbidden_clear,
-            verification_fit=cov.verification_fit,
-            coverage_notes=cov.coverage_notes,
         )
 
     def to_relevance(self) -> RunbookRelevanceRubric:
@@ -195,16 +147,6 @@ class RunbookPerDocRubric(BaseModel):
             conflict_signals=list(self.conflict_signals),
         )
 
-    def to_coverage(self) -> RunbookCoverageRubric:
-        return RunbookCoverageRubric(
-            doc_id=self.doc_id,
-            root_cause_fit=self.root_cause_fit,
-            remediation_fit=self.remediation_fit,
-            forbidden_clear=self.forbidden_clear,
-            verification_fit=self.verification_fit,
-            coverage_notes=self.coverage_notes,
-        )
-
 
 class RunbookCandidate(BaseModel):
     """Unified retrieval → eval carrier (chunk recall expands to parent document)."""
@@ -216,7 +158,6 @@ class RunbookCandidate(BaseModel):
     chunk_type: str = "parent"
     retrieval_scores: RetrievalScores = Field(default_factory=RetrievalScores)
     relevance: RunbookRelevanceRubric | None = None
-    coverage: RunbookCoverageRubric | None = None
 
 
 def coerce_runbook_eval_llm_output(data: Any) -> Any:
@@ -244,7 +185,7 @@ class RunbookEvalResult(BaseModel):
     novel_reason: str | None = None
     selected_doc_id: str | None = None
     relevant_runbook: str | None = None
-    coverage_confidence: float | None = None
+    match_score: float | None = None
     candidates: list[RunbookCandidate] = Field(default_factory=list)
     reasoning: str = ""
 

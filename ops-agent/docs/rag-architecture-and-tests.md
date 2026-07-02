@@ -43,10 +43,10 @@ incident.description + collect(遥测)
 
 ```text
 runbook_candidates
-  → LLM RunbookEvalLLMOutput     # rubrics: list[RunbookPerDocRubric]（每篇 relevance + fit）
-  → finalize_runbook_coverage()  # 代码选篇 + 阈值终裁 + 规则生成 reasoning
+  → LLM RunbookEvalLLMOutput     # rubrics: list[RunbookPerDocRubric]（每篇 relevance 四维）
+  → finalize_runbook_coverage()  # 代码按 match_score 排序取 top1 + 阈值终裁
   → load_runbook_by_stem()       # relevant_runbook 全文
-  → novel_scenario / novel_reason / coverage_confidence
+  → novel_scenario / novel_reason / match_score
 ```
 
 ```mermaid
@@ -113,7 +113,7 @@ flowchart LR
 
 - `symptom_query`
 - `novel_scenario`, `novel_reason`
-- `selected_runbook_id`, `coverage_confidence`
+- `selected_runbook_id`, `match_score`
 - `runbook_candidates`, `runbook_eval_reasoning`
 - `relevant_runbook`
 
@@ -127,10 +127,7 @@ flowchart LR
 | `retrieval_rrf_k` | 60 | RRF |
 | `retrieval_rerank_min_score` | 0.15 | 分数过滤（`local-hash` 时为 0） |
 | `embeddings_provider` | `local-hash` | 向量集合名 / CI |
-| `runbook_relevance_threshold` | 0.55 | finalize 阶段 A |
-| `runbook_coverage_threshold` | 0.70 | finalize 阶段 B |
-| `runbook_disambiguation_gap` | 0.12 | 消歧 |
-| `runbook_disambiguation_top1_cap` | 0.75 | 消歧 |
+| `runbook_relevance_threshold` | 0.55 | top1 match_score 低于此 → novel |
 
 环境变量别名见 `Settings` 字段；改阈值后需同步 **policy 单测** 与 **golden 门槛**（若行为变化）。
 
@@ -142,9 +139,7 @@ flowchart LR
 |----|----------|
 | `no_retrieval` | 候选为空 |
 | `service_mismatch` | 候选 relevance 全 0（服务不符） |
-| `low_relevance` | 阶段 A 未达阈值 |
-| `low_coverage` | 阶段 B 未达阈值 |
-| `ambiguous_candidates` | top1−top2 过小 |
+| `low_relevance` | top1 match_score 未达阈值 |
 | `invalid_selection` | 选中 runbook 文件缺失 |
 
 ---
@@ -495,6 +490,13 @@ CHECKPOINTER=memory EMBEDDINGS_PROVIDER=local-hash \
 ---
 
 ## 9. 版本注记
+
+### 2026-07-01 · relevance-only match_score + 置信度纯 rubric
+
+- **Coverage**：删除 fit/coverage 第二轨与消歧分支；`match_score` = relevance 四维求和；finalize 按分排序取 top1，低于 `runbook_relevance_threshold` → `low_relevance`。
+- **Confidence**：`diagnosis_confidence` 仅来自 `DiagnosisConfidenceRubric` 求和（删除 `runbook_support` 注入）。
+- **字段**：`coverage_confidence` → `match_score`（state / API / observability）。
+- **验证**：`make test-rag` + `make test-graph`。
 
 ### 2026-07-01 · 双轨 RAG 测试 + 命名清理
 

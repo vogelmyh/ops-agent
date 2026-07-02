@@ -181,6 +181,7 @@ CHECKPOINTER=memory .venv/bin/python scripts/run_scenarios.py --scenarios REM-01
 
 ## 9. 版本注记
 
+- **2026-07-01**：coverage 简化为 relevance-only `match_score`；confidence 纯 rubric 求和（无 runbook_support）。
 - **2026-07-01**：命名清理：`eval_remediation` → `verify_remediation`；diagnose coverage / rca / confidence；双轨 RAG 测试见 [`rag-architecture-and-tests.md`](rag-architecture-and-tests.md) §4。
 - **2026-07-01**：主图重构：`eval_runbook` → `retrieve_runbooks`（纯检索）；`eval_diagnosis` 并入 `diagnose` 三阶段（coverage runbook rubric + finalize、rca、confidence rubric）；`confidence < diagnosis_confidence_threshold` 时 `decide_outcome=skipped_low_confidence` 直进 summarize。同步指南与 react 环文档已对齐。
 - **2026-06-30**：`RemediationEvalAssessment` coerce（`eval_schemas.coerce_remediation_eval_assessment`）见 decide-remediation §10。

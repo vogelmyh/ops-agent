@@ -24,7 +24,7 @@ from app.graph.rag_observability import (
     compact_runbook_candidates,
     rag_snapshot_from_state,
 )
-from app.graph.eval_schemas import RunbookCoverageRubric, RunbookRelevanceRubric
+from app.graph.eval_schemas import RunbookRelevanceRubric
 from app.observability.tracing import _clear_tracing_env
 
 
@@ -68,20 +68,13 @@ def test_compact_runbook_candidates_omits_full_content():
                 telemetry_match=0.20,
                 exclusion_clear=0.15,
             ).model_dump(),
-            "coverage": RunbookCoverageRubric(
-                doc_id="ecomm-order-crashloop",
-                root_cause_fit=0.25,
-                remediation_fit=0.25,
-                forbidden_clear=0.20,
-                verification_fit=0.15,
-            ).model_dump(),
         },
     ]
     compact = compact_runbook_candidates(candidates)
     assert "content" not in compact[0]
     assert compact[0]["doc_id"] == "ecomm-order-crashloop"
     assert compact[0]["retrieval"]["rerank_score"] == 0.88
-    assert compact[0]["relevance_score"] == pytest.approx(0.85)
+    assert compact[0]["match_score"] == pytest.approx(0.85)
 
 
 def test_rag_snapshot_from_state():
@@ -90,7 +83,7 @@ def test_rag_snapshot_from_state():
         "novel_scenario": False,
         "novel_reason": None,
         "selected_runbook_id": "ecomm-order-crashloop",
-        "coverage_confidence": 0.82,
+        "match_score": 0.82,
         "runbook_eval_reasoning": "matched crashloop",
         "relevant_runbook": "# CrashLoop\n\n## 症状\nBackOff",
         "runbook_candidates": [],

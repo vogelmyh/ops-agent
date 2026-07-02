@@ -147,7 +147,7 @@ def test_parse_schema_from_ai_text_nested_rubrics():
     }"""
     output = _parse_schema_from_ai_text(RunbookEvalLLMOutput, text)
     assert output.rubrics[0].service_scope_match == 0.25
-    assert output.rubrics[0].root_cause_fit == 0.25
+    assert output.rubrics[0].symptom_match == 0.25
 
 
 def test_parse_schema_from_ai_text_bare_rubric_array():
