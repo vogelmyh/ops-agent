@@ -4,7 +4,7 @@ import pytest
 
 os.environ["BACKEND_MODE"] = "mock"
 os.environ["LLM_MODE"] = "mock"
-os.environ["EMBEDDINGS_PROVIDER"] = "local-hash"
+os.environ.setdefault("EMBEDDINGS_PROVIDER", "local-hash")
 os.environ["CHECKPOINTER"] = "memory"
 
 from app.adapters.mock_data import reset_mock_scenarios
