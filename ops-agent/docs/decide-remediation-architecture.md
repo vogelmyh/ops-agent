@@ -46,7 +46,7 @@ diagnose
 - `remediation_attempt >= 1` 且仍未 `incident_resolved`
 - `novel_scenario` 为真（KB 无覆盖时所有写操作需人审）
 
-`needs_human_review` 仅表示诊断置信不足（观测）；**不**再参与 approve。
+路由与审批以 `confidence_sufficient` 为准；`needs_human_review` 已删除（与前者冗余）。
 
 ### 2.3 write_tools
 
@@ -169,6 +169,7 @@ LLM_MODE=real .venv/bin/python eval/run_eval.py   # 可选，需 API key
 
 ## 10. 版本注记
 
+- **2026-07-02**：删除纯观测字段 `needs_human_review`（路由已由 `confidence_sufficient` 承担）。
 - **2026-07-01**：图节点 `eval_remediation` 重命名为 **`verify_remediation`**；state 字段 `remediation_verify_reasoning`（别名兼容 `remediation_eval_reasoning`）。
 - **2026-07-01**：审批策略：`novel_scenario` 触发 approve；移除 `needs_human_review` 审批项。decide assessment 仅 `actionable | out_of_scope`（`uncertain` 仅 tool_select 代码降级）；decide 输入与 §6.1 测试说明已同步。
 - **2026-06-30**：`RemediationEvalAssessment` 增加 `coerce_remediation_eval_assessment()`（缺省 `reasoning`、别名 `resolved`/`residual_symptoms` 归一化），修复 DeepSeek `json_mode` 下 `eval_remediation` 节点字段漂移硬崩。

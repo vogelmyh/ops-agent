@@ -34,13 +34,9 @@ class AgentState(TypedDict, total=False):
     runbook_match_rubrics: list[dict[str, Any]]
     match_gate_reason: str
     runbook_candidates: list[dict[str, Any]]
-    runbook_eval_reasoning: str
-
     # diagnose
-    needs_human_review: bool
     confidence_rubric: dict[str, Any]
     confidence_gate_reason: str
-    diagnosis_reasoning: str
     confidence_sufficient: bool
 
     # verify_remediation (post write_tools)

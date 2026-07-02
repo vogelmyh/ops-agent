@@ -54,10 +54,8 @@ def _to_response(thread_id: str, result: dict, pending_node: str | None = None) 
         novel_reason=result.get("novel_reason"),
         selected_runbook_id=result.get("selected_runbook_id"),
         match_gate_reason=result.get("match_gate_reason"),
-        runbook_eval_reasoning=result.get("runbook_eval_reasoning"),
         confidence_sufficient=result.get("confidence_sufficient"),
         confidence_gate_reason=result.get("confidence_gate_reason"),
-        needs_human_review=result.get("needs_human_review"),
     )
 
 

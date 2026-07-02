@@ -184,7 +184,6 @@ def coverage_result_to_state(result, candidates: list[RunbookCandidate]) -> dict
         "selected_runbook_id": result.selected_doc_id,
         "runbook_match_rubrics": rubrics,
         "match_gate_reason": result.reasoning,
-        "runbook_eval_reasoning": result.reasoning,
         "runbook_candidates": [c.model_dump() for c in result.candidates],
     }
 

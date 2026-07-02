@@ -11,7 +11,7 @@ def request_runbook_notes_node(state: AgentState) -> dict:
         ),
         "service": state.get("service"),
         "root_cause": state.get("root_cause", ""),
-        "runbook_eval_reasoning": state.get("runbook_eval_reasoning", ""),
+        "match_gate_reason": state.get("match_gate_reason", ""),
     }
     decision = interrupt(payload)
     notes = str(decision.get("notes", "")).strip()

@@ -342,13 +342,11 @@ retrieve / rubric 选错 runbook（如 crashloop vs memory-leak）。
 | `thread_id` | step / result | LangGraph checkpoint 线程 ID |
 | `response.symptom_query` | step | 检索 query |
 | `response.novel_reason` | step | 覆盖裁决原因码（diagnose coverage） |
-| `response.runbook_eval_reasoning` | step | finalize 规则生成的裁决说明（非 LLM 输出） |
 | `response.selected_runbook_id` | step | 代码选中的 runbook stem（relevance top1 过阈值后） |
 | `response.match_gate_reason` | step | coverage 阶段 policy 裁决说明 |
 | `response.confidence_gate_reason` | step | confidence policy 裁决说明 |
 | `response.confidence_sufficient` | step | `is_diagnostic_reliable()` 结果 |
-| `response.needs_human_review` | step | 与 `confidence_sufficient` 相反（观测字段，不驱动 approve） |
-| `rag` | step | `rag_snapshot_from_state` 紧凑快照（含候选 retrieval 分、`runbook_eval_reasoning`，无全文） |
+| `rag` | step | `rag_snapshot_from_state` 紧凑快照（含候选 retrieval 分、`match_gate_reason`，无全文） |
 | `graph_state.runbook_candidates` | step | 紧凑候选列表（最多 5 条） |
 | `embeddings` / `langsmith` | result 顶栏 | 运行环境标记 |
 
@@ -381,7 +379,7 @@ CHECKPOINTER=memory LLM_MODE=real .venv/bin/python scripts/run_scenarios.py --sc
 | 路由错了 | `builder.py`、`decide_outcome`、`needs_approval` |
 | 工具没执行 | `approve` 拒绝？无 tool_calls？ |
 | 假恢复 | `verify_remediation`、real LLM summary |
-| novel 不对 | `retrieve_runbooks`、`diagnose` coverage、`novel_reason`、`runbook_eval_reasoning`、`rag/ingest`、hybrid/rerank 分数 |
+| novel 不对 | `retrieve_runbooks`、`diagnose` coverage、`novel_reason`、`match_gate_reason`、`rag/ingest`、hybrid/rerank 分数 |
 | 误跳过 decide | `diagnosis_confidence`、`confidence_sufficient`、`diagnose_spec` RCA rubric |
 | 混沌不对 | simulator `admin/state`、`fault_phase` |
 
@@ -416,6 +414,11 @@ cd ops-backend-simulator && python3 -m pytest tests/test_chaos_exhaust.py tests/
 
 ## 变更记录
 
+### 2026-07-02 · 观测字段清理
+
+- 删除 `needs_human_review`、`diagnosis_reasoning`、`runbook_eval_reasoning`；coverage 裁决说明统一 `match_gate_reason`。
+- `run_scenarios` step JSON 与 `DiagnoseResponse` 已同步。
+
 ### 2026-07-01 · 命名清理 + 双轨 RAG 测试
 
 - 图节点 `eval_remediation` → **`verify_remediation`**；diagnose **coverage / rca / confidence**；harness `run_retrieve_and_coverage()`。
@@ -426,7 +429,7 @@ cd ops-backend-simulator && python3 -m pytest tests/test_chaos_exhaust.py tests/
 - 图路径：`eval_runbook` → `retrieve_runbooks`（纯检索）；`eval_diagnosis` 并入 `diagnose`（coverage + rca + confidence）。
 - KB-01：`confidence < 0.55` → `decide_outcome=skipped_low_confidence`，跳过 decide 直进 summarize → KB 写回。
 - KB-02：novel + 高置信仍 `actionable`，但 **novel 必 approve** 后再 write。
-- `run_scenarios` 导出 `diagnosis_confidence` / `confidence_sufficient` / `needs_human_review`。
+- `run_scenarios` 导出 `confidence_sufficient` / `confidence_gate_reason` / `match_gate_reason`。
 - 详见 [`graph-agent-architecture.md`](graph-agent-architecture.md) §9、[`rag-architecture-and-tests.md`](rag-architecture-and-tests.md) §9。
 
 ### 2026-06-30 · RemediationEvalAssessment coerce（verify_remediation 节点）

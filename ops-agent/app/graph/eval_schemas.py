@@ -118,28 +118,6 @@ class RunbookEvalResult(BaseModel):
     reasoning: str = ""
 
 
-# ---------------------------------------------------------------------------
-# Legacy / other eval nodes
-# ---------------------------------------------------------------------------
-
-class RunbookEvalAssessment(BaseModel):
-    novel_scenario: bool = Field(
-        description="True when no runbook can guide remediation for this incident",
-    )
-    relevant_runbook: str | None = Field(
-        default=None,
-        description="Full text of the most relevant runbook when novel_scenario is false",
-    )
-    reasoning: str = Field(description="Brief explanation of the coverage decision")
-
-
-class DiagnosisEvalAssessment(BaseModel):
-    needs_human_review: bool = Field(
-        description="True when diagnosis is not reliable enough for unsupervised follow-up",
-    )
-    reasoning: str = Field(description="Brief explanation of diagnosis confidence")
-
-
 def _as_str_list(value: Any) -> list[str]:
     if value is None:
         return []

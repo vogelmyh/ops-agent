@@ -49,7 +49,6 @@ def rag_snapshot_from_state(state: dict[str, Any] | None) -> dict[str, Any]:
         "novel_reason": state.get("novel_reason"),
         "selected_runbook_id": state.get("selected_runbook_id"),
         "match_gate_reason": state.get("match_gate_reason"),
-        "runbook_eval_reasoning": state.get("runbook_eval_reasoning"),
         "relevant_runbook_title": _title_from_runbook(relevant),
         "relevant_runbook_chars": len(relevant) if relevant else 0,
         "runbook_candidates": compact_runbook_candidates(state.get("runbook_candidates")),

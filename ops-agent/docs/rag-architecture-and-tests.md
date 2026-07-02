@@ -114,7 +114,7 @@ flowchart LR
 - `symptom_query`
 - `novel_scenario`, `novel_reason`
 - `selected_runbook_id`, `match_gate_reason`, `runbook_match_rubrics`
-- `runbook_candidates`, `runbook_eval_reasoning`
+- `runbook_candidates`
 - `relevant_runbook`
 
 ### 2.5 配置（`app/config.py`）
@@ -364,7 +364,7 @@ EMBEDDINGS_PROVIDER=qwen LLM_MODE=real \
 | `tests/test_rag_integration.py` | `run_retrieve_and_coverage` / `coverage_harness_node` harness 契约 |
 | `app/graph/rag_observability.py` | 紧凑候选中的 relevance 维度 |
 
-**规则**：LLM **不得**输出 `relevant_runbook` 全文、选篇或 reasoning；全文由 `resolve_selected_runbook()` 加载，选篇与 `runbook_eval_reasoning` 由 `finalize_runbook_coverage()` / `build_eval_reasoning()` 生成。
+**规则**：LLM **不得**输出 `relevant_runbook` 全文、选篇或 reasoning；全文由 `resolve_selected_runbook()` 加载，选篇与 `match_gate_reason` 由 `finalize_runbook_coverage()` / `build_match_gate_reason()` 生成。
 
 **LLM rubric 形状**：`RunbookPerDocRubric` 在 `eval_schemas.py` 入库前接受**扁平**或**嵌套**（`relevance` / `coverage`）JSON；`RunbookEvalLLMOutput` 接受 `{rubrics: [...]}` 或**裸数组** `[...]`。DashScope 自由 JSON 由 `coerce_*` 归一化；`invoke_structured()` 在 SDK `ValidationError` 时降级为 plain `AIMessage` 文本解析。**Chat 供应商**：DeepSeek 走 `json_mode`（非 `json_schema`）；DashScope/Qwen chat 走 `include_raw` fallback；详见 [`api-runtime-architecture.md`](api-runtime-architecture.md) §5.1 与本文 §9。
 
@@ -493,6 +493,12 @@ CHECKPOINTER=memory EMBEDDINGS_PROVIDER=local-hash \
 
 ## 9. 版本注记
 
+### 2026-07-02 · 观测字段清理 + RCA 重试指引
+
+- **RCA**：`remediation_attempt >= 1` 时注入 `RCA_RETRY_GUIDANCE`（与 decide 侧 `DECIDE_RETRY_GUIDANCE` 对称）。
+- **删除**：`needs_human_review`、`diagnosis_reasoning`、`runbook_eval_reasoning`（与 `match_gate_reason` / `confidence_gate_reason` 冗余）。
+- **验证**：`make test-rag` + `make test-graph` + `make test-api`。
+
 ### 2026-07-02 · CoT 范畴化评估（PASS/PARTIAL/FAIL）
 
 - **Coverage**：LLM 逐维 CoT + 三值标签；`finalize_runbook_match()` 布尔/计数 policy（`symptom_match` 必须 PASS）；删除 `match_score` 与 float 阈值。
@@ -528,7 +534,7 @@ CHECKPOINTER=memory EMBEDDINGS_PROVIDER=local-hash \
 |----|--------|--------|
 | LLM 输出 `RunbookEvalLLMOutput` | `candidates` + 单篇 `coverage` + `selected_doc_id` + `suggested_novel` + `reasoning` | 仅 `rubrics: list[RunbookPerDocRubric]`（每篇 Stage A+B） |
 | 选篇 | LLM `selected_doc_id` | `finalize_runbook_eval` 按 relevance 排序取 top1 |
-| `runbook_eval_reasoning` | LLM `reasoning` 透传 | `build_eval_reasoning()` 规则生成 |
+| `runbook_eval_reasoning` | LLM `reasoning` 透传 | `build_match_gate_reason()` 规则生成 → 字段名 **`match_gate_reason`** |
 | `novel_reason` | 含 `llm_suggested_novel` | 已移除；novel 仅由阈值/消歧/scope 触发 |
 
 **关键文件**：`eval_schemas.py`、`nodes/eval_runbook.py`、`runbook_eval_policy.py`、`rag_observability.py`（观测字段不变）
