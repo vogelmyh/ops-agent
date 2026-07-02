@@ -5,27 +5,20 @@ from __future__ import annotations
 from typing import Any
 
 
-def _match_score_from_relevance(relevance: dict[str, Any]) -> float | None:
-    if not relevance:
-        return None
-    if relevance.get("match_score") is not None:
-        return relevance["match_score"]
-    if relevance.get("relevance_score") is not None:
-        return relevance["relevance_score"]
-    if relevance.get("service_scope_match", 0) <= 0:
-        return 0.0
-    total = (
-        relevance.get("service_scope_match", 0)
-        + relevance.get("symptom_match", 0)
-        + relevance.get("telemetry_match", 0)
-        + relevance.get("exclusion_clear", 0)
-    )
-    return min(1.0, float(total))
+def _ratings_from_candidate(candidate: dict[str, Any]) -> dict[str, str] | None:
+    assessment = candidate.get("match_assessment") or {}
+    if assessment.get("service_scope") is not None:
+        return {
+            "service_scope": assessment.get("service_scope", {}).get("rating"),
+            "symptom_match": assessment.get("symptom_match", {}).get("rating"),
+            "telemetry_match": assessment.get("telemetry_match", {}).get("rating"),
+            "exclusion_clear": assessment.get("exclusion_clear", {}).get("rating"),
+        }
+    return None
 
 
 def compact_runbook_candidate(candidate: dict[str, Any]) -> dict[str, Any]:
-    """Shrink one :class:`RunbookCandidate` dict for traces (omit full content)."""
-    relevance = candidate.get("relevance") or {}
+    """Shrink one RunbookCandidate dict for traces (omit full content)."""
     scores = candidate.get("retrieval_scores") or {}
     return {
         "doc_id": candidate.get("doc_id"),
@@ -35,9 +28,7 @@ def compact_runbook_candidate(candidate: dict[str, Any]) -> dict[str, Any]:
             "bm25_score": scores.get("bm25_score"),
             "rerank_score": scores.get("rerank_score"),
         },
-        "match_score": _match_score_from_relevance(relevance),
-        "match_signals": (relevance.get("match_signals") or [])[:5],
-        "conflict_signals": (relevance.get("conflict_signals") or [])[:5],
+        "ratings": _ratings_from_candidate(candidate),
     }
 
 
@@ -57,7 +48,7 @@ def rag_snapshot_from_state(state: dict[str, Any] | None) -> dict[str, Any]:
         "novel_scenario": state.get("novel_scenario"),
         "novel_reason": state.get("novel_reason"),
         "selected_runbook_id": state.get("selected_runbook_id"),
-        "match_score": state.get("match_score"),
+        "match_gate_reason": state.get("match_gate_reason"),
         "runbook_eval_reasoning": state.get("runbook_eval_reasoning"),
         "relevant_runbook_title": _title_from_runbook(relevant),
         "relevant_runbook_chars": len(relevant) if relevant else 0,

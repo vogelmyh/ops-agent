@@ -11,9 +11,14 @@ from app.graph.runbook_coverage import (
 from app.graph.diagnose_spec import (
     CONFIDENCE_SYSTEM_PROMPT,
     RCA_SYSTEM_PROMPT,
-    DiagnosisConfidenceRubric,
+    DiagnosisConfidenceAssessment,
     RootCauseDraft,
-    mock_confidence_rubric,
+    mock_confidence_assessment,
+)
+from app.graph.diagnosis_confidence_policy import (
+    build_confidence_gate_reason,
+    is_diagnostic_reliable,
+    policy_from_settings as confidence_policy_from_settings,
 )
 from app.graph.eval_schemas import RunbookCandidate
 from app.graph.remediation_context import format_remediation_context
@@ -273,14 +278,14 @@ def _run_confidence(
     root_cause: str,
     evidence: list[Evidence],
     settings,
-) -> DiagnosisConfidenceRubric:
+) -> DiagnosisConfidenceAssessment:
     if settings.llm_is_mock:
-        return mock_confidence_rubric(service)
+        return mock_confidence_assessment(service)
 
     evidence_text = "\n".join(f"- [{e.source}] {e.snippet}" for e in evidence) or "(none)"
     return invoke_structured(
         get_chat_model(settings=settings),
-        DiagnosisConfidenceRubric,
+        DiagnosisConfidenceAssessment,
         [
             SystemMessage(content=CONFIDENCE_SYSTEM_PROMPT),
             HumanMessage(content=(
@@ -319,16 +324,24 @@ def diagnose_node(state: AgentState) -> dict:
         settings=settings,
     )
 
-    confidence_rubric = _run_confidence(
+    confidence_assessment = _run_confidence(
         service=service,
         root_cause=root_cause,
         evidence=evidence,
         settings=settings,
     )
 
-    confidence_score = confidence_rubric.confidence_score
-    threshold = settings.diagnosis_confidence_threshold
-    confidence_sufficient = confidence_score >= threshold
+    confidence_policy = confidence_policy_from_settings(settings)
+    assessment_dict = confidence_assessment.as_dict()
+    confidence_sufficient = is_diagnostic_reliable(
+        assessment_dict,
+        policy=confidence_policy,
+    )
+    confidence_gate_reason = build_confidence_gate_reason(
+        assessment_dict,
+        reliable=confidence_sufficient,
+        policy=confidence_policy,
+    )
     needs_human_review = not confidence_sufficient
 
     findings = []
@@ -344,18 +357,17 @@ def diagnose_node(state: AgentState) -> dict:
         "root_cause": root_cause,
         "evidence": evidence,
         "findings": findings,
-        "diagnosis_confidence": confidence_score,
+        "confidence_rubric": confidence_assessment.model_dump(),
+        "confidence_gate_reason": confidence_gate_reason,
         "confidence_sufficient": confidence_sufficient,
         "needs_human_review": needs_human_review,
-        "diagnosis_reasoning": confidence_rubric.reasoning,
+        "diagnosis_reasoning": confidence_gate_reason,
         "status": "diagnosed",
     }
 
     if not confidence_sufficient:
         out["decide_outcome"] = SKIPPED_LOW_CONFIDENCE
-        out["knowledge_gaps"] = [
-            f"Diagnosis confidence {confidence_score:.2f} below threshold {threshold:.2f}",
-        ]
+        out["knowledge_gaps"] = [confidence_gate_reason]
         out["recommendations"] = [
             "Gather more telemetry or escalate to senior ops before automated remediation.",
         ]

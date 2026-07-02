@@ -1,4 +1,4 @@
-"""Runbook coverage — per-runbook LLM rubric scoring and code finalize (diagnose coverage phase)."""
+"""Runbook coverage — per-runbook CoT categorical rubric and code finalize."""
 
 from __future__ import annotations
 
@@ -6,36 +6,49 @@ from langchain_core.messages import HumanMessage, SystemMessage
 
 from app.config import get_settings
 from app.graph.collection import extract_symptoms
+from app.graph.categorical_rubric import DimensionAssessment
 from app.graph.eval_schemas import (
     RunbookCandidate,
     RunbookEvalLLMOutput,
-    RunbookPerDocRubric,
+    RunbookMatchAssessment,
 )
-from app.graph.runbook_eval_policy import (
-    compute_match_score,
-    finalize_runbook_eval,
-    thresholds_from_settings,
+from app.graph.runbook_match_policy import (
+    finalize_runbook_match,
+    policy_from_settings,
 )
 from app.llm.provider import get_chat_model, invoke_structured
 
 RUNBOOK_RUBRIC_SYSTEM_PROMPT = """\
 You are the runbook coverage evaluation module of an ops agent.
-Score **every** retrieved runbook candidate using the relevance rubric below.
-Do NOT copy runbook full text into your output — only doc_id, numeric scores, and signals.
+Evaluate **every** retrieved runbook candidate. Do NOT copy full runbook text into output.
 
-Output a single list `rubrics`: one entry per candidate doc_id provided (no other top-level fields).
+Output a single list `rubrics`: one entry per candidate doc_id (no other top-level fields).
 
-## relevance (per doc_id)
-Score each dimension 0, 0.15, or 0.25 (service_scope_match: only 0 or 0.25):
-- service_scope_match: runbook 适用范围 matches incident service
-  **If service does not match, set service_scope_match=0 and all other relevance dims=0.**
-- symptom_match: 症状 section aligns with symptom summary
-- telemetry_match: logs/k8s/metrics/operation signals align with 诊断 section
-- exclusion_clear: runbook 不适用于 list does not conflict with evidence
+For EACH dimension on EACH candidate you MUST:
+1. Write reasoning first — cite concrete tokens from symptom summary, telemetry, and runbook sections.
+2. Then assign rating — exactly one of: PASS, PARTIAL, FAIL.
 
-List concrete tokens in match_signals / conflict_signals.
+[service_scope]
+- PASS: runbook 适用范围 matches incident service.
+- PARTIAL: (do not use — scope is binary; use FAIL if mismatch)
+- FAIL: service scope does not match incident.
 
-Do NOT output selected_doc_id, suggested_novel, novel_scenario, or reasoning — code ranks by match_score after your rubric scores.
+[symptom_match]
+- PASS: 症状 section clearly aligns with symptom summary keywords.
+- PARTIAL: related but missing discriminating symptom tokens.
+- FAIL: symptom section describes a different failure mode.
+
+[telemetry_match]
+- PASS: logs/k8s/metrics/operation signals align with runbook 诊断 section.
+- PARTIAL: partial overlap or missing one key signal.
+- FAIL: telemetry contradicts runbook diagnosis path.
+
+[exclusion_clear]
+- PASS: runbook 不适用于 list does not conflict with evidence.
+- PARTIAL: minor tension but not disqualifying.
+- FAIL: evidence matches an explicit exclusion in the runbook.
+
+Do NOT output selected_doc_id, novel_scenario, or final selection — code applies policy after your rubrics.
 """
 
 _EVAL_DISPLAY_CHARS_PER_DOC = 4000
@@ -56,25 +69,30 @@ def _mock_select_doc_id(service: str, candidates: list[RunbookCandidate]) -> str
     return candidates[0].doc_id
 
 
-def _high_match_rubric(doc_id: str) -> RunbookPerDocRubric:
-    return RunbookPerDocRubric(
+def _dim(reasoning: str, rating: str) -> DimensionAssessment:
+    return DimensionAssessment(reasoning=reasoning, rating=rating)  # type: ignore[arg-type]
+
+
+def _all_pass_assessment(doc_id: str, *, notes: str = "") -> RunbookMatchAssessment:
+    reason = notes or f"oracle: strong match for {doc_id}"
+    pass_dim = _dim(reason, "PASS")
+    return RunbookMatchAssessment(
         doc_id=doc_id,
-        service_scope_match=0.25,
-        symptom_match=0.25,
-        telemetry_match=0.25,
-        exclusion_clear=0.15,
-        match_signals=[f"strong match for {doc_id}"],
+        service_scope=pass_dim,
+        symptom_match=pass_dim,
+        telemetry_match=pass_dim,
+        exclusion_clear=pass_dim,
     )
 
 
-def _low_match_rubric(doc_id: str) -> RunbookPerDocRubric:
-    return RunbookPerDocRubric(
+def _weak_match_assessment(doc_id: str, *, notes: str = "") -> RunbookMatchAssessment:
+    reason = notes or f"oracle: weak match for {doc_id}"
+    return RunbookMatchAssessment(
         doc_id=doc_id,
-        service_scope_match=0.25,
-        symptom_match=0.10,
-        telemetry_match=0.05,
-        exclusion_clear=0.05,
-        conflict_signals=[f"weak match for {doc_id}"],
+        service_scope=_dim("Service scope matches.", "PASS"),
+        symptom_match=_dim(reason, "FAIL"),
+        telemetry_match=_dim("Telemetry does not align with this runbook.", "FAIL"),
+        exclusion_clear=_dim("Exclusion not satisfied.", "PARTIAL"),
     )
 
 
@@ -84,27 +102,23 @@ def mock_llm_output_oracle(
     expected_novel: bool,
     candidates: list[RunbookCandidate],
 ) -> RunbookEvalLLMOutput:
-    if expected_novel:
+    if expected_novel or not expected_doc_id:
         return RunbookEvalLLMOutput(
-            rubrics=[_low_match_rubric(c.doc_id) for c in candidates],
-        )
-    if not expected_doc_id:
-        return RunbookEvalLLMOutput(
-            rubrics=[_low_match_rubric(c.doc_id) for c in candidates],
+            rubrics=[_weak_match_assessment(c.doc_id) for c in candidates],
         )
 
     candidate_ids = [c.doc_id for c in candidates]
     if expected_doc_id not in candidate_ids:
         return RunbookEvalLLMOutput(
-            rubrics=[_low_match_rubric(c.doc_id) for c in candidates],
+            rubrics=[_weak_match_assessment(c.doc_id) for c in candidates],
         )
 
     rubrics = []
     for candidate in candidates:
         if candidate.doc_id == expected_doc_id:
-            rubrics.append(_high_match_rubric(candidate.doc_id))
+            rubrics.append(_all_pass_assessment(candidate.doc_id))
         else:
-            rubrics.append(_low_match_rubric(candidate.doc_id))
+            rubrics.append(_weak_match_assessment(candidate.doc_id))
     return RunbookEvalLLMOutput(rubrics=rubrics)
 
 
@@ -114,7 +128,7 @@ def mock_llm_output(service: str, candidates: list[RunbookCandidate]) -> Runbook
 
     if service in _NOVEL_SERVICES:
         return RunbookEvalLLMOutput(
-            rubrics=[_low_match_rubric(c.doc_id) for c in candidates],
+            rubrics=[_weak_match_assessment(c.doc_id) for c in candidates],
         )
 
     from app.graph.collection import KNOWN_SERVICES
@@ -129,9 +143,9 @@ def mock_llm_output(service: str, candidates: list[RunbookCandidate]) -> Runbook
     rubrics = []
     for candidate in candidates:
         if candidate.doc_id == doc_id:
-            rubrics.append(_high_match_rubric(candidate.doc_id))
+            rubrics.append(_all_pass_assessment(candidate.doc_id, notes="mock: runbook guides remediation"))
         else:
-            rubrics.append(_low_match_rubric(candidate.doc_id))
+            rubrics.append(_weak_match_assessment(candidate.doc_id))
     return RunbookEvalLLMOutput(rubrics=rubrics)
 
 
@@ -156,18 +170,20 @@ def _format_candidates_for_eval(candidates: list[RunbookCandidate]) -> str:
 def coverage_result_to_state(result, candidates: list[RunbookCandidate]) -> dict:
     rubrics = []
     for candidate in result.candidates:
-        if candidate.relevance is not None:
+        if candidate.match_assessment is not None:
+            assessment = candidate.match_assessment
             rubrics.append({
                 "doc_id": candidate.doc_id,
-                "match_score": compute_match_score(candidate.relevance),
+                "ratings": assessment.model_dump_ratings(),
+                "dimensions": assessment.model_dump(),
             })
     return {
         "novel_scenario": result.novel_scenario,
         "novel_reason": result.novel_reason,
         "relevant_runbook": result.relevant_runbook,
         "selected_runbook_id": result.selected_doc_id,
-        "match_score": result.match_score,
-        "runbook_rubrics": rubrics,
+        "runbook_match_rubrics": rubrics,
+        "match_gate_reason": result.reasoning,
         "runbook_eval_reasoning": result.reasoning,
         "runbook_candidates": [c.model_dump() for c in result.candidates],
     }
@@ -184,14 +200,14 @@ def evaluate_runbook_coverage(
     oracle_expected_doc_id: str | None = None,
     oracle_expected_novel: bool = False,
 ) -> dict:
-    """Score runbook candidates and finalize selection / novel flags."""
+    """Evaluate runbook candidates and finalize selection / novel flags."""
     settings = settings or get_settings()
     data = dict(collected_data)
 
     symptoms = _symptoms_summary(service, data, incident_description)
     candidate_ids = [c.doc_id for c in candidates]
     runbook_text = _format_candidates_for_eval(candidates)
-    thresholds = thresholds_from_settings(settings)
+    policy = policy_from_settings(settings)
 
     if settings.llm_is_mock and golden_oracle:
         llm_output = mock_llm_output_oracle(
@@ -217,15 +233,14 @@ def evaluate_runbook_coverage(
             settings=settings,
         )
 
-    result = finalize_runbook_eval(
+    result = finalize_runbook_match(
         service,
         candidates,
         llm_output,
-        thresholds=thresholds,
+        policy=policy,
     )
     return coverage_result_to_state(result, candidates)
 
 
-# Deprecated aliases (remove after one release)
 run_diagnose_step1 = evaluate_runbook_coverage
 step1_result_to_state = coverage_result_to_state

@@ -49,9 +49,9 @@ make test-rag
 
 Harness：`run_retrieve_and_coverage()`（`nodes/eval_runbook.py`）。Oracle rubric 在 `runbook_coverage.py`：
 
-- LLM 结构化输出仅为 `RunbookEvalLLMOutput.rubrics`（每篇 **relevance** 四维）
-- `expected_novel=true`：所有候选打低分 → finalize 判 `low_relevance`
-- 有 `expected_doc_id`：期望篇高分、其余低分 → `finalize_runbook_coverage` 按 match_score 取 top1
+- LLM 结构化输出仅为 `RunbookEvalLLMOutput.rubrics`（每篇四维 CoT PASS/PARTIAL/FAIL）
+- `expected_novel=true`：所有候选 symptom FAIL 等 → `low_match`
+- 有 `expected_doc_id`：期望篇全 PASS、其余弱匹配 → `finalize_runbook_match` 选 top1
 - 选篇与 `runbook_eval_reasoning` 由代码生成，**不由 LLM 输出**
 
 真实 LLM rubric（L3，不默认进 CI）：
@@ -77,6 +77,10 @@ RAG_EVAL_REAL_LLM=1 .venv/bin/pytest tests/rag_eval/test_real_llm_smoke.py -v
 4. 跑 Track B；必要时用 `qwen` embedding 复测
 
 ## 变更记录
+
+### 2026-07-02 · CoT 范畴化评估
+
+- PASS/PARTIAL/FAIL + 代码 policy；删除 match_score / diagnosis_confidence float。
 
 ### 2026-07-01 · relevance-only match_score
 

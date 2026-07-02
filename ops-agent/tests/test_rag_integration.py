@@ -184,4 +184,4 @@ def test_rag_02_crashloop_runbook_is_full_parent_not_chunk_only():
     assert "勿用手段" in relevant
     assert "restart_pods" in relevant
     assert result.get("selected_runbook_id") == "ecomm-order-crashloop"
-    assert result.get("match_score") is not None
+    assert result.get("match_gate_reason")

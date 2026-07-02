@@ -59,7 +59,8 @@ def test_eval_runbook_novel_scenario(service, expected_novel):
     else:
         assert result.get("runbook_eval_reasoning")
         assert result.get("selected_runbook_id")
-        assert result.get("match_score") is not None
+        assert result.get("match_gate_reason")
+        assert result.get("runbook_match_rubrics") is not None
 
 
 def test_diagnose_ecomm_manager_confident():

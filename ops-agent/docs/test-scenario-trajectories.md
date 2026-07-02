@@ -249,7 +249,7 @@ stateDiagram-v2
 
 | Step | 节点链 | 关键 state / response |
 |------|--------|------------------------|
-| 1 | … → diagnose | `novel_scenario=true`, `confidence_sufficient=false`, `diagnosis_confidence` < 0.55 |
+| 1 | … → diagnose | `novel_scenario=true`, `confidence_sufficient=false`, `confidence_gate_reason` 含 not reliable |
 | 2 | summarize（跳过 decide） | `decide_outcome=skipped_low_confidence` |
 | 3 | notes → draft → review | HITL 链 |
 | 6 | ingest | `runbook_saved_path` 非空 |
@@ -293,10 +293,10 @@ symptom_query（incident 描述 + 遥测规则提取）
 
 ```text
 runbook_candidates
-  → LLM RunbookEvalLLMOutput（仅 rubrics: list[RunbookPerDocRubric]，每篇 Stage A+B 打分，无全文）
-  → finalize_runbook_eval（代码按 match_score 排序取 top1 + 阈值终裁）
+  → LLM RunbookEvalLLMOutput（rubrics: CoT 四维 PASS/PARTIAL/FAIL）
+  → finalize_runbook_match（代码 policy 选 top1）
   → relevant_runbook 从磁盘按 selected_runbook_id 加载
-  → novel_scenario / novel_reason / match_score
+  → novel_scenario / novel_reason / match_gate_reason
 ```
 
 离线 golden harness：`run_retrieve_and_coverage()`（别名 `run_runbook_eval()`）= retrieve + coverage（`eval_runbook.py`）。
@@ -305,8 +305,9 @@ runbook_candidates
 
 | 配置项 | 默认 | 含义 |
 |--------|------|------|
-| `runbook_relevance_threshold` | 0.55 | top1 match_score 低于此 → `novel_scenario=true` |
-| `diagnosis_confidence_threshold` | 0.55 | diagnose confidence rubric 总分低于此 → 跳过 decide（见 KB-01） |
+| `runbook_match_max_partial` | 1 | coverage selectable：PARTIAL 维数上限 |
+| `runbook_match_min_pass_count` | 2 | coverage selectable：至少 PASS 维数 |
+| `diagnosis_confidence_max_partial` | 1 | confidence 可靠判定 PARTIAL 上限 |
 | `retrieval_hybrid_top_k` | 20 | hybrid 召回上限 |
 | `retrieval_rerank_chunk_top_k` | 10 | rerank 后进入 parent 扩展的 chunk 数 |
 | `retrieval_final_top_k` | 3 | 送入 coverage rubric 的 parent 候选数 |
@@ -317,12 +318,12 @@ runbook_candidates
 |----|------|
 | `no_retrieval` | 检索结果为空 |
 | `service_mismatch` | 候选 runbook 服务范围不匹配（relevance 全 0） |
-| `low_relevance` | top1 match_score 未达阈值 |
+| `low_match` | 无 selectable 候选（symptom_match 必须 PASS） |
 | `invalid_selection` | 代码选中 runbook 后磁盘文件缺失 |
 
 ### RAG-01 · 漏匹配
 
-已知服务有 runbook，但 `novel_scenario=true`（`novel_reason` 多为 `low_relevance`）。  
+已知服务有 runbook，但 `novel_scenario=true`（`novel_reason` 多为 `low_match`）。  
 自动化：`tests/test_rag_integration.py::test_rag_01_*`；手工：`reindex()`、查 `run_scenarios` 的 `rag` 块。
 
 ### RAG-02 · 误匹配
@@ -343,9 +344,9 @@ retrieve / rubric 选错 runbook（如 crashloop vs memory-leak）。
 | `response.novel_reason` | step | 覆盖裁决原因码（diagnose coverage） |
 | `response.runbook_eval_reasoning` | step | finalize 规则生成的裁决说明（非 LLM 输出） |
 | `response.selected_runbook_id` | step | 代码选中的 runbook stem（relevance top1 过阈值后） |
-| `response.match_score` | step | coverage 阶段 top1 match_score |
-| `response.diagnosis_confidence` | step | diagnose confidence rubric 四维求和 |
-| `response.confidence_sufficient` | step | `diagnosis_confidence >= diagnosis_confidence_threshold` |
+| `response.match_gate_reason` | step | coverage 阶段 policy 裁决说明 |
+| `response.confidence_gate_reason` | step | confidence policy 裁决说明 |
+| `response.confidence_sufficient` | step | `is_diagnostic_reliable()` 结果 |
 | `response.needs_human_review` | step | 与 `confidence_sufficient` 相反（观测字段，不驱动 approve） |
 | `rag` | step | `rag_snapshot_from_state` 紧凑快照（含候选 retrieval 分、`runbook_eval_reasoning`，无全文） |
 | `graph_state.runbook_candidates` | step | 紧凑候选列表（最多 5 条） |
