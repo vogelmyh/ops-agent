@@ -140,6 +140,17 @@ def test_bare_rubric_array_wrapped():
     assert output.rubrics[0].service_scope_match == 0.25
 
 
+def test_coerce_flat_rubric_string_signals():
+    rubric = RunbookPerDocRubric.model_validate({
+        "doc_id": "ecomm-order-crashloop",
+        "service_scope_match": 0.25,
+        "match_signals": "service:ecomm-order; symptom:CrashLoop",
+        "conflict_signals": "",
+    })
+    assert rubric.match_signals == ["service:ecomm-order", "symptom:CrashLoop"]
+    assert rubric.conflict_signals == []
+
+
 def test_coerce_remediation_eval_missing_reasoning_defaults_empty():
     from app.graph.eval_schemas import RemediationEvalAssessment, coerce_remediation_eval_assessment
 
