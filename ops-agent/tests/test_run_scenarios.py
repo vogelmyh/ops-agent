@@ -84,13 +84,12 @@ def test_rag_snapshot_from_state():
         "novel_reason": None,
         "selected_runbook_id": "ecomm-order-crashloop",
         "match_gate_reason": "matched crashloop",
-        "runbook_eval_reasoning": "matched crashloop",
         "relevant_runbook": "# CrashLoop\n\n## 症状\nBackOff",
         "runbook_candidates": [],
     })
     assert snap["symptom_query"] == "ecomm-order BackOff CrashLoop"
     assert snap["selected_runbook_id"] == "ecomm-order-crashloop"
-    assert snap["runbook_eval_reasoning"] == "matched crashloop"
+    assert snap["match_gate_reason"] == "matched crashloop"
     assert snap["relevant_runbook_title"] == "CrashLoop"
     assert snap["relevant_runbook_chars"] > 0
 
@@ -105,7 +104,7 @@ def test_run_kb_01_mock_scenario_runner():
     assert "rag" in step0
     assert step0["rag"]["novel_scenario"] is True
     assert step0["rag"].get("novel_reason")
-    assert step0["rag"].get("runbook_eval_reasoning")
+    assert step0["rag"].get("match_gate_reason")
     assert step0["response"]["symptom_query"]
     assert step0["response"]["decide_outcome"] == "skipped_low_confidence"
     assert step0["response"]["confidence_sufficient"] is False

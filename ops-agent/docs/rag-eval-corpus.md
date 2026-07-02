@@ -52,7 +52,7 @@ Harness：`run_retrieve_and_coverage()`（`nodes/eval_runbook.py`）。Oracle ru
 - LLM 结构化输出仅为 `RunbookEvalLLMOutput.rubrics`（每篇四维 CoT PASS/PARTIAL/FAIL）
 - `expected_novel=true`：所有候选 symptom FAIL 等 → `low_match`
 - 有 `expected_doc_id`：期望篇全 PASS、其余弱匹配 → `finalize_runbook_match` 选 top1
-- 选篇与 `runbook_eval_reasoning` 由代码生成，**不由 LLM 输出**
+- 选篇与 `match_gate_reason` 由代码生成，**不由 LLM 输出**
 
 真实 LLM rubric（L3，不默认进 CI）：
 

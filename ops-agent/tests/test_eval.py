@@ -55,11 +55,10 @@ def test_eval_runbook_novel_scenario(service, expected_novel):
     assert result["collected_data"]
     if expected_novel:
         assert result.get("novel_reason")
-        assert result.get("runbook_eval_reasoning")
-    else:
-        assert result.get("runbook_eval_reasoning")
-        assert result.get("selected_runbook_id")
         assert result.get("match_gate_reason")
+    else:
+        assert result.get("match_gate_reason")
+        assert result.get("selected_runbook_id")
         assert result.get("runbook_match_rubrics") is not None
 
 
@@ -68,7 +67,6 @@ def test_diagnose_ecomm_manager_confident():
     state.update(retrieve_runbooks_node(state))
     result = diagnose_node(state)
     assert result["confidence_sufficient"] is True
-    assert result["needs_human_review"] is False
     assert result.get("decide_outcome") is None
 
 
@@ -78,7 +76,6 @@ def test_diagnose_ecomm_search_low_confidence_skips_decide():
     result = diagnose_node(state)
     assert result["novel_scenario"] is True
     assert result["confidence_sufficient"] is False
-    assert result["needs_human_review"] is True
     assert result["decide_outcome"] == SKIPPED_LOW_CONFIDENCE
 
 

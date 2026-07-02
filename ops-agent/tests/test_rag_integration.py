@@ -141,7 +141,7 @@ def test_eval_runbook_exposes_novel_reason_on_novel_service():
     result = eval_runbook_node(state)
     assert result["novel_scenario"] is True
     assert result.get("novel_reason")
-    assert result.get("runbook_eval_reasoning")
+    assert result.get("match_gate_reason")
     assert result["relevant_runbook"] is None
 
 

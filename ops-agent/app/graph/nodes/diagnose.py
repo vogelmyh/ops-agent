@@ -21,7 +21,7 @@ from app.graph.diagnosis_confidence_policy import (
     policy_from_settings as confidence_policy_from_settings,
 )
 from app.graph.eval_schemas import RunbookCandidate
-from app.graph.remediation_context import format_remediation_context
+from app.graph.remediation_context import RCA_RETRY_GUIDANCE, format_remediation_context
 from app.graph.runbook_excerpt import excerpt_runbook
 from app.graph.state import AgentState
 from app.llm.provider import get_chat_model, invoke_structured
@@ -256,7 +256,13 @@ def _run_rca(
         )
 
     prior_root = state.get("root_cause", "") if state.get("remediation_attempt", 0) >= 1 else None
-    remediation_block = format_remediation_context(state, prior_root_cause=prior_root or None)
+    remediation_block = format_remediation_context(
+        state,
+        prior_root_cause=prior_root or None,
+        extra_guidance=(
+            RCA_RETRY_GUIDANCE if state.get("remediation_attempt", 0) >= 1 else None
+        ),
+    )
     if remediation_block:
         context = f"{context}\n\n{remediation_block}"
 
@@ -342,8 +348,6 @@ def diagnose_node(state: AgentState) -> dict:
         reliable=confidence_sufficient,
         policy=confidence_policy,
     )
-    needs_human_review = not confidence_sufficient
-
     findings = []
     if data.get("app_logs"):
         findings.append({"source": "app_logs", "data": data["app_logs"]})
@@ -360,8 +364,6 @@ def diagnose_node(state: AgentState) -> dict:
         "confidence_rubric": confidence_assessment.model_dump(),
         "confidence_gate_reason": confidence_gate_reason,
         "confidence_sufficient": confidence_sufficient,
-        "needs_human_review": needs_human_review,
-        "diagnosis_reasoning": confidence_gate_reason,
         "status": "diagnosed",
     }
 
