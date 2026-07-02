@@ -26,7 +26,7 @@ RULES: list[tuple[str, list[str], list[str]]] = [
     ("ops-agent/tests/rag_eval/", ["ops-agent/docs/rag-architecture-and-tests.md §5.8"], ["test-rag"]),
     ("ops-agent/tests/test_rag", ["ops-agent/docs/rag-architecture-and-tests.md"], ["test-rag"]),
     ("ops-agent/tests/test_hybrid_retrieval", ["ops-agent/docs/rag-architecture-and-tests.md"], ["test-rag"]),
-    ("ops-agent/tests/test_runbook_eval_policy", ["ops-agent/docs/rag-architecture-and-tests.md §5.6"], ["test-rag"]),
+    ("ops-agent/tests/test_runbook_match_policy", ["ops-agent/docs/rag-architecture-and-tests.md §5.6"], ["test-rag"]),
     ("ops-agent/data/runbooks/", ["ops-agent/docs/rag-architecture-and-tests.md §5.4"], ["test-rag"]),
     ("ops-agent/app/graph/builder", ["ops-agent/docs/graph-agent-architecture.md", "ops-agent/docs/architecture.md"], ["test-graph"]),
     ("ops-agent/app/graph/runner", ["ops-agent/docs/graph-agent-architecture.md", "ops-agent/docs/architecture.md"], ["test-graph"]),

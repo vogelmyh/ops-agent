@@ -43,10 +43,10 @@ incident.description + collect(遥测)
 
 ```text
 runbook_candidates
-  → LLM RunbookEvalLLMOutput     # rubrics: list[RunbookPerDocRubric]（每篇 relevance 四维）
-  → finalize_runbook_coverage()  # 代码按 match_score 排序取 top1 + 阈值终裁
+  → LLM RunbookEvalLLMOutput     # rubrics: list[RunbookMatchAssessment]（每篇四维 CoT PASS/PARTIAL/FAIL）
+  → finalize_runbook_match()     # 代码 policy 选 top1 + gate_reason
   → load_runbook_by_stem()       # relevant_runbook 全文
-  → novel_scenario / novel_reason / match_score
+  → novel_scenario / novel_reason / match_gate_reason
 ```
 
 ```mermaid
@@ -113,7 +113,7 @@ flowchart LR
 
 - `symptom_query`
 - `novel_scenario`, `novel_reason`
-- `selected_runbook_id`, `match_score`
+- `selected_runbook_id`, `match_gate_reason`, `runbook_match_rubrics`
 - `runbook_candidates`, `runbook_eval_reasoning`
 - `relevant_runbook`
 
@@ -127,7 +127,9 @@ flowchart LR
 | `retrieval_rrf_k` | 60 | RRF |
 | `retrieval_rerank_min_score` | 0.15 | 分数过滤（`local-hash` 时为 0） |
 | `embeddings_provider` | `local-hash` | 向量集合名 / CI |
-| `runbook_relevance_threshold` | 0.55 | top1 match_score 低于此 → novel |
+| `runbook_match_max_partial` | 1 | 每候选 PARTIAL 上限（selectable 规则） |
+| `runbook_match_min_pass_count` | 2 | selectable 至少 PASS 维数 |
+| `diagnosis_confidence_max_partial` | 1 | confidence 可靠判定 PARTIAL 上限 |
 
 环境变量别名见 `Settings` 字段；改阈值后需同步 **policy 单测** 与 **golden 门槛**（若行为变化）。
 
@@ -139,7 +141,7 @@ flowchart LR
 |----|----------|
 | `no_retrieval` | 候选为空 |
 | `service_mismatch` | 候选 relevance 全 0（服务不符） |
-| `low_relevance` | top1 match_score 未达阈值 |
+| `low_match` | 无 selectable 候选（symptom_match 非 PASS 等） |
 | `invalid_selection` | 选中 runbook 文件缺失 |
 
 ---
@@ -490,6 +492,13 @@ CHECKPOINTER=memory EMBEDDINGS_PROVIDER=local-hash \
 ---
 
 ## 9. 版本注记
+
+### 2026-07-02 · CoT 范畴化评估（PASS/PARTIAL/FAIL）
+
+- **Coverage**：LLM 逐维 CoT + 三值标签；`finalize_runbook_match()` 布尔/计数 policy（`symptom_match` 必须 PASS）；删除 `match_score` 与 float 阈值。
+- **Confidence**：`DiagnosisConfidenceAssessment` + `is_diagnostic_reliable()`；删除 `diagnosis_confidence` float。
+- **字段**：`match_gate_reason`、`runbook_match_rubrics`、`confidence_rubric`、`confidence_gate_reason`。
+- **验证**：Track B 42 passed；`test-graph` 11；`test-api` 16。
 
 ### 2026-07-01 · relevance-only match_score + 置信度纯 rubric
 

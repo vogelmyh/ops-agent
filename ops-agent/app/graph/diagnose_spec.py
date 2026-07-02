@@ -1,12 +1,13 @@
-"""RCA and confidence rubric prompts, schemas, and mock oracles."""
+"""RCA and confidence CoT categorical rubric prompts, schemas, and mock oracles."""
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
-from app.graph.eval_schemas import _as_str_list
+from app.graph.categorical_rubric import DimensionAssessment, coerce_dimension_assessment
+from app.graph.diagnosis_confidence_policy import CONFIDENCE_DIMS
 
 EvidenceSource = Literal[
     "app_logs",
@@ -42,76 +43,102 @@ Do NOT recommend remediation steps or tool invocations.
 
 CONFIDENCE_SYSTEM_PROMPT = """\
 You are the diagnosis confidence rubric module of an ops agent.
-Score the proposed root cause and evidence — NOT runbook selection (handled upstream).
+Evaluate whether the proposed root cause and evidence are reliable enough for automated remediation.
+Do NOT re-evaluate runbook selection (handled upstream).
 
-Score each dimension 0, 0.15, or 0.25:
-- evidence_grounding: evidence snippets align with telemetry
-- causal_specificity: root cause is specific and testable
-- alternative_excluded: main competing hypotheses are ruled out
-- contradiction_clear: no obvious conflict with telemetry facts
+For EACH dimension below you MUST:
+1. Write reasoning first — cite concrete telemetry vs evidence/root_cause alignment.
+2. Then assign rating — exactly one of: PASS, PARTIAL, FAIL.
 
-Output numeric rubric fields and brief reasoning only.
+[evidence_grounding]
+- PASS: evidence snippets match telemetry facts (errors, metrics, timestamps).
+- PARTIAL: directionally aligned but missing key metric/log or timing is vague.
+- FAIL: evidence contradicts telemetry or appears fabricated.
+
+[causal_specificity]
+- PASS: root cause names a specific, testable failure mode (config key, error class, resource).
+- PARTIAL: plausible but lacks observable proof or is overly generic.
+- FAIL: vague hand-waving or untestable hypothesis.
+
+[alternative_excluded]
+- PASS: main competing hypotheses are ruled out using telemetry.
+- PARTIAL: some alternatives excluded, one plausible alternative remains.
+- FAIL: obvious alternative not addressed.
+
+[contradiction_clear]
+- PASS: no conflict between root cause and telemetry facts.
+- PARTIAL: minor tension explained or low-risk ambiguity.
+- FAIL: clear contradiction with known telemetry.
+
+Output structured JSON with one object per dimension: {reasoning, rating}.
 """
 
 
-class DiagnosisConfidenceRubric(BaseModel):
-    evidence_grounding: float = Field(default=0.0, ge=0.0, le=0.25)
-    causal_specificity: float = Field(default=0.0, ge=0.0, le=0.25)
-    alternative_excluded: float = Field(default=0.0, ge=0.0, le=0.25)
-    contradiction_clear: float = Field(default=0.0, ge=0.0, le=0.25)
-    reasoning: str = ""
-
-    @property
-    def confidence_score(self) -> float:
-        return min(
-            1.0,
-            self.evidence_grounding
-            + self.causal_specificity
-            + self.alternative_excluded
-            + self.contradiction_clear,
-        )
-
-
-def coerce_diagnosis_confidence_rubric(data) -> dict:
+def coerce_diagnosis_confidence_assessment(data: Any) -> Any:
     if not isinstance(data, dict):
         return data
-    out = dict(data)
-    if not out.get("reasoning"):
-        for alias in ("explanation", "summary", "rationale", "reason"):
-            if alias in out and out[alias]:
-                out["reasoning"] = str(out[alias])
-                break
+    out: dict[str, object] = {}
+    for dim in CONFIDENCE_DIMS:
+        if dim in data:
+            out[dim] = coerce_dimension_assessment(data[dim])
         else:
-            out.setdefault("reasoning", "")
+            out[dim] = {"reasoning": "", "rating": "FAIL"}
     return out
 
 
-# Mock confidence profiles keyed by service for graph scenarios.
+class DiagnosisConfidenceAssessment(BaseModel):
+    evidence_grounding: DimensionAssessment = Field(default_factory=DimensionAssessment)
+    causal_specificity: DimensionAssessment = Field(default_factory=DimensionAssessment)
+    alternative_excluded: DimensionAssessment = Field(default_factory=DimensionAssessment)
+    contradiction_clear: DimensionAssessment = Field(default_factory=DimensionAssessment)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce_llm_shape(cls, data: Any) -> Any:
+        return coerce_diagnosis_confidence_assessment(data)
+
+    def as_dict(self) -> dict[str, DimensionAssessment]:
+        return {
+            "evidence_grounding": self.evidence_grounding,
+            "causal_specificity": self.causal_specificity,
+            "alternative_excluded": self.alternative_excluded,
+            "contradiction_clear": self.contradiction_clear,
+        }
+
+
+# Backward-compatible alias.
+DiagnosisConfidenceRubric = DiagnosisConfidenceAssessment
+
+
 _LOW_CONFIDENCE_SERVICES = frozenset({"ecomm-search", "ecomm-catalog"})
 _HIGH_CONFIDENCE_NOVEL = frozenset({"ecomm-cache"})
 
 
-def mock_confidence_rubric(service: str) -> DiagnosisConfidenceRubric:
+def _dim(reasoning: str, rating: str) -> DimensionAssessment:
+    return DimensionAssessment(reasoning=reasoning, rating=rating)  # type: ignore[arg-type]
+
+
+def mock_confidence_assessment(service: str) -> DiagnosisConfidenceAssessment:
     if service in _LOW_CONFIDENCE_SERVICES:
-        return DiagnosisConfidenceRubric(
-            evidence_grounding=0.10,
-            causal_specificity=0.10,
-            alternative_excluded=0.05,
-            contradiction_clear=0.05,
-            reasoning="Ambiguous symptoms; RCA not converged enough for automated remediation.",
+        return DiagnosisConfidenceAssessment(
+            evidence_grounding=_dim("Symptoms ambiguous; log alignment weak.", "PARTIAL"),
+            causal_specificity=_dim("Root cause not specific enough for auto-remediation.", "PARTIAL"),
+            alternative_excluded=_dim("Competing hypotheses not ruled out.", "FAIL"),
+            contradiction_clear=_dim("Minor tension with sparse telemetry.", "FAIL"),
         )
     if service in _HIGH_CONFIDENCE_NOVEL:
-        return DiagnosisConfidenceRubric(
-            evidence_grounding=0.25,
-            causal_specificity=0.25,
-            alternative_excluded=0.20,
-            contradiction_clear=0.20,
-            reasoning="OOM/restart pattern is specific and grounded in telemetry.",
+        return DiagnosisConfidenceAssessment(
+            evidence_grounding=_dim("OOM/restart pattern grounded in k8s events.", "PASS"),
+            causal_specificity=_dim("OOMKilled + memory limit is specific and testable.", "PASS"),
+            alternative_excluded=_dim("Network and disk alternatives unlikely given events.", "PASS"),
+            contradiction_clear=_dim("No contradiction with pod restart telemetry.", "PASS"),
         )
-    return DiagnosisConfidenceRubric(
-        evidence_grounding=0.25,
-        causal_specificity=0.25,
-        alternative_excluded=0.20,
-        contradiction_clear=0.20,
-        reasoning="Diagnosis aligns with telemetry and selected runbook context.",
+    return DiagnosisConfidenceAssessment(
+        evidence_grounding=_dim("Evidence snippets align with collected telemetry.", "PASS"),
+        causal_specificity=_dim("Root cause cites concrete misconfiguration or error.", "PASS"),
+        alternative_excluded=_dim("Main alternatives addressed in RCA.", "PARTIAL"),
+        contradiction_clear=_dim("No obvious telemetry conflict.", "PASS"),
     )
+
+
+mock_confidence_rubric = mock_confidence_assessment

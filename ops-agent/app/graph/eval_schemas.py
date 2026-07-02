@@ -4,148 +4,77 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, Field, computed_field, model_validator
+from pydantic import BaseModel, Field, model_validator
+
+from app.graph.categorical_rubric import DimensionAssessment, coerce_dimension_assessment
 
 
 # ---------------------------------------------------------------------------
-# Runbook coverage eval (relevance-only rubric → match_score)
+# Runbook coverage eval (CoT categorical rubric)
 # ---------------------------------------------------------------------------
 
 class RetrievalScores(BaseModel):
-    """Scores from the retrieval stack (vector / BM25 / rerank). Optional until hybrid PR."""
+    """Scores from the retrieval stack (vector / BM25 / rerank)."""
 
     vector_score: float | None = None
     bm25_score: float | None = None
     rerank_score: float | None = None
 
 
-class RunbookRelevanceRubric(BaseModel):
-    """Per-doc match rubric. Each dimension 0, 0.15, or 0.25 (service_scope: 0 or 0.25)."""
-
-    doc_id: str
-    service_scope_match: float = Field(default=0.0, ge=0.0, le=0.25)
-    symptom_match: float = Field(default=0.0, ge=0.0, le=0.25)
-    telemetry_match: float = Field(default=0.0, ge=0.0, le=0.25)
-    exclusion_clear: float = Field(default=0.0, ge=0.0, le=0.25)
-    match_signals: list[str] = Field(default_factory=list)
-    conflict_signals: list[str] = Field(default_factory=list)
-
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def relevance_score(self) -> float:
-        if self.service_scope_match <= 0:
-            return 0.0
-        return min(
-            1.0,
-            self.service_scope_match
-            + self.symptom_match
-            + self.telemetry_match
-            + self.exclusion_clear,
-        )
+MATCH_DIMENSION_FIELDS = (
+    "service_scope",
+    "symptom_match",
+    "telemetry_match",
+    "exclusion_clear",
+)
 
 
 def _nested_dict(value: Any) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
-def _field_or_default(
-    nested: dict[str, Any],
-    flat: dict[str, Any],
-    key: str,
-    default: Any,
-) -> Any:
-    if key in nested:
-        return nested[key]
-    if key in flat:
-        return flat[key]
-    return default
-
-
-def _coerce_str_list(value: Any) -> list[str]:
-    if value is None or value == "":
-        return []
-    if isinstance(value, list):
-        return [str(v).strip() for v in value if str(v).strip()]
-    if isinstance(value, str):
-        text = value.strip()
-        if not text:
-            return []
-        parts = [p.strip() for p in text.replace(";", ",").split(",") if p.strip()]
-        return parts if len(parts) > 1 else [text]
-    return [str(value).strip()]
-
-
-def coerce_runbook_per_doc_rubric(data: Any) -> Any:
-    """Normalize LLM rubric JSON: flat fields or nested relevance group."""
+def coerce_runbook_match_assessment(data: Any) -> Any:
+    """Normalize per-candidate match rubric JSON from LLM."""
     if not isinstance(data, dict):
         return data
 
-    rel = _nested_dict(data.get("relevance"))
-    if not rel:
-        out = dict(data)
-        changed = False
-        if "match_signals" in out:
-            coerced = _coerce_str_list(out["match_signals"])
-            if coerced != out["match_signals"]:
-                out["match_signals"] = coerced
-                changed = True
-        if "conflict_signals" in out:
-            coerced = _coerce_str_list(out["conflict_signals"])
-            if coerced != out["conflict_signals"]:
-                out["conflict_signals"] = coerced
-                changed = True
-        return out if changed else data
-
-    doc_id = data.get("doc_id") or rel.get("doc_id") or ""
-    return {
-        "doc_id": doc_id,
-        "service_scope_match": _field_or_default(rel, data, "service_scope_match", 0.0),
-        "symptom_match": _field_or_default(rel, data, "symptom_match", 0.0),
-        "telemetry_match": _field_or_default(rel, data, "telemetry_match", 0.0),
-        "exclusion_clear": _field_or_default(rel, data, "exclusion_clear", 0.0),
-        "match_signals": _coerce_str_list(_field_or_default(rel, data, "match_signals", [])),
-        "conflict_signals": _coerce_str_list(_field_or_default(rel, data, "conflict_signals", [])),
-    }
+    out: dict[str, Any] = {"doc_id": data.get("doc_id", "")}
+    for dim in MATCH_DIMENSION_FIELDS:
+        nested = _nested_dict(data.get(dim))
+        if nested:
+            out[dim] = coerce_dimension_assessment(nested)
+        elif dim in data:
+            out[dim] = coerce_dimension_assessment(data[dim])
+        else:
+            out[dim] = {"reasoning": "", "rating": "FAIL"}
+    return out
 
 
-class RunbookPerDocRubric(BaseModel):
-    """Per-candidate relevance rubric — sole element of LLM structured output."""
+class RunbookMatchAssessment(BaseModel):
+    """Per-candidate CoT categorical match rubric."""
 
     doc_id: str
-    service_scope_match: float = Field(default=0.0, ge=0.0, le=0.25)
-    symptom_match: float = Field(default=0.0, ge=0.0, le=0.25)
-    telemetry_match: float = Field(default=0.0, ge=0.0, le=0.25)
-    exclusion_clear: float = Field(default=0.0, ge=0.0, le=0.25)
-    match_signals: list[str] = Field(default_factory=list)
-    conflict_signals: list[str] = Field(default_factory=list)
+    service_scope: DimensionAssessment = Field(default_factory=DimensionAssessment)
+    symptom_match: DimensionAssessment = Field(default_factory=DimensionAssessment)
+    telemetry_match: DimensionAssessment = Field(default_factory=DimensionAssessment)
+    exclusion_clear: DimensionAssessment = Field(default_factory=DimensionAssessment)
 
     @model_validator(mode="before")
     @classmethod
-    def _coerce_llm_rubric_shape(cls, data: Any) -> Any:
-        return coerce_runbook_per_doc_rubric(data)
+    def _coerce_llm_shape(cls, data: Any) -> Any:
+        return coerce_runbook_match_assessment(data)
 
-    @classmethod
-    def from_relevance(cls, relevance: RunbookRelevanceRubric) -> "RunbookPerDocRubric":
-        return cls(
-            doc_id=relevance.doc_id,
-            service_scope_match=relevance.service_scope_match,
-            symptom_match=relevance.symptom_match,
-            telemetry_match=relevance.telemetry_match,
-            exclusion_clear=relevance.exclusion_clear,
-            match_signals=list(relevance.match_signals),
-            conflict_signals=list(relevance.conflict_signals),
-        )
+    def model_dump_ratings(self) -> dict[str, str]:
+        return {
+            "service_scope": self.service_scope.rating,
+            "symptom_match": self.symptom_match.rating,
+            "telemetry_match": self.telemetry_match.rating,
+            "exclusion_clear": self.exclusion_clear.rating,
+        }
 
-    def to_relevance(self) -> RunbookRelevanceRubric:
-        return RunbookRelevanceRubric(
-            doc_id=self.doc_id,
-            service_scope_match=self.service_scope_match,
-            symptom_match=self.symptom_match,
-            telemetry_match=self.telemetry_match,
-            exclusion_clear=self.exclusion_clear,
-            match_signals=list(self.match_signals),
-            conflict_signals=list(self.conflict_signals),
-        )
+
+# LLM output element alias.
+RunbookPerDocRubric = RunbookMatchAssessment
 
 
 class RunbookCandidate(BaseModel):
@@ -157,7 +86,7 @@ class RunbookCandidate(BaseModel):
     content: str = ""
     chunk_type: str = "parent"
     retrieval_scores: RetrievalScores = Field(default_factory=RetrievalScores)
-    relevance: RunbookRelevanceRubric | None = None
+    match_assessment: RunbookMatchAssessment | None = None
 
 
 def coerce_runbook_eval_llm_output(data: Any) -> Any:
@@ -168,9 +97,9 @@ def coerce_runbook_eval_llm_output(data: Any) -> Any:
 
 
 class RunbookEvalLLMOutput(BaseModel):
-    """Structured LLM output — per-doc rubric scores only; selection and reasoning are code-owned."""
+    """Structured LLM output — per-doc categorical assessments only."""
 
-    rubrics: list[RunbookPerDocRubric] = Field(default_factory=list)
+    rubrics: list[RunbookMatchAssessment] = Field(default_factory=list)
 
     @model_validator(mode="before")
     @classmethod
@@ -179,19 +108,18 @@ class RunbookEvalLLMOutput(BaseModel):
 
 
 class RunbookEvalResult(BaseModel):
-    """Final coverage decision after policy finalize (code-owned thresholds)."""
+    """Final coverage decision after policy finalize."""
 
     novel_scenario: bool
     novel_reason: str | None = None
     selected_doc_id: str | None = None
     relevant_runbook: str | None = None
-    match_score: float | None = None
     candidates: list[RunbookCandidate] = Field(default_factory=list)
     reasoning: str = ""
 
 
 # ---------------------------------------------------------------------------
-# Legacy / other eval nodes (unchanged for PR1)
+# Legacy / other eval nodes
 # ---------------------------------------------------------------------------
 
 class RunbookEvalAssessment(BaseModel):

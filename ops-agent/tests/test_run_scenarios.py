@@ -24,7 +24,7 @@ from app.graph.rag_observability import (
     compact_runbook_candidates,
     rag_snapshot_from_state,
 )
-from app.graph.eval_schemas import RunbookRelevanceRubric
+from app.graph.eval_schemas import RunbookMatchAssessment
 from app.observability.tracing import _clear_tracing_env
 
 
@@ -61,12 +61,12 @@ def test_compact_runbook_candidates_omits_full_content():
                 "bm25_score": 2.1,
                 "rerank_score": 0.88,
             },
-            "relevance": RunbookRelevanceRubric(
+            "match_assessment": RunbookMatchAssessment(
                 doc_id="ecomm-order-crashloop",
-                service_scope_match=0.25,
-                symptom_match=0.25,
-                telemetry_match=0.20,
-                exclusion_clear=0.15,
+                service_scope={"reasoning": "ok", "rating": "PASS"},
+                symptom_match={"reasoning": "ok", "rating": "PASS"},
+                telemetry_match={"reasoning": "ok", "rating": "PASS"},
+                exclusion_clear={"reasoning": "ok", "rating": "PARTIAL"},
             ).model_dump(),
         },
     ]
@@ -74,7 +74,7 @@ def test_compact_runbook_candidates_omits_full_content():
     assert "content" not in compact[0]
     assert compact[0]["doc_id"] == "ecomm-order-crashloop"
     assert compact[0]["retrieval"]["rerank_score"] == 0.88
-    assert compact[0]["match_score"] == pytest.approx(0.85)
+    assert compact[0]["ratings"]["symptom_match"] == "PASS"
 
 
 def test_rag_snapshot_from_state():
@@ -83,7 +83,7 @@ def test_rag_snapshot_from_state():
         "novel_scenario": False,
         "novel_reason": None,
         "selected_runbook_id": "ecomm-order-crashloop",
-        "match_score": 0.82,
+        "match_gate_reason": "matched crashloop",
         "runbook_eval_reasoning": "matched crashloop",
         "relevant_runbook": "# CrashLoop\n\n## 症状\nBackOff",
         "runbook_candidates": [],
@@ -109,7 +109,7 @@ def test_run_kb_01_mock_scenario_runner():
     assert step0["response"]["symptom_query"]
     assert step0["response"]["decide_outcome"] == "skipped_low_confidence"
     assert step0["response"]["confidence_sufficient"] is False
-    assert step0["response"]["diagnosis_confidence"] is not None
+    assert step0["response"]["confidence_gate_reason"]
 
 
 def test_run_kb_02_mock_scenario_runner():

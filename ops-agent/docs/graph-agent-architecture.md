@@ -90,7 +90,7 @@ triage
 | `collected_data` | collection | 遥测 |
 | `symptom_query`, `runbook_candidates` | retrieve_runbooks | 检索 |
 | `novel_scenario`, `novel_reason`, `relevant_runbook`, `selected_runbook_id`, `runbook_eval_reasoning` | diagnose coverage | KB 覆盖 |
-| `root_cause`, `evidence`, `diagnosis_confidence`, `confidence_sufficient` | diagnose | 诊断 |
+| `root_cause`, `evidence`, `confidence_rubric`, `confidence_gate_reason`, `confidence_sufficient` | diagnose | 诊断 |
 | `needs_human_review` | diagnose（观测：`confidence < threshold`） | 不再驱动 approve |
 | `decision_class`, `decide_outcome` | decide | 路由 |
 | `remediation_attempt`, `incident_resolved` | verify_remediation | react 环 |
@@ -181,7 +181,7 @@ CHECKPOINTER=memory .venv/bin/python scripts/run_scenarios.py --scenarios REM-01
 
 ## 9. 版本注记
 
-- **2026-07-01**：coverage 简化为 relevance-only `match_score`；confidence 纯 rubric 求和（无 runbook_support）。
+- **2026-07-02**：CoT 范畴化 rubric（PASS/PARTIAL/FAIL）+ 代码 policy 路由；删除 float 分数字段。
 - **2026-07-01**：命名清理：`eval_remediation` → `verify_remediation`；diagnose coverage / rca / confidence；双轨 RAG 测试见 [`rag-architecture-and-tests.md`](rag-architecture-and-tests.md) §4。
 - **2026-07-01**：主图重构：`eval_runbook` → `retrieve_runbooks`（纯检索）；`eval_diagnosis` 并入 `diagnose` 三阶段（coverage runbook rubric + finalize、rca、confidence rubric）；`confidence < diagnosis_confidence_threshold` 时 `decide_outcome=skipped_low_confidence` 直进 summarize。同步指南与 react 环文档已对齐。
 - **2026-06-30**：`RemediationEvalAssessment` coerce（`eval_schemas.coerce_remediation_eval_assessment`）见 decide-remediation §10。

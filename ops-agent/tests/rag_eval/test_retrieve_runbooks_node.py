@@ -41,7 +41,7 @@ def test_retrieve_runbooks_node_outputs_retrieval_only():
     assert result.get("runbook_candidates")
     assert "novel_scenario" not in result
     assert "selected_runbook_id" not in result
-    assert "match_score" not in result
+    assert "match_gate_reason" not in result
     assert "relevant_runbook" not in result
 
     for candidate in result["runbook_candidates"]:

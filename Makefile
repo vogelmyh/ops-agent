@@ -12,7 +12,7 @@ test-rag-retrieval:
 	  tests/rag_eval/test_golden_select.py -q
 
 test-rag-coverage:
-	$(PY) -m pytest tests/test_runbook_eval_policy.py tests/test_eval_schemas.py \
+	$(PY) -m pytest tests/test_runbook_match_policy.py tests/test_diagnosis_confidence_policy.py tests/test_eval_schemas.py \
 	  tests/test_rag_integration.py tests/rag_eval/test_coverage_golden.py \
 	  tests/rag_eval/test_real_llm_smoke.py -q
 
