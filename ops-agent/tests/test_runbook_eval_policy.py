@@ -8,6 +8,8 @@ import pytest
 
 os.environ.setdefault("BACKEND_MODE", "mock")
 
+pytestmark = pytest.mark.rag_coverage
+
 from app.graph.eval_schemas import (
     RunbookCandidate,
     RunbookCoverageRubric,

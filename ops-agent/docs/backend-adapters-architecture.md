@@ -103,7 +103,7 @@ uvicorn app.main:app --port 8000
 
 1. **写前读**：`/diagnose` 后 `collected_data` 呈 BROKEN 态证据  
 2. **写工具**：`execution_results` 含 `SUCCEEDED` / `FAILED`  
-3. **写后读**：`eval_remediation` 所用遥测反映新状态（recoverable 场景应可 `incident_resolved=true`）
+3. **写后读**：`verify_remediation` 所用遥测反映新状态（recoverable 场景应可 `incident_resolved=true`）
 
 ### 5.4 何时不需要 simulator
 
@@ -121,7 +121,7 @@ uvicorn app.main:app --port 8000
 ### 6.1 本组件测什么
 
 - **mock_data** 与 `collection` 字段完整性（各 service 投影一致）
-- **mock_remediation** 写后状态是否与 `eval_remediation` 预期一致
+- **mock_remediation** 写后状态是否与 `verify_remediation` 预期一致
 - **real 模式**：通常通过 integration / `run_scenarios` + 运行中的 simulator 间接验证，不在 ops-agent 内复制 simulator 单测
 
 ### 6.2 测试入口

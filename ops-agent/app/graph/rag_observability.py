@@ -1,4 +1,4 @@
-"""Compact RAG / eval_runbook snapshots for logging, run_scenarios, and LangSmith."""
+"""Compact retrieval + coverage snapshots for logging, run_scenarios, and LangSmith."""
 
 from __future__ import annotations
 
@@ -62,7 +62,7 @@ def compact_runbook_candidates(candidates: list[dict[str, Any]] | None) -> list[
 
 
 def rag_snapshot_from_state(state: dict[str, Any] | None) -> dict[str, Any]:
-    """Extract eval_runbook + retrieval observability from graph state."""
+    """Extract retrieval + coverage observability from graph state."""
     if not state:
         return {}
     relevant = state.get("relevant_runbook") or ""

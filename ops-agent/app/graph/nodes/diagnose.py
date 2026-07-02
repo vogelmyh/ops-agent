@@ -1,12 +1,12 @@
-"""Diagnose node — Step1 runbook rubric, Step2 RCA, Step3 confidence rubric, code gates."""
+"""Diagnose node — coverage, RCA, confidence rubric, and routing gates."""
 
 from __future__ import annotations
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from app.config import get_settings
-from app.graph.diagnose_runbook_step import (
-    run_diagnose_step1,
+from app.graph.runbook_coverage import (
+    evaluate_runbook_coverage,
     runbook_support_score,
 )
 from app.graph.diagnose_spec import (
@@ -227,7 +227,7 @@ def _build_evidence_from_data(service: str, data: dict, selected_doc_id: str | N
     return ev
 
 
-def _run_step2_rca(
+def _run_rca(
     state: AgentState,
     *,
     service: str,
@@ -270,7 +270,7 @@ def _run_step2_rca(
     return draft.root_cause.strip(), _citations_to_evidence(draft.evidence)
 
 
-def _run_step3_confidence(
+def _run_confidence(
     *,
     service: str,
     root_cause: str,
@@ -303,20 +303,20 @@ def diagnose_node(state: AgentState) -> dict:
     data = dict(state.get("collected_data") or {})
     candidates = _candidates_from_state(state)
 
-    step1 = run_diagnose_step1(
+    coverage = evaluate_runbook_coverage(
         service,
         incident.description,
         collected_data=data,
         candidates=candidates,
         settings=settings,
     )
-    candidates = _candidates_from_state({"runbook_candidates": step1.get("runbook_candidates", [])})
+    candidates = _candidates_from_state({"runbook_candidates": coverage.get("runbook_candidates", [])})
 
-    novel_scenario = step1["novel_scenario"]
-    relevant_runbook = step1.get("relevant_runbook")
-    selected_id = step1.get("selected_runbook_id")
+    novel_scenario = coverage["novel_scenario"]
+    relevant_runbook = coverage.get("relevant_runbook")
+    selected_id = coverage.get("selected_runbook_id")
 
-    root_cause, evidence = _run_step2_rca(
+    root_cause, evidence = _run_rca(
         state,
         service=service,
         incident_description=incident.description,
@@ -326,7 +326,7 @@ def diagnose_node(state: AgentState) -> dict:
         settings=settings,
     )
 
-    confidence_rubric = _run_step3_confidence(
+    confidence_rubric = _run_confidence(
         service=service,
         root_cause=root_cause,
         evidence=evidence,
@@ -357,7 +357,7 @@ def diagnose_node(state: AgentState) -> dict:
         findings.append({"source": "metrics", "data": data["metrics"]})
 
     out: dict = {
-        **step1,
+        **coverage,
         "root_cause": root_cause,
         "evidence": evidence,
         "findings": findings,

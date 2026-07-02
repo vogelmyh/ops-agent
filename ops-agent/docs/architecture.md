@@ -49,8 +49,8 @@
 |------|------|------------|
 | **API 与运行时** | [`api-runtime-architecture.md`](api-runtime-architecture.md) | `app/main.py`, `config.py`, `llm/`, `memory/` |
 | **LangGraph 诊断主图** | [`graph-agent-architecture.md`](graph-agent-architecture.md) | `app/graph/builder.py`, `runner.py`, `nodes/triage|diagnose|…` |
-| **RAG** | [`rag-architecture-and-tests.md`](rag-architecture-and-tests.md) | `app/rag/`, `retrieve_runbooks`, `diagnose_runbook_step`, `runbook_eval_policy` |
-| **决策与修复** | [`decide-remediation-architecture.md`](decide-remediation-architecture.md) | `decide*`, `tools/`, `eval_remediation`, `approve` |
+| **RAG** | [`rag-architecture-and-tests.md`](rag-architecture-and-tests.md) | `app/rag/`, `retrieve_runbooks`, `runbook_coverage`, `runbook_eval_policy` |
+| **决策与修复** | [`decide-remediation-architecture.md`](decide-remediation-architecture.md) | `decide*`, `tools/`, `verify_remediation`, `approve` |
 | **后端适配** | [`backend-adapters-architecture.md`](backend-adapters-architecture.md) | `app/adapters/`, `schemas` 遥测模型 |
 | **KB 知识闭环** | [`kb-lifecycle-architecture.md`](kb-lifecycle-architecture.md) | `summarize` → notes → draft → review → `ingest_runbook` |
 | **场景测试目录** | [`test-scenario-trajectories.md`](test-scenario-trajectories.md) | REM/HITL/LOOP/DEC/KB/RAG 场景 ID |
@@ -67,13 +67,13 @@ RAG 语料运维补充：[`rag-eval-corpus.md`](rag-eval-corpus.md)。
 START
   → triage                    # 解析 incident，定 service
   → retrieve_runbooks         # 检索 top-K runbook
-  → diagnose                  # Step1 rubric + RCA + 置信度
+  → diagnose                  # coverage + rca + confidence
        ├─ confidence 不足 → summarize
        └─ else → decide
        ├─ uncertain（tool_select 降级）/ out_of_scope → summarize → [novel? → KB HITL] → END
        ├─ actionable + needs_approval → approve → write_tools
        └─ actionable → write_tools
-  → eval_remediation          # 写后验收
+  → verify_remediation        # 写后验收
        ├─ resolved → summarize → …
        └─ not resolved & attempt < max → retrieve_runbooks（react 环）
 ```
@@ -94,7 +94,7 @@ Checkpoint 线程 ID：`thread_id`（`app/graph/runner.py`）。
 
 | 概念 | 含义 |
 |------|------|
-| `novel_scenario` | KB 是否覆盖（diagnose Step1 裁决） |
+| `novel_scenario` | KB 是否覆盖（diagnose coverage 裁决） |
 | `decide_outcome` | 是否可执行写工具（`actionable` / `skipped_low_confidence` / `uncertain` / `out_of_scope`） |
 | `needs_approval` | 高风险、novel 或二次修复未恢复等策略，不等于不可执行 |
 
@@ -165,8 +165,10 @@ Layer 4  场景表征            scripts/run_scenarios.py, eval/run_eval.py
 # 图路径（不动 RAG golden）
 .venv/bin/pytest tests/graph_paths/ -q
 
-# RAG
-.venv/bin/pytest tests/rag_eval/ -q
+# RAG（双轨，monorepo 根目录推荐 make）
+make test-rag-retrieval   # Track A
+make test-rag-coverage    # Track B
+make test-rag             # 合并
 
 # 场景冒烟（mock LLM）
 CHECKPOINTER=memory .venv/bin/python scripts/run_scenarios.py --scenarios KB-01 --mock-llm
@@ -178,7 +180,7 @@ CHECKPOINTER=memory .venv/bin/python scripts/run_scenarios.py --scenarios KB-01 
 |------|--------|
 | API / tracing | `tests/test_tracing.py`, `tests/test_eval.py` |
 | 诊断主图 | `tests/graph_paths/` |
-| RAG | `tests/rag_eval/`, `tests/test_hybrid_retrieval.py`, `tests/test_rag_integration.py` |
+| RAG | `tests/rag_eval/`, `tests/test_hybrid_retrieval.py`, `tests/test_rag_integration.py`；`make test-rag-retrieval` / `test-rag-coverage` |
 | 决策与修复 | `tests/graph_paths/test_rem|dec|loop.py`, `eval/run_eval.py` |
 | 后端适配 | 经 graph_paths + integration 间接覆盖；simulator 见 `ops-backend-simulator/tests/` |
 | KB 闭环 | `tests/graph_paths/test_kb.py`, `test_hitl.py` |
@@ -231,7 +233,8 @@ CHECKPOINTER=memory .venv/bin/python scripts/run_scenarios.py --scenarios KB-01 
 
 ## 9. 版本注记
 
-- **2026-07-01**：主图 `retrieve_runbooks` + `diagnose` 三步；KB-01 `skipped_low_confidence`、KB-02 novel approve；组件图与 `decide_outcome` 枚举已同步。
+- **2026-07-01**：命名清理（coverage / verify_remediation）、双轨 RAG 测试（`make test-rag-retrieval` / `test-rag-coverage`）；组件地图与主路径图已同步。
+- **2026-07-01**：主图 `retrieve_runbooks` + `diagnose` 三阶段；KB-01 `skipped_low_confidence`、KB-02 novel approve；`decide_outcome` 枚举已同步。
 - **2026-06-30**：`RemediationEvalAssessment` coerce（`eval_schemas`）修复 DeepSeek `json_mode` 下 `eval_remediation` 缺 `reasoning` 硬崩；见 [`decide-remediation-architecture.md`](decide-remediation-architecture.md) §10。
 - **2026-06-30**：结构化输出 fallback 收紧 + `DecideAssessment` coerce + DEC-01 场景断言对齐 novel 写回链；详见 [`api-runtime-architecture.md`](api-runtime-architecture.md) §10、[`decide-remediation-architecture.md`](decide-remediation-architecture.md) §10、[`test-scenario-trajectories.md`](test-scenario-trajectories.md) §变更记录。
 - **2026-06-30**：推荐 **DeepSeek V4 chat + Qwen embedding**；`invoke_structured()` 供应商分流见 [`api-runtime-architecture.md`](api-runtime-architecture.md) §10、[`rag-architecture-and-tests.md`](rag-architecture-and-tests.md) §9。

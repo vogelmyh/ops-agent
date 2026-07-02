@@ -39,8 +39,8 @@
 | 文档 | 代码主路径 | 说明 |
 |------|------------|------|
 | [**graph-agent-architecture.md**](graph-agent-architecture.md) | `app/graph/builder.py`, `runner.py`, `collection.py` | LangGraph 主图、HITL 恢复、react 环 |
-| [**rag-architecture-and-tests.md**](rag-architecture-and-tests.md) | `app/rag/`, `retrieve_runbooks`, `diagnose_runbook_step`, `runbook_eval_policy` | 混合检索、覆盖裁决、golden 评测 |
-| [**decide-remediation-architecture.md**](decide-remediation-architecture.md) | `decide*`, `tools/`, `eval_remediation` | 决策三分支、审批、写工具、验收 |
+| [**rag-architecture-and-tests.md**](rag-architecture-and-tests.md) | `app/rag/`, `retrieve_runbooks`, `runbook_coverage`, `runbook_eval_policy` | 混合检索、覆盖裁决、golden 评测 |
+| [**decide-remediation-architecture.md**](decide-remediation-architecture.md) | `decide*`, `tools/`, `verify_remediation` | 决策三分支、审批、写工具、验收 |
 | [**backend-adapters-architecture.md**](backend-adapters-architecture.md) | `app/adapters/` | mock/real 遥测与写路径；Simulator 联调 |
 | [**kb-lifecycle-architecture.md**](kb-lifecycle-architecture.md) | notes → draft → review → `ingest_runbook` | novel 场景 KB 写回（与 RAG 读路径分离） |
 | [**api-runtime-architecture.md**](api-runtime-architecture.md) | `app/main.py`, `config.py`, `llm/`, `memory/` | HTTP API、配置、checkpoint、观测 |
@@ -85,8 +85,10 @@
 # 图路径（mock LLM）
 .venv/bin/pytest tests/graph_paths/ -q
 
-# RAG golden
-.venv/bin/pytest tests/rag_eval/ -q
+# RAG（monorepo 根目录）
+make test-rag-retrieval   # Track A
+make test-rag-coverage    # Track B
+make test-rag             # 双轨合并
 
 # 场景表征
 CHECKPOINTER=memory .venv/bin/python scripts/run_scenarios.py --scenarios REM-01 --mock-llm

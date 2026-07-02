@@ -1,4 +1,4 @@
-"""Diagnose Step 2/3 prompts, schemas, and mock oracles."""
+"""RCA and confidence rubric prompts, schemas, and mock oracles."""
 
 from __future__ import annotations
 

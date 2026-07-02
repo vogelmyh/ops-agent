@@ -10,7 +10,7 @@ from app.config import get_settings
 from app.rag.eval_harness import evaluate_real_llm_golden
 from tests.rag_eval.golden import REAL_LLM_SMOKE_IDS, select_golden_cases
 
-pytestmark = [pytest.mark.rag_eval, pytest.mark.real_llm_rag]
+pytestmark = [pytest.mark.rag_coverage, pytest.mark.real_llm_rag]
 
 _requires_real = pytest.mark.skipif(
     os.environ.get("RAG_EVAL_REAL_LLM") != "1",

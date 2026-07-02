@@ -1,14 +1,14 @@
-"""Legacy eval_runbook entry — retrieval + diagnose Step1 for offline harness."""
+"""Offline harness — retrieve runbooks + runbook coverage (Track B entry)."""
 
 from __future__ import annotations
 
 from app.config import get_settings
-from app.graph.diagnose_runbook_step import run_diagnose_step1
 from app.graph.eval_schemas import RunbookCandidate
 from app.graph.nodes.retrieve_runbooks import run_retrieve_runbooks
+from app.graph.runbook_coverage import evaluate_runbook_coverage
 
 
-def run_runbook_eval(
+def run_retrieve_and_coverage(
     service: str,
     incident_description: str,
     *,
@@ -18,7 +18,7 @@ def run_runbook_eval(
     oracle_expected_doc_id: str | None = None,
     oracle_expected_novel: bool = False,
 ) -> dict:
-    """Retrieve top-K runbooks and run diagnose Step1 rubric finalize (harness / tests)."""
+    """Retrieve top-K runbooks and evaluate runbook coverage (offline golden harness)."""
     settings = settings or get_settings()
     retrieved = run_retrieve_runbooks(
         service,
@@ -30,7 +30,7 @@ def run_runbook_eval(
         RunbookCandidate.model_validate(item)
         for item in retrieved.get("runbook_candidates", [])
     ]
-    step1 = run_diagnose_step1(
+    coverage = evaluate_runbook_coverage(
         service,
         incident_description,
         collected_data=retrieved["collected_data"],
@@ -42,14 +42,20 @@ def run_runbook_eval(
     )
     return {
         **retrieved,
-        **step1,
-        "status": "runbook_evaluated",
+        **coverage,
+        "status": "runbook_coverage_evaluated",
     }
 
 
-def eval_runbook_node(state):  # pragma: no cover - deprecated graph node name
+run_runbook_eval = run_retrieve_and_coverage
+
+
+def coverage_harness_node(state):  # pragma: no cover - deprecated graph node name
     from app.graph.state import AgentState
 
     service = state["service"]
     incident = state["incident"]
-    return run_runbook_eval(service, incident.description, settings=get_settings())
+    return run_retrieve_and_coverage(service, incident.description, settings=get_settings())
+
+
+eval_runbook_node = coverage_harness_node
