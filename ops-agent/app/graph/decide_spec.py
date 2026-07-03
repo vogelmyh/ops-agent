@@ -16,7 +16,7 @@ class DecideOutcome(str, Enum):
     OUT_OF_SCOPE = "out_of_scope"
 
 
-_OUTCOME_ALIASES = ("classification", "decision", "outcome_type", "handleability")
+_OUTCOME_ALIASES = ("classification", "decision", "outcome_type", "handleability", "assessment", "verdict", "result")
 _OUTCOME_VALUE_MAP = {
     "out-of-scope": "out_of_scope",
     "out of scope": "out_of_scope",
@@ -38,10 +38,35 @@ def _as_str_list(value: Any) -> list[str]:
 
 
 def _normalize_outcome_value(value: Any) -> Any:
+    if isinstance(value, dict):
+        nested = value.get("outcome", value.get("classification", value.get("assessment")))
+        if nested is not None:
+            return _normalize_outcome_value(nested)
+        return value
     if not isinstance(value, str):
         return value
     key = value.strip().lower().replace("-", "_").replace(" ", "_")
+    if key in _OUTCOME_VALUE_MAP:
+        return _OUTCOME_VALUE_MAP[key]
+    for candidate in ("out_of_scope", "uncertain", "actionable"):
+        if key.startswith(candidate):
+            return candidate
     return _OUTCOME_VALUE_MAP.get(key, key)
+
+
+def _pop_outcome_alias(out: dict[str, Any]) -> None:
+    if "outcome" in out:
+        return
+    for alias in _OUTCOME_ALIASES:
+        if alias not in out:
+            continue
+        value = out.pop(alias)
+        if isinstance(value, dict):
+            nested = value.get("outcome", value.get("classification", value.get("assessment")))
+            out["outcome"] = nested if nested is not None else value
+        else:
+            out["outcome"] = value
+        break
 
 
 def coerce_decide_assessment(data: Any) -> Any:
@@ -50,11 +75,7 @@ def coerce_decide_assessment(data: Any) -> Any:
         return data
 
     out = dict(data)
-    if "outcome" not in out:
-        for alias in _OUTCOME_ALIASES:
-            if alias in out:
-                out["outcome"] = out.pop(alias)
-                break
+    _pop_outcome_alias(out)
     if "outcome" in out:
         out["outcome"] = _normalize_outcome_value(out["outcome"])
 
