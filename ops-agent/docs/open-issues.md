@@ -37,11 +37,13 @@
 
 ## 2. KB 场景不参与 real LLM 表征
 
-**状态**：设计如此，是否调整待定
+**状态**：已文档化（2026-07-03，方案 A）
 
-`run_kb_01` / `run_kb_02` 在 `_isolated_mock_backend_env()` 内强制 mock LLM + mock backend。联跑时 KB 通过 ≠ real LLM 覆盖 KB 轨迹。
+`run_kb_01` / `run_kb_02` 在 `_isolated_mock_backend_env()` 内强制 mock LLM + mock backend，**设计为 mock smoke**，不随 `LLM_MODE=real` 改变。
 
-**可选处理**：加 `--real-kb` 开关，或文档明确「KB 仅 mock smoke」。
+**权威说明**：[`test-scenario-trajectories.md`](test-scenario-trajectories.md) §测试分层、§KB · run_scenarios 定位；`python scripts/run_scenarios.py --help`。
+
+**若需 real KB**：另开 `--real-kb` 或隔离写回目录（未实现）。
 
 ---
 
@@ -63,12 +65,12 @@
 
 ## 5. 工作区脏数据（勿提交）
 
-**状态**：本地污染
+**状态**：已清理（2026-07-03）
 
-- `ops-agent/data/runbooks/*新故障场景.md` 被测试写回修改
-- `ops-agent/data/repro_DEC-02.json` / `.stderr` 为调试产物
+- `ops-agent/data/runbooks/*新故障场景.md` — `git restore` 恢复
+- `ops-agent/data/repro_DEC-02.json` / `.stderr` — 已删除
 
-合入前应保持不提交或 `git restore`。
+KB 测试写回仍会改 runbook 文件；跑 `run_scenarios` KB 场景后注意 `git status`。
 
 ---
 
@@ -77,3 +79,5 @@
 | 日期 | 说明 |
 |------|------|
 | 2026-07-03 | 初版：记录 real LLM 场景表征、KB mock 设计、端口占用、checkpoint 警告、脏数据 |
+| 2026-07-03 | #5 脏数据已清理（restore runbooks + 删除 repro 产物） |
+| 2026-07-03 | #2 KB mock smoke 分工已写入 test-scenario-trajectories / run_scenarios --help |

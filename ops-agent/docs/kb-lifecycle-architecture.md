@@ -92,8 +92,11 @@ API 恢复：`runner.resume_runbook_notes` / `resume_runbook_review`（见 [api-
 
 ### 5.3 表征
 
+**KB 在 `run_scenarios` 中仅为 mock smoke**（runner 内固定 `mock` LLM + `mock` backend），不用于 real LLM 表征。图路由契约见 `graph_paths/test_kb.py`；novel / coverage 质量见 RAG golden。
+
 ```bash
-CHECKPOINTER=memory .venv/bin/python scripts/run_scenarios.py --scenarios KB-01 --mock-llm --step-json
+# KB mock smoke（会写 data/runbooks/，跑后 git status）
+CHECKPOINTER=memory .venv/bin/python scripts/run_scenarios.py --scenarios KB-01 KB-02
 ```
 
 ---
@@ -131,6 +134,10 @@ CHECKPOINTER=memory .venv/bin/python scripts/run_scenarios.py --scenarios KB-01 
 ---
 
 ## 9. 版本注记
+
+### 2026-07-03 · KB run_scenarios 定位文档化
+
+- 明确 KB-01/KB-02 在 `run_scenarios.py` 为 **mock smoke**，非 real LLM 表征；见 [`test-scenario-trajectories.md`](test-scenario-trajectories.md) §KB。
 
 ### 2026-07-01 · 命名清理（coverage 来源表述）
 

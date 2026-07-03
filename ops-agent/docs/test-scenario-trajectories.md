@@ -12,8 +12,10 @@
 | 层级 | 目录 / 入口 | LLM | 目的 |
 |------|----------------|-----|------|
 | **图路径契约** | `tests/graph_paths/` | **mock** | 改代码后 CI 自动跑；验证「给定固定 LLM 输出时，图路由是否正确」 |
-| **场景表征** | `scripts/run_scenarios.py` | **real** | 人工 / 夜间抽检；验证真实 LLM + simulator 是否符合轨迹 |
+| **场景表征** | `scripts/run_scenarios.py` | **DEC/LOOP：real**；**KB：mock（固定）** | 人工 / 夜间抽检 simulator 轨迹；KB 仅 runner 冒烟（见下） |
 | **单元测试** | `tests/test_*.py`（非 graph_paths） | mock 或无需 | 单节点、RAG 纯函数、policy 等 |
+
+**`run_scenarios` 与 LLM 分工**：DEC-01、LOOP-02、LOOP-03、DEC-02 在 `LLM_MODE=real` 下做真实 LLM 表征（需 simulator + API）。**KB-01 / KB-02 在 runner 内始终 mock LLM + mock backend**（`_isolated_mock_backend_env`），不随命令行 `LLM_MODE=real` 改变；图路由契约见 `graph_paths/test_kb.py`。real LLM 下的 novel / coverage 质量见 RAG golden（`make test-rag-coverage`）而非 KB 场景表征。
 
 图主路径：
 
@@ -93,6 +95,8 @@ triage → retrieve_runbooks → diagnose
 | RAG-02 | RAG | — | 误匹配 | — | `test_hybrid_retrieval.py`, `test_rag_integration.py` | 手工 |
 | EXEC-01 | EXEC | P4 | Write 执行 FAILED | simulator | 待补 | 手工 real LLM |
 | EXEC-02 | EXEC | P4 | Write 成功但验收失败 | mock / exhaust | LOOP-01、LOOP-03 | — |
+
+**场景表征 LLM 列（补充）**：上表「场景表征」列仅表入口脚本。KB-* 在 `run_scenarios.py` 内**固定 mock**；DEC-* / LOOP-* 期望 **real LLM**（`--mock-llm` 仅用于无 API 的降级调试）。
 
 ---
 
@@ -243,6 +247,18 @@ stateDiagram-v2
 
 `novel_scenario` 仅表示知识库无 runbook 覆盖，**不**等同于 `skipped_low_confidence` / `uncertain` 或必须人工审批。诊断置信足够且 catalog 工具参数可落地时，novel 场景仍可 `actionable`（但 **novel 必走 approve**）；修复完成后经 summarize 进入 runbook 写回链。
 
+### run_scenarios 中 KB 的定位（mock smoke）
+
+| 项 | 说明 |
+|----|------|
+| **测什么** | runner 步进 JSON、`rag` 观测字段、KB HITL 写回链是否跑通 |
+| **不测什么** | real LLM 下 novel 判定、coverage rubric、draft 文案质量 |
+| **LLM / Backend** | 始终 `mock` + `BACKEND_MODE=mock`（`mock_data` 造数 + `mock_confidence_assessment` oracle） |
+| **副作用** | `ingest` 会写 `data/runbooks/`；跑后检查 `git status` 或 `git restore` |
+| **契约测试** | 图路由以 `tests/graph_paths/test_kb.py` 为准；RAG 以 `make test-rag-coverage` 为准 |
+
+---
+
 ### KB-01 · Novel + 低置信诊断 → 写回 runbook
 
 **输入**：`ecomm-search`（无 runbook，症状/generic 日志无法收敛根因）。
@@ -351,11 +367,15 @@ retrieve / rubric 选错 runbook（如 crashloop vs memory-leak）。
 | `embeddings` / `langsmith` | result 顶栏 | 运行环境标记 |
 
 ```bash
-# mock LLM 冒烟（CI 友好，不耗 API）
-CHECKPOINTER=memory .venv/bin/python scripts/run_scenarios.py --scenarios KB-01 KB-02 --mock-llm
+# KB mock smoke（固定 mock LLM + mock backend；与 --mock-llm 无关，KB runner 内已隔离）
+CHECKPOINTER=memory .venv/bin/python scripts/run_scenarios.py --scenarios KB-01 KB-02
 
-# real LLM 表征
-CHECKPOINTER=memory LLM_MODE=real .venv/bin/python scripts/run_scenarios.py --scenarios all
+# real LLM 表征（仅 DEC / LOOP；不含 KB）
+CHECKPOINTER=memory LLM_MODE=real BACKEND_MODE=real \
+  .venv/bin/python scripts/run_scenarios.py --scenarios DEC-01 LOOP-02 LOOP-03 DEC-02
+
+# 全量 mock 降级（无 API，含 KB + simulator 场景的 mock LLM）
+CHECKPOINTER=memory .venv/bin/python scripts/run_scenarios.py --mock-llm --scenarios all
 ```
 
 单元测试：`tests/test_run_scenarios.py`。
@@ -396,14 +416,14 @@ CHECKPOINTER=memory LLM_MODE=mock \
 # 全量单元 + 图路径
 make test
 
-# 场景表征（real LLM，需 API Key）
-CHECKPOINTER=memory LLM_MODE=real \
-  .venv/bin/python scripts/run_scenarios.py --scenarios all
+# 场景表征：real LLM + simulator（KB 不在此列，见 test-scenario-trajectories.md §KB）
+CHECKPOINTER=memory LLM_MODE=real BACKEND_MODE=real \
+  .venv/bin/python scripts/run_scenarios.py --scenarios DEC-01 LOOP-02 LOOP-03 DEC-02
 
-# 默认跑 KB-01 + DEC-01
+# 默认跑 KB-01（mock smoke）+ DEC-01（real，若已设 LLM_MODE=real）
 CHECKPOINTER=memory .venv/bin/python scripts/run_scenarios.py
 
-# mock LLM 全量场景表征（无 API）
+# mock LLM 全量（无 API；KB 仍为 runner 内 mock，DEC/LOOP 用全局 mock）
 CHECKPOINTER=memory .venv/bin/python scripts/run_scenarios.py --mock-llm --scenarios all
 
 # Simulator 状态机单测
@@ -413,6 +433,11 @@ cd ops-backend-simulator && python3 -m pytest tests/test_chaos_exhaust.py tests/
 ---
 
 ## 变更记录
+
+### 2026-07-03 · KB 场景表征分工文档化
+
+- 明确 **KB-01 / KB-02 在 `run_scenarios.py` 内固定 mock smoke**，不随 `LLM_MODE=real` 改变；real LLM 表征仅适用于 DEC / LOOP（simulator）。
+- 更新测试分层表、场景总览脚注、`run_scenarios` 命令示例与 `scripts/run_scenarios.py` `--help`。
 
 ### 2026-07-02 · 观测字段清理
 
