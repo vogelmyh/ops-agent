@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Scenario characterization runs — real LLM, step-by-step capture vs docs/test-scenario-trajectories.md."""
+"""Scenario characterization — step-by-step JSON vs docs/test-scenario-trajectories.md.
+
+LLM mode by scenario:
+- KB-01 / KB-02: always mock LLM + mock backend (isolated smoke; see KB section in trajectories doc).
+- DEC-01, LOOP-02, LOOP-03, DEC-02: use process LLM_MODE (default real) + simulator backend.
+"""
 
 from __future__ import annotations
 
@@ -220,7 +225,10 @@ def _result(
 
 
 def run_kb_01() -> dict[str, Any]:
-    """KB-01: novel + low-confidence ecomm-search → skipped_low_confidence → runbook HITL writeback."""
+    """KB-01: novel + low-confidence ecomm-search → skipped_low_confidence → runbook HITL writeback.
+
+    Always runs under mock LLM + mock backend (not real LLM characterization).
+    """
     with _isolated_mock_backend_env():
         t0 = time.time()
         steps: list[dict] = []
@@ -252,7 +260,10 @@ def run_kb_01() -> dict[str, Any]:
 
 
 def run_kb_02() -> dict[str, Any]:
-    """KB-02: novel + clear OOM pattern ecomm-cache → approve → fix → runbook writeback."""
+    """KB-02: novel + clear OOM pattern ecomm-cache → approve → fix → runbook writeback.
+
+    Always runs under mock LLM + mock backend (not real LLM characterization).
+    """
     with _isolated_mock_backend_env():
         t0 = time.time()
         steps: list[dict] = []
@@ -472,19 +483,42 @@ SCENARIO_RUNNERS: dict[str, Callable[[], dict[str, Any]]] = {
 DEFAULT_SCENARIOS = ("KB-01", "DEC-01")
 
 
+_RUN_SCENARIOS_EPILOG = """\
+Examples:
+  # KB mock smoke only (writes data/runbooks/ — check git status after)
+  python scripts/run_scenarios.py --scenarios KB-01 KB-02
+
+  # Real LLM + simulator (DEC / LOOP; KB excluded from real characterization)
+  LLM_MODE=real BACKEND_MODE=real python scripts/run_scenarios.py \\
+    --scenarios DEC-01 LOOP-02 LOOP-03 DEC-02
+
+  # CI-friendly mock for all runners (KB still uses isolated mock env)
+  python scripts/run_scenarios.py --mock-llm --scenarios all
+
+See ops-agent/docs/test-scenario-trajectories.md (KB · run_scenarios 定位).
+"""
+
+
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run scenario characterization (real LLM).")
+    parser = argparse.ArgumentParser(
+        description=(
+            "Run scenario runners with step JSON. "
+            "KB-01/KB-02 are fixed mock smoke; DEC/LOOP use LLM_MODE (default real) + simulator."
+        ),
+        epilog=_RUN_SCENARIOS_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument(
         "--scenarios",
         nargs="*",
         choices=[*SCENARIO_RUNNERS.keys(), "all"],
         default=list(DEFAULT_SCENARIOS),
-        help="Scenario IDs from docs/test-scenario-trajectories.md",
+        help="Scenario IDs (docs/test-scenario-trajectories.md). KB=* mock smoke; DEC/LOOP=real LLM when LLM_MODE=real",
     )
     parser.add_argument(
         "--mock-llm",
         action="store_true",
-        help="Force LLM_MODE=mock (for CI smoke of scenario runners)",
+        help="Force LLM_MODE=mock for DEC/LOOP runners (KB runners always mock regardless)",
     )
     args = parser.parse_args()
     if args.mock_llm:
