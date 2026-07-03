@@ -19,9 +19,104 @@ EvidenceSource = Literal[
     "runbook",
 ]
 
+EVIDENCE_SOURCE_VALUES: tuple[EvidenceSource, ...] = (
+    "app_logs",
+    "k8s_events",
+    "status",
+    "metrics",
+    "streams",
+    "operation",
+    "runbook",
+)
+
+_SOURCE_ALIASES: dict[str, EvidenceSource] = {
+    "app_logs": "app_logs",
+    "application_logs": "app_logs",
+    "application_log": "app_logs",
+    "applicationlogs": "app_logs",
+    "logs": "app_logs",
+    "log": "app_logs",
+    "k8s_events": "k8s_events",
+    "kubernetes_events": "k8s_events",
+    "k8s": "k8s_events",
+    "events": "k8s_events",
+    "status": "status",
+    "service_status": "status",
+    "metrics": "metrics",
+    "metric": "metrics",
+    "streams": "streams",
+    "stream": "streams",
+    "operation": "operation",
+    "operations": "operation",
+    "runbook": "runbook",
+}
+
+
+def _canonical_source_key(value: str) -> str:
+    return value.strip().lower().replace("-", "_").replace(" ", "_")
+
+
+def normalize_evidence_source(value: Any) -> EvidenceSource:
+    """Map LLM-friendly labels to EvidenceSource literals."""
+    if value is None:
+        return "app_logs"
+    text = str(value).strip()
+    if not text:
+        return "app_logs"
+    if text in EVIDENCE_SOURCE_VALUES:
+        return text  # type: ignore[return-value]
+    base = text.split("(")[0].strip()
+    key = _canonical_source_key(base)
+    if key in _SOURCE_ALIASES:
+        return _SOURCE_ALIASES[key]
+    if key in EVIDENCE_SOURCE_VALUES:
+        return key  # type: ignore[return-value]
+    lowered = base.lower()
+    if "metric" in lowered:
+        return "metrics"
+    if "k8s" in lowered or "kubernetes" in lowered or "event" in lowered:
+        return "k8s_events"
+    if "stream" in lowered:
+        return "streams"
+    if "runbook" in lowered:
+        return "runbook"
+    if "operation" in lowered:
+        return "operation"
+    if "status" in lowered:
+        return "status"
+    if "log" in lowered:
+        return "app_logs"
+    return "app_logs"
+
+
+def coerce_root_cause_draft(data: Any) -> Any:
+    """Normalize LLM JSON drift for RootCauseDraft (evidence.source labels)."""
+    if not isinstance(data, dict):
+        return data
+    out = dict(data)
+    evidence = out.get("evidence")
+    if not isinstance(evidence, list):
+        return out
+    normalized: list[dict[str, Any]] = []
+    for item in evidence:
+        if not isinstance(item, dict):
+            normalized.append(item)
+            continue
+        row = dict(item)
+        if "source" in row:
+            row["source"] = normalize_evidence_source(row["source"])
+        normalized.append(row)
+    out["evidence"] = normalized
+    return out
+
 
 class EvidenceCitation(BaseModel):
-    source: EvidenceSource
+    source: EvidenceSource = Field(
+        description=(
+            "Telemetry source tag — exactly one of: "
+            "app_logs, k8s_events, status, metrics, streams, operation, runbook"
+        ),
+    )
     snippet: str = Field(max_length=300)
     ref: str
 
@@ -30,6 +125,11 @@ class RootCauseDraft(BaseModel):
     root_cause: str = Field(description="Concise root cause analysis in Chinese, 2-4 sentences")
     evidence: list[EvidenceCitation] = Field(default_factory=list)
 
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce_llm_shape(cls, data: Any) -> Any:
+        return coerce_root_cause_draft(data)
+
 
 RCA_SYSTEM_PROMPT = """\
 You are a senior cloud operations engineer.
@@ -37,6 +137,25 @@ Given incident telemetry (and an optional validated runbook excerpt), produce a 
 
 Write root_cause in Chinese: 2-4 sentences, cite exact errors/metrics/misconfigurations.
 List evidence items with source, snippet, and ref.
+For each evidence item, source MUST be exactly one of these machine tags (no human labels):
+app_logs | k8s_events | status | metrics | streams | operation | runbook
+
+Example JSON shape:
+{
+  "root_cause": "…",
+  "evidence": [
+    {
+      "source": "app_logs",
+      "snippet": "ERROR discount validation failed",
+      "ref": "query_app_logs:ecomm-manager"
+    },
+    {
+      "source": "metrics",
+      "snippet": "order_amount_error_rate elevated",
+      "ref": "get_metrics:ecomm-manager"
+    }
+  ]
+}
 Do NOT recommend remediation steps or tool invocations.
 """
 

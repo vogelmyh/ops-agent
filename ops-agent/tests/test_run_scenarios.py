@@ -94,6 +94,15 @@ def test_rag_snapshot_from_state():
     assert snap["relevant_runbook_chars"] > 0
 
 
+def test_run_kb_01_restores_llm_mode_after_mock_isolation():
+    from scripts.run_scenarios import run_kb_01
+
+    os.environ["LLM_MODE"] = "real"
+    get_settings.cache_clear()
+    run_kb_01()
+    assert os.environ.get("LLM_MODE") == "real"
+
+
 def test_run_kb_01_mock_scenario_runner():
     from scripts.run_scenarios import run_kb_01
 

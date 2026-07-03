@@ -169,6 +169,7 @@ LLM_MODE=real .venv/bin/python eval/run_eval.py   # 可选，需 API key
 
 ## 10. 版本注记
 
+- **2026-07-03**：`coerce_decide_assessment` 增加 `assessment` / `verdict` / `result` 别名与嵌套 dict 解包；outcome 字符串前缀归一化，修复 real LLM decide 节点 `Field required: outcome` 崩溃。
 - **2026-07-02**：删除纯观测字段 `needs_human_review`（路由已由 `confidence_sufficient` 承担）。
 - **2026-07-01**：图节点 `eval_remediation` 重命名为 **`verify_remediation`**；state 字段 `remediation_verify_reasoning`（别名兼容 `remediation_eval_reasoning`）。
 - **2026-07-01**：审批策略：`novel_scenario` 触发 approve；移除 `needs_human_review` 审批项。decide assessment 仅 `actionable | out_of_scope`（`uncertain` 仅 tool_select 代码降级）；decide 输入与 §6.1 测试说明已同步。

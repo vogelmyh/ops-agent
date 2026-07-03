@@ -47,3 +47,28 @@ def test_coerce_escalation_hint_null_string():
         "escalation_hint": "null",
     }))
     assert model.escalation_hint is None
+
+
+def test_coerce_assessment_alias_to_outcome():
+    model = DecideAssessment.model_validate(coerce_decide_assessment({
+        "assessment": "actionable",
+        "reasoning": "",
+        "recommendations": [],
+    }))
+    assert model.outcome == DecideOutcome.ACTIONABLE
+
+
+def test_coerce_assessment_nested_dict():
+    model = DecideAssessment.model_validate(coerce_decide_assessment({
+        "assessment": {"outcome": "out_of_scope"},
+        "reasoning": "Code defect outside ops catalog",
+    }))
+    assert model.outcome == DecideOutcome.OUT_OF_SCOPE
+
+
+def test_coerce_outcome_prefix_with_extra_text():
+    data = coerce_decide_assessment({
+        "outcome": "actionable: patch_config is appropriate",
+        "reasoning": "Rate limit misconfiguration",
+    })
+    assert data["outcome"] == "actionable"
