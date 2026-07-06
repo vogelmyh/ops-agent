@@ -83,7 +83,7 @@ def _mock_draft(state: AgentState) -> str:
     service = state.get("service", "unknown")
     notes = state.get("runbook_notes") or "人工处置完成"
     root = state.get("root_cause", "待确认")
-    reasoning = state.get("runbook_eval_reasoning", "见 incident 证据")
+    reasoning = state.get("match_gate_reason", "见 incident 证据")
     return _RUNBOOK_TEMPLATE.format(
         title=f"{service} 新故障场景",
         service=service,
@@ -102,7 +102,7 @@ def draft_runbook_node(state: AgentState) -> dict:
     service = state.get("service", "")
     notes = state.get("runbook_notes") or ""
     root = state.get("root_cause", "")
-    reasoning = state.get("runbook_eval_reasoning", "")
+    reasoning = state.get("match_gate_reason", "")
     exec_results = tool_execution_results(state.get("messages", []))
     evidence_lines = "\n".join(f"- [{e.source}] {e.snippet}" for e in state.get("evidence", []))
 

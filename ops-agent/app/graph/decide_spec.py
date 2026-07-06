@@ -16,7 +16,7 @@ class DecideOutcome(str, Enum):
     OUT_OF_SCOPE = "out_of_scope"
 
 
-_OUTCOME_ALIASES = ("classification", "decision", "outcome_type", "handleability")
+_OUTCOME_ALIASES = ("classification", "decision", "outcome_type", "handleability", "assessment", "verdict", "result")
 _OUTCOME_VALUE_MAP = {
     "out-of-scope": "out_of_scope",
     "out of scope": "out_of_scope",
@@ -38,10 +38,35 @@ def _as_str_list(value: Any) -> list[str]:
 
 
 def _normalize_outcome_value(value: Any) -> Any:
+    if isinstance(value, dict):
+        nested = value.get("outcome", value.get("classification", value.get("assessment")))
+        if nested is not None:
+            return _normalize_outcome_value(nested)
+        return value
     if not isinstance(value, str):
         return value
     key = value.strip().lower().replace("-", "_").replace(" ", "_")
+    if key in _OUTCOME_VALUE_MAP:
+        return _OUTCOME_VALUE_MAP[key]
+    for candidate in ("out_of_scope", "uncertain", "actionable"):
+        if key.startswith(candidate):
+            return candidate
     return _OUTCOME_VALUE_MAP.get(key, key)
+
+
+def _pop_outcome_alias(out: dict[str, Any]) -> None:
+    if "outcome" in out:
+        return
+    for alias in _OUTCOME_ALIASES:
+        if alias not in out:
+            continue
+        value = out.pop(alias)
+        if isinstance(value, dict):
+            nested = value.get("outcome", value.get("classification", value.get("assessment")))
+            out["outcome"] = nested if nested is not None else value
+        else:
+            out["outcome"] = value
+        break
 
 
 def coerce_decide_assessment(data: Any) -> Any:
@@ -50,11 +75,7 @@ def coerce_decide_assessment(data: Any) -> Any:
         return data
 
     out = dict(data)
-    if "outcome" not in out:
-        for alias in _OUTCOME_ALIASES:
-            if alias in out:
-                out["outcome"] = out.pop(alias)
-                break
+    _pop_outcome_alias(out)
     if "outcome" in out:
         out["outcome"] = _normalize_outcome_value(out["outcome"])
 
@@ -78,7 +99,7 @@ def coerce_decide_assessment(data: Any) -> Any:
 
 
 class DecideAssessment(BaseModel):
-    """Step 1 structured output — handleability only, no tool_calls."""
+    """Handleability assessment structured output — no tool_calls."""
 
     outcome: DecideOutcome
     reasoning: str = Field(description="One or two sentences explaining the classification")
@@ -104,72 +125,30 @@ class DecideAssessment(BaseModel):
 ASSESSMENT_SYSTEM_PROMPT = """\
 You are the handleability assessment module of a cloud ops agent.
 
-Your sole task: given the diagnosis, evidence, runbook context, and the **authoritative write-tool \
-catalog** provided in the user message, decide whether this incident can be remediated using those tools.
-Do NOT select or invoke any tools in this step — output structured assessment only.
+The upstream diagnose step has already adopted the root cause. Your sole task: given that root cause, \
+evidence, optional validated runbook, and the **authoritative write-tool catalog**, decide whether \
+catalog tools can remediate this incident.
 
-Use the catalog as the source of truth for ops capability:
-- actionable: at least one catalog tool clearly applies AND its parameters can be grounded in \
-runbook, evidence, or diagnosis (approval need is handled separately by policy)
-- uncertain: a catalog tool might apply but parameters are not safe to infer, or evidence/runbook \
-is insufficient — do NOT mark actionable
-- out_of_scope: root cause is clear but **none** of the catalog tools can address it (e.g. code bug, \
-DBA, hardware)
+Do NOT select or invoke any tools in this step — output structured assessment only.
+Do NOT re-judge diagnosis confidence, evidence sufficiency, or novel_scenario.
 
 ## Outcomes (pick exactly one)
 
 ### actionable
-Root cause is clear AND a catalog write tool fits with safely inferable parameters.
-
-Note: needs_human_review=true means approval before execution, but the case is still actionable \
-(e.g. high-risk rollback).
-
-### uncertain
-Not "impossible forever", but one of:
-- evidence is insufficient to choose a single root cause
-- root cause has not converged (multiple plausible causes remain)
-- a catalog tool might apply but parameters cannot be chosen safely
-
-Missing runbook alone does NOT force uncertain. If root cause is clear and a catalog tool with \
-grounded parameters matches a standard ops pattern, classify actionable — novel_scenario only \
-marks a knowledge-base gap for runbook writeback after summarize.
-
-Examples:
-- disk-full: cleanup_storage exists in catalog, but safe deletion scope is unknown
-- Root cause could be A or B; evidence cannot distinguish
-- Generic symptoms (latency spike + stalled index) with no converged diagnosis
-
-### actionable (novel scenario)
-novel_scenario=true means no runbook in KB; it is NOT a reason to choose uncertain.
-Example: novel service, OOMKilled pod with restarts=5 in evidence → restart_pods (rolling) is \
-actionable using catalog + SRE knowledge even without a runbook.
+Root cause is accepted AND at least one catalog tool clearly applies with safely inferable parameters.
 
 ### out_of_scope
-Root cause is clear, but no catalog tool can fix it — provide handoff guidance only.
+Root cause is accepted but **none** of the catalog tools can address it (e.g. code bug, DBA, hardware).
 
-Examples:
-- Application NPE / logic bug → requires dev release (no catalog tool fixes code)
-- Slow SQL / lock contention → DBA
-- Physical disk failure → hardware / datacenter ops
+Provide recommendations and escalation_hint for out_of_scope.
 
-## Upstream signals
-- novel_scenario = KB gap hint (runbook writeback after summarize); NOT a reason to choose uncertain
-- needs_human_review=true + matching catalog tool → still actionable (approval handled by policy)
-- Catalog tool matches but args are unsafe → uncertain
-- Clear root cause but no catalog tool applies → out_of_scope
-
-## Output fields
-- recommendations: required for uncertain and out_of_scope
-- knowledge_gaps: list missing evidence/runbook items for uncertain
-- escalation_hint: who should take over for out_of_scope
+Do NOT output uncertain — if parameters are unsafe, still choose out_of_scope with guidance.
 """
 
 ASSESSMENT_HUMAN_TEMPLATE = """\
 Service: {service}
 Root cause: {root_cause}
 novel_scenario: {novel_scenario}
-needs_human_review: {needs_human_review}
-diagnosis_eval_reasoning: {diagnosis_eval_reasoning}
 Relevant runbook:
 {relevant_runbook}
 

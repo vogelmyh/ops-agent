@@ -14,7 +14,7 @@
 summarize → request_runbook_notes → draft_runbook → review_runbook → ingest_runbook
 ```
 
-与 RAG **读路径** 分离：读路径在 `eval_runbook`；写路径在本子链。
+与 RAG **读路径** 分离：读路径在 `retrieve_runbooks` + `diagnose` coverage；写路径在本子链。
 
 ---
 
@@ -63,7 +63,7 @@ summarize → request_runbook_notes → draft_runbook → review_runbook → ing
 
 | 字段 | 说明 |
 |------|------|
-| `novel_scenario`, `novel_reason` | 来自 eval_runbook，决定是否进入 KB 链 |
+| `novel_scenario`, `novel_reason` | 来自 diagnose coverage（runbook rubric + finalize），决定是否进入 KB 链 |
 | `runbook_notes` | HITL 输入 |
 | `runbook_draft` | LLM 草稿 |
 | `runbook_approved` | 审核结果 |
@@ -92,8 +92,11 @@ API 恢复：`runner.resume_runbook_notes` / `resume_runbook_review`（见 [api-
 
 ### 5.3 表征
 
+**KB 在 `run_scenarios` 中仅为 mock smoke**（runner 内固定 `mock` LLM + `mock` backend），不用于 real LLM 表征。图路由契约见 `graph_paths/test_kb.py`；novel / coverage 质量见 RAG golden。
+
 ```bash
-CHECKPOINTER=memory .venv/bin/python scripts/run_scenarios.py --scenarios KB-01 --mock-llm --step-json
+# KB mock smoke（会写 data/runbooks/，跑后 git status）
+CHECKPOINTER=memory .venv/bin/python scripts/run_scenarios.py --scenarios KB-01 KB-02
 ```
 
 ---
@@ -108,7 +111,7 @@ CHECKPOINTER=memory .venv/bin/python scripts/run_scenarios.py --scenarios KB-01 
 | **改 draft prompt / 格式** | `draft_runbook.py`；确保 ingest slug 规则仍适用 |
 | **改 ingest 路径或 reindex** | `ingest_runbook.py` + RAG ingest 文档 |
 | **新 KB 场景** | `test-scenario-trajectories.md` KB 表 + graph_paths fixture |
-| **novel 判定逻辑** | 改 **RAG** `eval_runbook` / policy，非本链 |
+| **novel 判定逻辑** | 改 **RAG** `runbook_coverage` / `runbook_eval_policy`，非本链 |
 
 ---
 
@@ -132,4 +135,14 @@ CHECKPOINTER=memory .venv/bin/python scripts/run_scenarios.py --scenarios KB-01 
 
 ## 9. 版本注记
 
-（暂无组件级变更；合入 KB 链 / ingest 相关修改时在此追加摘要。）
+### 2026-07-03 · KB run_scenarios 定位文档化
+
+- 明确 KB-01/KB-02 在 `run_scenarios.py` 为 **mock smoke**，非 real LLM 表征；见 [`test-scenario-trajectories.md`](test-scenario-trajectories.md) §KB。
+
+### 2026-07-01 · 命名清理（coverage 来源表述）
+
+- 读路径表述统一为 `retrieve_runbooks` + diagnose **coverage**；与 RAG 文档 §2 对齐。
+
+- `novel_scenario` 改由 diagnose coverage 写入（非图节点 `eval_runbook`）。
+- KB-01：低置信 `skipped_low_confidence` 仍进入 summarize → KB 写回链。
+- KB-02：novel + actionable 需先 `approve` 再 write，修复后同样进入写回链。

@@ -8,8 +8,10 @@ import pytest
 
 os.environ["BACKEND_MODE"] = "mock"
 os.environ["LLM_MODE"] = "mock"
-os.environ["EMBEDDINGS_PROVIDER"] = "local-hash"
+os.environ.setdefault("EMBEDDINGS_PROVIDER", "local-hash")
 os.environ["CHECKPOINTER"] = "memory"
+
+pytestmark = pytest.mark.rag_coverage
 
 from app.adapters.mock_data import reset_mock_scenarios, set_mock_scenario
 from app.config import get_settings
@@ -139,7 +141,7 @@ def test_eval_runbook_exposes_novel_reason_on_novel_service():
     result = eval_runbook_node(state)
     assert result["novel_scenario"] is True
     assert result.get("novel_reason")
-    assert result.get("runbook_eval_reasoning")
+    assert result.get("match_gate_reason")
     assert result["relevant_runbook"] is None
 
 
@@ -182,4 +184,4 @@ def test_rag_02_crashloop_runbook_is_full_parent_not_chunk_only():
     assert "勿用手段" in relevant
     assert "restart_pods" in relevant
     assert result.get("selected_runbook_id") == "ecomm-order-crashloop"
-    assert result.get("coverage_confidence") is not None
+    assert result.get("match_gate_reason")

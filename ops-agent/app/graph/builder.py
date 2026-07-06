@@ -7,13 +7,12 @@ from app.config import get_settings
 from app.graph.decide_spec import DecideOutcome
 from app.graph.nodes.approve import approve_node
 from app.graph.nodes.decide import decide_node
-from app.graph.nodes.diagnose import diagnose_node
+from app.graph.nodes.diagnose import SKIPPED_LOW_CONFIDENCE, diagnose_node
 from app.graph.nodes.draft_runbook import draft_runbook_node
-from app.graph.nodes.eval_diagnosis import eval_diagnosis_node
-from app.graph.nodes.eval_remediation import eval_remediation_node
-from app.graph.nodes.eval_runbook import eval_runbook_node
+from app.graph.nodes.verify_remediation import verify_remediation_node
 from app.graph.nodes.ingest_runbook import ingest_runbook_node
 from app.graph.nodes.request_runbook_notes import request_runbook_notes_node
+from app.graph.nodes.retrieve_runbooks import retrieve_runbooks_node
 from app.graph.nodes.review_runbook import review_runbook_node
 from app.graph.nodes.summarize import summarize_node
 from app.graph.nodes.triage import triage_node
@@ -25,8 +24,15 @@ from app.tools.policy import pending_tool_calls
 write_tools_node = ToolNode(WRITE_TOOLS)
 
 
+def _route_after_diagnose(state: AgentState) -> str:
+    if not state.get("confidence_sufficient", True):
+        return "summarize"
+    if state.get("decide_outcome") == SKIPPED_LOW_CONFIDENCE:
+        return "summarize"
+    return "decide"
+
+
 def _route_after_decide(state: AgentState) -> str:
-    # INVESTIGATE_EXTENSION: replace summarize branch with "escalate" when extension is attached
     outcome = state.get("decide_outcome")
     if outcome in (DecideOutcome.UNCERTAIN.value, DecideOutcome.OUT_OF_SCOPE.value):
         return "summarize"
@@ -45,12 +51,12 @@ def _route_after_approve(state: AgentState) -> str:
     return "summarize"
 
 
-def _route_after_eval_remediation(state: AgentState) -> str:
+def _route_after_verify_remediation(state: AgentState) -> str:
     if state.get("incident_resolved"):
         return "summarize"
     settings = get_settings()
     if state.get("remediation_attempt", 0) < settings.max_remediation_attempts:
-        return "eval_runbook"
+        return "retrieve_runbooks"
     return "summarize"
 
 
@@ -70,29 +76,26 @@ def _route_after_review(state: AgentState) -> str:
 def build_graph():
     graph = StateGraph(AgentState)
     graph.add_node("triage", triage_node)
-    graph.add_node("eval_runbook", eval_runbook_node)
+    graph.add_node("retrieve_runbooks", retrieve_runbooks_node)
     graph.add_node("diagnose", diagnose_node)
-    graph.add_node("eval_diagnosis", eval_diagnosis_node)
     graph.add_node("decide", decide_node)
     graph.add_node("approve", approve_node)
     graph.add_node("write_tools", write_tools_node)
-    graph.add_node("eval_remediation", eval_remediation_node)
+    graph.add_node("verify_remediation", verify_remediation_node)
     graph.add_node("summarize", summarize_node)
     graph.add_node("request_runbook_notes", request_runbook_notes_node)
     graph.add_node("draft_runbook", draft_runbook_node)
     graph.add_node("review_runbook", review_runbook_node)
     graph.add_node("ingest_runbook", ingest_runbook_node)
 
-    # INVESTIGATE_EXTENSION: to re-enable collaborative investigation:
-    #   from app.graph.extensions.investigation import attach_investigation
-    #   attach_investigation(graph)
-    #   change _route_after_decide uncertain/out_of_scope branch to return "escalate"
-
     graph.add_edge(START, "triage")
-    graph.add_edge("triage", "eval_runbook")
-    graph.add_edge("eval_runbook", "diagnose")
-    graph.add_edge("diagnose", "eval_diagnosis")
-    graph.add_edge("eval_diagnosis", "decide")
+    graph.add_edge("triage", "retrieve_runbooks")
+    graph.add_edge("retrieve_runbooks", "diagnose")
+    graph.add_conditional_edges(
+        "diagnose",
+        _route_after_diagnose,
+        {"summarize": "summarize", "decide": "decide"},
+    )
     graph.add_conditional_edges(
         "decide",
         _route_after_decide,
@@ -107,11 +110,11 @@ def build_graph():
         _route_after_approve,
         {"write_tools": "write_tools", "summarize": "summarize"},
     )
-    graph.add_edge("write_tools", "eval_remediation")
+    graph.add_edge("write_tools", "verify_remediation")
     graph.add_conditional_edges(
-        "eval_remediation",
-        _route_after_eval_remediation,
-        {"summarize": "summarize", "eval_runbook": "eval_runbook"},
+        "verify_remediation",
+        _route_after_verify_remediation,
+        {"summarize": "summarize", "retrieve_runbooks": "retrieve_runbooks"},
     )
     graph.add_conditional_edges(
         "summarize",

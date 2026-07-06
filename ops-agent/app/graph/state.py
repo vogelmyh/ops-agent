@@ -24,25 +24,25 @@ class AgentState(TypedDict, total=False):
     recommendations: list[str]
     knowledge_gaps: list[str]
 
-    # eval_runbook
+    # retrieve_runbooks + diagnose coverage phase
     collected_data: dict[str, Any]
     symptom_query: str
     novel_scenario: bool
     novel_reason: str | None
     relevant_runbook: str | None
     selected_runbook_id: str | None
-    coverage_confidence: float | None
+    runbook_match_rubrics: list[dict[str, Any]]
+    match_gate_reason: str
     runbook_candidates: list[dict[str, Any]]
-    runbook_eval_reasoning: str
+    # diagnose
+    confidence_rubric: dict[str, Any]
+    confidence_gate_reason: str
+    confidence_sufficient: bool
 
-    # eval_diagnosis
-    needs_human_review: bool
-    diagnosis_eval_reasoning: str
-
-    # eval_remediation (post write_tools)
+    # verify_remediation (post write_tools)
     incident_resolved: bool
     remediation_attempt: int
-    remediation_eval_reasoning: str
+    remediation_verify_reasoning: str
     remediation_history: list[dict[str, Any]]
 
     # INVESTIGATE_EXTENSION: fields used by extensions/investigation when re-attached

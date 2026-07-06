@@ -53,8 +53,9 @@ def _to_response(thread_id: str, result: dict, pending_node: str | None = None) 
         symptom_query=result.get("symptom_query"),
         novel_reason=result.get("novel_reason"),
         selected_runbook_id=result.get("selected_runbook_id"),
-        coverage_confidence=result.get("coverage_confidence"),
-        runbook_eval_reasoning=result.get("runbook_eval_reasoning"),
+        match_gate_reason=result.get("match_gate_reason"),
+        confidence_sufficient=result.get("confidence_sufficient"),
+        confidence_gate_reason=result.get("confidence_gate_reason"),
     )
 
 

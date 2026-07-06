@@ -43,7 +43,7 @@ def test_hitl_02_runbook_review_rejected(thread_values):
     thread_id, response, meta = start_diagnosis(incident)
 
     assert response.novel_scenario is True
-    assert response.decide_outcome == "uncertain"
+    assert response.decide_outcome == "skipped_low_confidence"
     assert meta["pending_node"] == "request_runbook_notes"
 
     response = resume_runbook_notes(thread_id, "Rebuilt search index from backup snapshot.")

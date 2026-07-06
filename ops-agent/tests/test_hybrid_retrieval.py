@@ -7,6 +7,8 @@ import os
 import pytest
 
 os.environ.setdefault("BACKEND_MODE", "mock")
+
+pytestmark = pytest.mark.rag_only
 os.environ.setdefault("EMBEDDINGS_PROVIDER", "local-hash")
 
 from app.adapters.mock_data import reset_mock_scenarios, set_mock_scenario

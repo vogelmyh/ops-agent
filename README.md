@@ -19,8 +19,11 @@ cd ops-agent && source .venv/bin/activate
 uvicorn app.main:app --port 8000
 
 # 测试（monorepo 根目录）
-make test-rag
+make test-rag-retrieval   # Track A — 纯检索
+make test-rag-coverage    # Track B — coverage rubric
+make test-rag             # 双轨合并
 make test-graph
+make test-api
 make test
 ```
 

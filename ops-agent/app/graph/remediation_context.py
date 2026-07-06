@@ -4,11 +4,14 @@ from __future__ import annotations
 
 from typing import Any
 
-EVAL_DIAGNOSIS_RETRY_GUIDANCE = (
+RCA_RETRY_GUIDANCE = (
     "Re-diagnosis after failed remediation: if symptoms persist, explain whether the prior "
     "root cause still holds or should be revised. Do not assume the prior diagnosis was "
     "wrong solely because remediation failed — cite fresh evidence."
 )
+
+# Deprecated alias
+EVAL_DIAGNOSIS_RETRY_GUIDANCE = RCA_RETRY_GUIDANCE
 
 DECIDE_RETRY_GUIDANCE = (
     "Prior remediation did not resolve the incident. Do NOT repeat the same write tool with "
@@ -67,7 +70,7 @@ def format_remediation_context(
     if failed_tools:
         lines.append(f"\nTools that failed verification: {', '.join(failed_tools)}")
 
-    latest_reasoning = state.get("remediation_eval_reasoning")
+    latest_reasoning = state.get("remediation_verify_reasoning")
     if latest_reasoning:
         lines.append(f"Latest verification note: {latest_reasoning}")
 

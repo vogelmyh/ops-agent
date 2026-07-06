@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Scenario characterization runs — real LLM, step-by-step capture vs docs/test-scenario-trajectories.md."""
+"""Scenario characterization — step-by-step JSON vs docs/test-scenario-trajectories.md.
+
+LLM mode by scenario:
+- KB-01 / KB-02: always mock LLM + mock backend (isolated smoke; see KB section in trajectories doc).
+- DEC-01, LOOP-02, LOOP-03, DEC-02: use process LLM_MODE (default real) + simulator backend.
+"""
 
 from __future__ import annotations
 
@@ -9,6 +14,7 @@ import os
 import sys
 import threading
 import time
+from contextlib import contextmanager
 from typing import Any, Callable
 
 import httpx
@@ -47,14 +53,15 @@ STATE_KEYS = (
     "symptom_query",
     "novel_scenario",
     "novel_reason",
-    "coverage_confidence",
+    "match_gate_reason",
     "selected_runbook_id",
     "runbook_candidates",
-    "runbook_eval_reasoning",
+    "runbook_match_rubrics",
     "relevant_runbook",
     "root_cause",
-    "needs_human_review",
-    "diagnosis_eval_reasoning",
+    "confidence_rubric",
+    "confidence_gate_reason",
+    "confidence_sufficient",
     "decide_outcome",
     "decision_class",
     "escalation_hint",
@@ -70,6 +77,13 @@ STATE_KEYS = (
 )
 
 SIM_PORT = 8081
+_ISOLATED_ENV_KEYS = (
+    "LLM_MODE",
+    "EMBEDDINGS_PROVIDER",
+    "LANGSMITH_TRACING",
+    "LANGCHAIN_TRACING_V2",
+    "BACKEND_MODE",
+)
 
 
 def _apply_ci_mock_env() -> None:
@@ -78,6 +92,24 @@ def _apply_ci_mock_env() -> None:
     os.environ["EMBEDDINGS_PROVIDER"] = "local-hash"
     os.environ["LANGSMITH_TRACING"] = "false"
     os.environ["LANGCHAIN_TRACING_V2"] = "false"
+
+
+@contextmanager
+def _isolated_mock_backend_env():
+    """Apply mock LLM/backend for KB runners without polluting later scenarios."""
+    saved = {key: os.environ.get(key) for key in _ISOLATED_ENV_KEYS}
+    _apply_ci_mock_env()
+    os.environ["BACKEND_MODE"] = "mock"
+    _reset_caches()
+    try:
+        yield
+    finally:
+        for key, value in saved.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+        _reset_caches()
 
 
 def _reset_caches() -> None:
@@ -129,9 +161,10 @@ def _response_dict(resp) -> dict[str, Any]:
         "symptom_query": resp.symptom_query,
         "novel_reason": resp.novel_reason,
         "selected_runbook_id": resp.selected_runbook_id,
-        "coverage_confidence": resp.coverage_confidence,
-        "runbook_eval_reasoning": resp.runbook_eval_reasoning,
+        "match_gate_reason": resp.match_gate_reason,
         "root_cause": resp.root_cause,
+        "confidence_gate_reason": resp.confidence_gate_reason,
+        "confidence_sufficient": resp.confidence_sufficient,
         "decide_outcome": resp.decide_outcome,
         "decision_class": resp.decision_class,
         "escalation_hint": resp.escalation_hint,
@@ -192,72 +225,79 @@ def _result(
 
 
 def run_kb_01() -> dict[str, Any]:
-    """KB-01: novel + ambiguous ecomm-search → uncertain → runbook HITL writeback."""
-    _apply_ci_mock_env()
-    os.environ["BACKEND_MODE"] = "mock"
-    _reset_caches()
-    t0 = time.time()
-    steps: list[dict] = []
+    """KB-01: novel + low-confidence ecomm-search → skipped_low_confidence → runbook HITL writeback.
 
-    incident = IncidentInput(
-        service="ecomm-search",
-        description="【P1】ecomm-search 商品搜索 P99 延迟超 5s，索引重建任务失败，持续 20 分钟",
-    )
-    thread_id, resp, meta = start_diagnosis(incident)
-    steps.append(_step("1_start_diagnosis", resp, meta, thread_id))
+    Always runs under mock LLM + mock backend (not real LLM characterization).
+    """
+    with _isolated_mock_backend_env():
+        t0 = time.time()
+        steps: list[dict] = []
 
-    if meta.get("pending_node") == "request_runbook_notes":
-        resp = resume_runbook_notes(
-            thread_id,
-            "Identified stale search index under /data/search-index; rebuilt from backup.",
+        incident = IncidentInput(
+            service="ecomm-search",
+            description="【P1】ecomm-search 商品搜索 P99 延迟超 5s，索引重建任务失败，持续 20 分钟",
         )
-        steps.append(_step("2_resume_runbook_notes", resp, _pending_meta(thread_id), thread_id))
+        thread_id, resp, meta = start_diagnosis(incident)
+        steps.append(_step("1_start_diagnosis", resp, meta, thread_id))
 
-    if resp.status == "awaiting_runbook_review":
-        resp = resume_runbook_review(thread_id, approved=True)
-        steps.append(_step("3_resume_runbook_review", resp, _pending_meta(thread_id), thread_id))
+        if meta.get("pending_node") == "request_runbook_notes":
+            resp = resume_runbook_notes(
+                thread_id,
+                "Identified stale search index under /data/search-index; rebuilt from backup.",
+            )
+            steps.append(_step("2_resume_runbook_notes", resp, _pending_meta(thread_id), thread_id))
 
-    passed = bool(
-        steps[0]["response"]["novel_scenario"] is True
-        and steps[0]["response"]["decide_outcome"] == "uncertain"
-        and steps[-1]["graph_state"].get("runbook_saved_path")
-    )
-    return _result("KB-01", "novel ambiguous runbook writeback", passed=passed, steps=steps, t0=t0, backend="mock")
+        if resp.status == "awaiting_runbook_review":
+            resp = resume_runbook_review(thread_id, approved=True)
+            steps.append(_step("3_resume_runbook_review", resp, _pending_meta(thread_id), thread_id))
+
+        passed = bool(
+            steps[0]["response"]["novel_scenario"] is True
+            and steps[0]["response"]["decide_outcome"] == "skipped_low_confidence"
+            and steps[-1]["graph_state"].get("runbook_saved_path")
+        )
+        return _result("KB-01", "novel ambiguous runbook writeback", passed=passed, steps=steps, t0=t0, backend="mock")
 
 
 def run_kb_02() -> dict[str, Any]:
-    """KB-02: novel + clear OOM pattern ecomm-cache → actionable fix → runbook writeback."""
-    _apply_ci_mock_env()
-    os.environ["BACKEND_MODE"] = "mock"
-    _reset_caches()
-    t0 = time.time()
-    steps: list[dict] = []
+    """KB-02: novel + clear OOM pattern ecomm-cache → approve → fix → runbook writeback.
 
-    incident = IncidentInput(
-        service="ecomm-cache",
-        description="【P1】ecomm-cache Redis 缓存连接失败，读延迟飙升，Pod 频繁重启",
-    )
-    thread_id, resp, meta = start_diagnosis(incident)
-    steps.append(_step("1_start_diagnosis", resp, meta, thread_id))
+    Always runs under mock LLM + mock backend (not real LLM characterization).
+    """
+    with _isolated_mock_backend_env():
+        t0 = time.time()
+        steps: list[dict] = []
 
-    if meta.get("pending_node") == "request_runbook_notes":
-        resp = resume_runbook_notes(
-            thread_id,
-            "OOMKilled pod; rolling restart recovered cache connections.",
+        incident = IncidentInput(
+            service="ecomm-cache",
+            description="【P1】ecomm-cache Redis 缓存连接失败，读延迟飙升，Pod 频繁重启",
         )
-        steps.append(_step("2_resume_runbook_notes", resp, _pending_meta(thread_id), thread_id))
+        thread_id, resp, meta = start_diagnosis(incident)
+        steps.append(_step("1_start_diagnosis", resp, meta, thread_id))
 
-    if resp.status == "awaiting_runbook_review":
-        resp = resume_runbook_review(thread_id, approved=True)
-        steps.append(_step("3_resume_runbook_review", resp, _pending_meta(thread_id), thread_id))
+        if meta.get("pending_node") == "approve":
+            resp = resume_approval(thread_id, approved=True)
+            steps.append(_step("2_resume_approval", resp, _pending_meta(thread_id), thread_id))
 
-    passed = bool(
-        steps[0]["response"]["novel_scenario"] is True
-        and steps[0]["response"]["decide_outcome"] == "actionable"
-        and steps[0]["response"].get("incident_resolved") is True
-        and steps[-1]["graph_state"].get("runbook_saved_path")
-    )
-    return _result("KB-02", "novel actionable then runbook writeback", passed=passed, steps=steps, t0=t0, backend="mock")
+        if resp.status == "awaiting_runbook_notes":
+            resp = resume_runbook_notes(
+                thread_id,
+                "OOMKilled pod; rolling restart recovered cache connections.",
+            )
+            steps.append(_step("3_resume_runbook_notes", resp, _pending_meta(thread_id), thread_id))
+
+        if resp.status == "awaiting_runbook_review":
+            resp = resume_runbook_review(thread_id, approved=True)
+            steps.append(_step("4_resume_runbook_review", resp, _pending_meta(thread_id), thread_id))
+
+        resolved = any(s["response"].get("incident_resolved") for s in steps)
+        passed = bool(
+            steps[0]["response"]["novel_scenario"] is True
+            and steps[0]["response"]["decide_outcome"] == "actionable"
+            and resolved
+            and steps[-1]["graph_state"].get("runbook_saved_path")
+        )
+        return _result("KB-02", "novel actionable then runbook writeback", passed=passed, steps=steps, t0=t0, backend="mock")
 
 
 def check_dec_01_passed(
@@ -443,19 +483,42 @@ SCENARIO_RUNNERS: dict[str, Callable[[], dict[str, Any]]] = {
 DEFAULT_SCENARIOS = ("KB-01", "DEC-01")
 
 
+_RUN_SCENARIOS_EPILOG = """\
+Examples:
+  # KB mock smoke only (writes data/runbooks/ — check git status after)
+  python scripts/run_scenarios.py --scenarios KB-01 KB-02
+
+  # Real LLM + simulator (DEC / LOOP; KB excluded from real characterization)
+  LLM_MODE=real BACKEND_MODE=real python scripts/run_scenarios.py \\
+    --scenarios DEC-01 LOOP-02 LOOP-03 DEC-02
+
+  # CI-friendly mock for all runners (KB still uses isolated mock env)
+  python scripts/run_scenarios.py --mock-llm --scenarios all
+
+See ops-agent/docs/test-scenario-trajectories.md (KB · run_scenarios 定位).
+"""
+
+
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run scenario characterization (real LLM).")
+    parser = argparse.ArgumentParser(
+        description=(
+            "Run scenario runners with step JSON. "
+            "KB-01/KB-02 are fixed mock smoke; DEC/LOOP use LLM_MODE (default real) + simulator."
+        ),
+        epilog=_RUN_SCENARIOS_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument(
         "--scenarios",
         nargs="*",
         choices=[*SCENARIO_RUNNERS.keys(), "all"],
         default=list(DEFAULT_SCENARIOS),
-        help="Scenario IDs from docs/test-scenario-trajectories.md",
+        help="Scenario IDs (docs/test-scenario-trajectories.md). KB=* mock smoke; DEC/LOOP=real LLM when LLM_MODE=real",
     )
     parser.add_argument(
         "--mock-llm",
         action="store_true",
-        help="Force LLM_MODE=mock (for CI smoke of scenario runners)",
+        help="Force LLM_MODE=mock for DEC/LOOP runners (KB runners always mock regardless)",
     )
     args = parser.parse_args()
     if args.mock_llm:

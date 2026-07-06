@@ -172,7 +172,8 @@ curl -s localhost:8000/readyz | jq .
 
 ## 10. 版本注记
 
-- **2026-06-30**：`RemediationEvalAssessment` coerce（缺省 `reasoning`、字段别名）见 [`decide-remediation-architecture.md`](decide-remediation-architecture.md) §10；`eval_remediation` 节点经 `invoke_structured()` 继承。
+- **2026-07-01**：图节点 `verify_remediation` 替代 `eval_remediation`；state 观测字段 `remediation_verify_reasoning`（`remediation_eval_reasoning` 为兼容别名）。`DiagnoseResponse` / runner 映射未改 API 形状。
+- **2026-06-30**：`RemediationEvalAssessment` coerce（缺省 `reasoning`、字段别名）见 [`decide-remediation-architecture.md`](decide-remediation-architecture.md) §10；`verify_remediation` 节点经 `invoke_structured()` 继承。
 - **2026-06-30**：`invoke_structured()` fallback 收紧：plain 重试仍绑 `json_object`；`strip_json_markdown()` 去围栏；区分 JSON 语法错误与 schema 校验失败。`DecideAssessment` coerce 见 [`decide-remediation-architecture.md`](decide-remediation-architecture.md) §10。
 - **2026-06-30**：推荐 **DeepSeek V4 chat + Qwen embedding** 组合：`get_chat_model()` 对 DeepSeek 默认 `thinking: disabled`；`invoke_structured()` 对 DeepSeek 使用 `json_mode` + JSON 提示（不走 DashScope fallback）。见 `.env.example`。
 - **2026-06-30**：`invoke_structured()` 在 SDK `ValidationError` 时降级 plain invoke；裸 rubric 数组包装见 [`rag-architecture-and-tests.md`](rag-architecture-and-tests.md) §9。

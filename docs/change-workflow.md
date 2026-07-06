@@ -9,7 +9,8 @@
 ### 0. 开分支
 
 ```bash
-git checkout -b feat/<简短描述>   # 或 fix/…
+git checkout -b feat/<简短描述>   # 新功能时
+# 或继续在已有功能分支上改（如 refactor/rag-diagnose-decide-pipeline）
 ```
 
 一句话写清意图，例如：`调整 RAG 消歧阈值，LOOP 场景更早 honest novel`。
@@ -28,9 +29,9 @@ git diff
 
 | 改动触及 | 主文档（`ops-agent/docs/`） |
 |----------|----------------------------|
-| `app/rag/`, `eval_runbook`, `runbook_eval_policy` | `rag-architecture-and-tests.md` §5 |
+| `app/rag/`, `retrieve_runbooks`, `runbook_coverage`, `runbook_eval_policy` | `rag-architecture-and-tests.md` §5 |
 | `builder.py`, `nodes/`（非 RAG）, `runner.py` | `graph-agent-architecture.md` |
-| `decide`, `tools/`, `eval_remediation` | `decide-remediation-architecture.md` |
+| `decide`, `tools/`, `verify_remediation` | `decide-remediation-architecture.md` |
 | `app/adapters/`, simulator 联调 | `backend-adapters-architecture.md` + `ops-backend-simulator/README.md` |
 | KB 写回链 | `kb-lifecycle-architecture.md` |
 | `main.py`, `config.py`, LLM/checkpoint | `api-runtime-architecture.md` |
@@ -47,7 +48,7 @@ git diff
 - **必改测试**：…
 - **必改文档**：…（版本注记 / 变更记录）
 - **不必改**：…
-- **验证命令**：make test-rag / make test-graph / …
+- **验证命令**：`make test-rag-retrieval` / `make test-rag-coverage` / `make test-rag` / `make test-graph` / `make test-api` …
 ```
 
 对照组件文档 §5「必须同步」表逐项核对。**未输出计划不得动手。**
@@ -65,10 +66,10 @@ git diff
 
 | 改动类型 | 命令 |
 |----------|------|
-| RAG | `make test-rag` |
+| RAG | `make test-rag`（或 `make test-rag-retrieval` / `make test-rag-coverage`） |
 | 图路由 / HITL | `make test-graph` |
 | decide / 工具 | `make test-graph` + 相关单测 |
-| API / tracing | `cd ops-agent && .venv/bin/pytest tests/test_eval.py tests/test_tracing.py -q` |
+| API / tracing | `make test-api` |
 | 合入前 | `make test` |
 
 ### 6. 文档与勾选清单
@@ -120,7 +121,7 @@ make install-hooks
 
 1. 分析 **staged** 文件路径  
 2. 仅文档 / `.md` / `.cursor` 变更 → **跳过测试**，提醒检查版本注记  
-3. 代码变更 → 自动跑对应的 `make test-rag` / `test-graph` / `test-simulator` / `test-api`（可多目标）
+3. 代码变更 → 自动跑对应的 `make test-rag*` / `test-graph` / `test-simulator` / `test-api`（可多目标）
 
 紧急跳过：`SKIP_HOOKS=1 git commit -m "..."`
 
@@ -135,7 +136,9 @@ python scripts/change_impact.py --staged --run
 
 | `make` 目标 | 范围 |
 |-------------|------|
-| `test-rag` | RAG 单测 + golden |
+| `test-rag-retrieval` | Track A — 纯检索 + golden L1 |
+| `test-rag-coverage` | Track B — coverage rubric + golden L2 |
+| `test-rag` | 双轨合并 |
 | `test-graph` | `tests/graph_paths/` |
 | `test-api` | eval / tracing / health |
 | `test-simulator` | `ops-backend-simulator/tests/` |

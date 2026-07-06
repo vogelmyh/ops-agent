@@ -11,9 +11,9 @@
 编排从 **incident 输入** 到 **总结 / KB 写回** 的完整诊断图：
 
 - 服务识别（`triage`）
-- 与 RAG 节点衔接（`eval_runbook` — 细节见 [RAG 文档](rag-architecture-and-tests.md)）
-- LLM 诊断与诊断评估（`diagnose`, `eval_diagnosis`）
-- 路由到决策、修复、总结子图（`decide`, `write_tools`, `eval_remediation`, `summarize`）
+- 与 RAG 节点衔接（`retrieve_runbooks` — 细节见 [RAG 文档](rag-architecture-and-tests.md)）
+- LLM 诊断三步（`diagnose`：runbook rubric → RCA → 置信度）
+- 路由到决策、修复、总结子图（`decide`, `write_tools`, `verify_remediation`, `summarize`）
 - HITL 中断与 checkpoint 恢复（`approve`, KB 节点）
 
 **不负责**：RAG 检索实现、写工具 HTTP 调用、LLM provider 初始化（见对应组件文档）。
@@ -26,23 +26,23 @@
 
 ```text
 triage
-  → eval_runbook
+  → retrieve_runbooks
   → diagnose
-  → eval_diagnosis
-  → decide
-       ├─ route_after_decide: uncertain | out_of_scope → summarize
+       ├─ confidence < threshold → summarize
+       └─ else → decide
+       ├─ route_after_decide: out_of_scope | uncertain | skipped → summarize
        ├─ route_after_decide: actionable + needs_approval → approve → write_tools
        └─ route_after_decide: actionable → write_tools
-  → eval_remediation
-       ├─ route_after_eval_remediation: resolved → summarize
-       └─ not resolved & attempt < max → eval_runbook（react）
+  → verify_remediation
+       ├─ route_after_verify_remediation: resolved → summarize
+       └─ not resolved & attempt < max → retrieve_runbooks（react）
   → summarize
        └─ route_after_summarize: novel_scenario → request_runbook_notes → … → ingest_runbook
 ```
 
 ### 2.2 采集子流程（`collection.collect`）
 
-`eval_runbook` 与 `diagnose` 前均会调用 `app/graph/collection.py`：
+`retrieve_runbooks` 前均会调用 `app/graph/collection.py`：
 
 - 按 `service` 拉取 logs / metrics / status / k8s_events 等
 - 结果写入 `state.collected_data`，供症状抽取与诊断 prompt 使用
@@ -72,9 +72,8 @@ triage
 | 运行入口 | `app/graph/runner.py` |
 | 采集 | `app/graph/collection.py` |
 | triage | `app/graph/nodes/triage.py` |
-| diagnose | `app/graph/nodes/diagnose.py` |
-| eval_diagnosis | `app/graph/nodes/eval_diagnosis.py` |
-| eval_runbook | `app/graph/nodes/eval_runbook.py` |
+| retrieve_runbooks | `app/graph/nodes/retrieve_runbooks.py` |
+| diagnose | `app/graph/nodes/diagnose.py`, `runbook_coverage.py`, `diagnose_spec.py` |
 | summarize | `app/graph/nodes/summarize.py` |
 | KB 节点 | `request_runbook_notes`, `draft_runbook`, `review_runbook`, `ingest_runbook` |
 | 决策/修复 | 见 [decide-remediation-architecture.md](decide-remediation-architecture.md) |
@@ -89,11 +88,11 @@ triage
 |------|--------|------|
 | `incident`, `service` | triage | 输入 |
 | `collected_data` | collection | 遥测 |
-| `symptom_query`, `novel_scenario`, `novel_reason`, `relevant_runbook`, `selected_runbook_id`, `runbook_eval_reasoning` | eval_runbook | RAG（细节见 RAG 文档） |
-| `root_cause`, `evidence`, `summary` | diagnose / summarize | 输出 |
-| `needs_human_review` | eval_diagnosis | 审批策略输入 |
+| `symptom_query`, `runbook_candidates` | retrieve_runbooks | 检索 |
+| `novel_scenario`, `novel_reason`, `relevant_runbook`, `selected_runbook_id`, `match_gate_reason` | diagnose coverage | KB 覆盖 |
+| `root_cause`, `evidence`, `confidence_rubric`, `confidence_gate_reason`, `confidence_sufficient` | diagnose | 诊断 |
 | `decision_class`, `decide_outcome` | decide | 路由 |
-| `remediation_attempt`, `incident_resolved` | eval_remediation | react 环 |
+| `remediation_attempt`, `incident_resolved` | verify_remediation | react 环 |
 
 完整定义：`app/graph/state.py`。
 
@@ -112,7 +111,7 @@ triage
 
 - **路由契约**：给定 mock LLM 固定输出，图是否走到预期节点与 `status`
 - **HITL 恢复**：approve / notes / review 后 state 与 response 字段
-- **react 环**：未解决时是否回到 `eval_runbook` 且 `remediation_attempt` 递增
+- **react 环**：未解决时是否回到 `retrieve_runbooks` 且 `remediation_attempt` 递增
 
 **不测**：RAG recall 数值（见 RAG 文档）、真实 LLM 措辞。
 
@@ -150,10 +149,10 @@ CHECKPOINTER=memory .venv/bin/python scripts/run_scenarios.py \
 | **改 DecideAssessment coerce** | `decide_spec.py` + [`decide-remediation-architecture.md`](decide-remediation-architecture.md) §7/§10 |
 | **改 RemediationEvalAssessment coerce** | `eval_schemas.py` + [`decide-remediation-architecture.md`](decide-remediation-architecture.md) §7/§10 |
 | **新增/删除节点** | 改 `builder.py` 边与 conditional edges；更新 `state.py` 字段；补 `graph_paths` 或集成测试 |
-| **改路由函数** | 检查 `route_after_decide` / `route_after_eval_remediation` / `route_after_summarize` 全分支 |
+| **改路由函数** | 检查 `route_after_decide` / `route_after_verify_remediation` / `route_after_summarize` 全分支 |
 | **新 HITL 中断** | `interrupt_before` 列表、`runner._status_from_pending`、`main.py` 新 resume 端点 |
-| **改 collection 字段** | 同步 `diagnose` / `eval_runbook` prompt 与 `mock_data` 投影 |
-| **改 eval_runbook / RAG 裁决** | 见 [`rag-architecture-and-tests.md`](rag-architecture-and-tests.md) §5，非本组件 |
+| **改 collection 字段** | 同步 `diagnose` / `retrieve_runbooks` prompt 与 `mock_data` 投影 |
+| **改 retrieve / coverage / RAG 裁决** | 见 [`rag-architecture-and-tests.md`](rag-architecture-and-tests.md) §5，非本组件 |
 | **挂载 investigation 扩展** | 取消 `INVESTIGATE_EXTENSION` 注释块；补 LOOP/DEC 场景与 runner status |
 
 **不要**在本文件重复维护 RAG 阈值或工具风险表 — 链到对应组件文档。
@@ -181,6 +180,11 @@ CHECKPOINTER=memory .venv/bin/python scripts/run_scenarios.py --scenarios REM-01
 
 ## 9. 版本注记
 
+- **2026-07-03**：文档明确 KB-01/KB-02 在 `run_scenarios` 为固定 **mock smoke**（非 real LLM 表征）；real LLM 表征仅 DEC/LOOP。见 [`test-scenario-trajectories.md`](test-scenario-trajectories.md) §KB、`run_scenarios.py --help`。
+- **2026-07-03**：`RootCauseDraft` 增加 `coerce_root_cause_draft` / `normalize_evidence_source`，将 LLM 自然语言 source（如 `Application Logs`）映射为 `EvidenceSource` 枚举；`RCA_SYSTEM_PROMPT` 补充机器标签示例 JSON，修复 real LLM 场景表征在 `diagnose` RCA 阶段的 schema 校验失败。`run_scenarios` KB runner 使用 `_isolated_mock_backend_env()`，避免 mock env 污染后续 real LLM 场景。
+- **2026-07-02**：remediation 重入时 RCA 注入 `RCA_RETRY_GUIDANCE`；删除纯观测字段 `needs_human_review`、`diagnosis_reasoning`、`runbook_eval_reasoning`（统一 `match_gate_reason`）。
+- **2026-07-01**：命名清理：`eval_remediation` → `verify_remediation`；diagnose coverage / rca / confidence；双轨 RAG 测试见 [`rag-architecture-and-tests.md`](rag-architecture-and-tests.md) §4。
+- **2026-07-01**：主图重构：`eval_runbook` → `retrieve_runbooks`（纯检索）；`eval_diagnosis` 并入 `diagnose` 三阶段（coverage runbook rubric + finalize、rca、confidence rubric）；`confidence < diagnosis_confidence_threshold` 时 `decide_outcome=skipped_low_confidence` 直进 summarize。同步指南与 react 环文档已对齐。
 - **2026-06-30**：`RemediationEvalAssessment` coerce（`eval_schemas.coerce_remediation_eval_assessment`）见 decide-remediation §10。
 - **2026-06-30**：DEC-01 `check_dec_01_passed` 对齐 `novel_scenario` 写回 HITL 路径；见 [`test-scenario-trajectories.md`](test-scenario-trajectories.md) §DEC-01。
 - **2026-06-30**：`invoke_structured()` fallback 绑定 `json_object` + markdown 围栏剥离；`DecideAssessment` coerce 见 decide-remediation §10。

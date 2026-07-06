@@ -1,4 +1,4 @@
-"""Format WRITE_TOOLS metadata for decide Step 1 handleability assessment."""
+"""Format WRITE_TOOLS metadata for decide handleability assessment."""
 
 from __future__ import annotations
 

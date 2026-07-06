@@ -12,8 +12,9 @@ def approve_node(state: AgentState) -> dict:
     payload = {
         "message": "诊断评估或高风险操作需要人工审批",
         "pending_tool_calls": tool_calls,
-        "needs_human_review": state.get("needs_human_review", False),
-        "diagnosis_eval_reasoning": state.get("diagnosis_eval_reasoning", ""),
+        "novel_scenario": state.get("novel_scenario", False),
+        "confidence_sufficient": state.get("confidence_sufficient"),
+        "confidence_gate_reason": state.get("confidence_gate_reason"),
     }
     decision = interrupt(payload)
     approved = bool(decision.get("approved", False))
