@@ -19,7 +19,7 @@ def escalate_node(state: AgentState) -> dict:
         "recommendations": state.get("recommendations", []),
         "knowledge_gaps": state.get("knowledge_gaps", []),
         "pending_tool_calls": tool_calls,
-        "novel_scenario": state.get("novel_scenario", False),
+        "runbook_available": state.get("runbook_available", False),
     }
     decision = interrupt(payload)
     return {

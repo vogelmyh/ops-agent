@@ -16,7 +16,7 @@ def run_retrieve_and_coverage(
     settings=None,
     golden_oracle: bool = False,
     oracle_expected_doc_id: str | None = None,
-    oracle_expected_novel: bool = False,
+    oracle_expected_runbook_available: bool = True,
 ) -> dict:
     """Retrieve top-K runbooks and evaluate runbook coverage (offline golden harness)."""
     settings = settings or get_settings()
@@ -38,7 +38,7 @@ def run_retrieve_and_coverage(
         settings=settings,
         golden_oracle=golden_oracle,
         oracle_expected_doc_id=oracle_expected_doc_id,
-        oracle_expected_novel=oracle_expected_novel,
+        oracle_expected_runbook_available=oracle_expected_runbook_available,
     )
     return {
         **retrieved,

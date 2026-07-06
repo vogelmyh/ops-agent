@@ -51,8 +51,8 @@ from simulator.app import app as sim_app
 STATE_KEYS = (
     "status",
     "symptom_query",
-    "novel_scenario",
-    "novel_reason",
+    "runbook_available",
+    "runbook_unavailable_reason",
     "match_gate_reason",
     "selected_runbook_id",
     "runbook_candidates",
@@ -157,9 +157,9 @@ def _graph_state(thread_id: str) -> dict[str, Any]:
 def _response_dict(resp) -> dict[str, Any]:
     return {
         "status": resp.status,
-        "novel_scenario": resp.novel_scenario,
+        "runbook_available": resp.runbook_available,
         "symptom_query": resp.symptom_query,
-        "novel_reason": resp.novel_reason,
+        "runbook_unavailable_reason": resp.runbook_unavailable_reason,
         "selected_runbook_id": resp.selected_runbook_id,
         "match_gate_reason": resp.match_gate_reason,
         "root_cause": resp.root_cause,
@@ -225,7 +225,7 @@ def _result(
 
 
 def run_kb_01() -> dict[str, Any]:
-    """KB-01: novel + low-confidence ecomm-search → skipped_low_confidence → runbook HITL writeback.
+    """KB-01: no runbook + low-confidence ecomm-search → skipped_low_confidence → runbook HITL writeback.
 
     Always runs under mock LLM + mock backend (not real LLM characterization).
     """
@@ -252,15 +252,15 @@ def run_kb_01() -> dict[str, Any]:
             steps.append(_step("3_resume_runbook_review", resp, _pending_meta(thread_id), thread_id))
 
         passed = bool(
-            steps[0]["response"]["novel_scenario"] is True
+            steps[0]["response"]["runbook_available"] is False
             and steps[0]["response"]["decide_outcome"] == "skipped_low_confidence"
             and steps[-1]["graph_state"].get("runbook_saved_path")
         )
-        return _result("KB-01", "novel ambiguous runbook writeback", passed=passed, steps=steps, t0=t0, backend="mock")
+        return _result("KB-01", "explore ambiguous runbook writeback", passed=passed, steps=steps, t0=t0, backend="mock")
 
 
 def run_kb_02() -> dict[str, Any]:
-    """KB-02: novel + clear OOM pattern ecomm-cache → approve → fix → runbook writeback.
+    """KB-02: no runbook + clear OOM pattern ecomm-cache → approve → fix → runbook writeback.
 
     Always runs under mock LLM + mock backend (not real LLM characterization).
     """
@@ -292,12 +292,12 @@ def run_kb_02() -> dict[str, Any]:
 
         resolved = any(s["response"].get("incident_resolved") for s in steps)
         passed = bool(
-            steps[0]["response"]["novel_scenario"] is True
+            steps[0]["response"]["runbook_available"] is False
             and steps[0]["response"]["decide_outcome"] == "actionable"
             and resolved
             and steps[-1]["graph_state"].get("runbook_saved_path")
         )
-        return _result("KB-02", "novel actionable then runbook writeback", passed=passed, steps=steps, t0=t0, backend="mock")
+        return _result("KB-02", "explore actionable then runbook writeback", passed=passed, steps=steps, t0=t0, backend="mock")
 
 
 def check_dec_01_passed(
@@ -310,9 +310,9 @@ def check_dec_01_passed(
     """DEC-01 pass criteria aligned with graph routing (builder._route_after_summarize).
 
     Core: discount-bug → decide out_of_scope, no writes, simulator stays BROKEN.
-    Terminal status depends on novel_scenario:
-    - novel=true  → summarize then request_runbook_notes (awaiting_runbook_notes)
-    - novel=false → summarize then END (completed)
+    Terminal status depends on runbook_available:
+    - runbook_available=false → summarize then request_runbook_notes (awaiting_runbook_notes)
+    - runbook_available=true  → summarize then END (completed)
     """
     core = (
         resp.decide_outcome == "out_of_scope"
@@ -322,7 +322,7 @@ def check_dec_01_passed(
     )
     if not core:
         return False
-    if resp.novel_scenario:
+    if not resp.runbook_available:
         return (
             resp.status == "awaiting_runbook_notes"
             and meta.get("pending_node") == "request_runbook_notes"
@@ -389,7 +389,7 @@ def run_loop_02() -> dict[str, Any]:
     history = steps[-1]["graph_state"].get("remediation_history") or []
     tools = [t for h in history for t in (h.get("tools_attempted") or [])]
     passed = bool(
-        steps[0]["response"]["novel_scenario"] is False
+        steps[0]["response"]["runbook_available"] is True
         and "patch_config" in tools
         and resp.incident_resolved is True
         and sim_final.get("phase") == "RECOVERED"

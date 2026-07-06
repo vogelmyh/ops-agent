@@ -8,7 +8,7 @@
 
 ## 1. 职责
 
-当 `novel_scenario=true`（KB 未覆盖）且主路径进入总结后，驱动 **人机协作** 将现场经验固化为 runbook 并 **写入 `data/runbooks/` + 触发 reindex**：
+当 `runbook_available=false`（KB 未覆盖）且主路径进入总结后，驱动 **人机协作** 将现场经验固化为 runbook 并 **写入 `data/runbooks/` + 触发 reindex**：
 
 ```text
 summarize → request_runbook_notes → draft_runbook → review_runbook → ingest_runbook
@@ -22,7 +22,7 @@ summarize → request_runbook_notes → draft_runbook → review_runbook → ing
 
 ### 2.1 触发条件
 
-`route_after_summarize`（`builder.py`）在 `novel_scenario` 为真时进入 KB 子链，否则直接 `END`。
+`route_after_summarize`（`builder.py`）在 `runbook_available=false` 时进入 KB 子链，否则直接 `END`。
 
 ### 2.2 节点说明
 
@@ -63,7 +63,7 @@ summarize → request_runbook_notes → draft_runbook → review_runbook → ing
 
 | 字段 | 说明 |
 |------|------|
-| `novel_scenario`, `novel_reason` | 来自 diagnose coverage（runbook rubric + finalize），决定是否进入 KB 链 |
+| `runbook_available`, `runbook_unavailable_reason` | 来自 diagnose coverage（runbook rubric + finalize），决定是否进入 KB 链 |
 | `runbook_notes` | HITL 输入 |
 | `runbook_draft` | LLM 草稿 |
 | `runbook_approved` | 审核结果 |
@@ -77,7 +77,7 @@ API 恢复：`runner.resume_runbook_notes` / `resume_runbook_review`（见 [api-
 
 ### 5.1 本组件测什么
 
-- `novel_scenario` 为真时是否进入 notes → draft → review → ingest
+- `runbook_available=false` 时是否进入 notes → draft → review → ingest
 - 中断与 resume 后 `status` 与 state 字段
 - ingest 后文件存在且 `reindex` 可被后续 RAG 检索（可选集成断言）
 
@@ -135,6 +135,11 @@ CHECKPOINTER=memory .venv/bin/python scripts/run_scenarios.py --scenarios KB-01 
 
 ## 9. 版本注记
 
+### 2026-07-01 · `runbook_available` 字段重命名
+
+- KB 路由开关：`novel_scenario` → **`runbook_available`**（语义取反）；`novel_reason` → **`runbook_unavailable_reason`**。
+- `route_after_summarize`：`runbook_available=false` 时进入 KB 写回链（与 `builder.py` 一致）。
+
 ### 2026-07-03 · KB run_scenarios 定位文档化
 
 - 明确 KB-01/KB-02 在 `run_scenarios.py` 为 **mock smoke**，非 real LLM 表征；见 [`test-scenario-trajectories.md`](test-scenario-trajectories.md) §KB。
@@ -143,6 +148,6 @@ CHECKPOINTER=memory .venv/bin/python scripts/run_scenarios.py --scenarios KB-01 
 
 - 读路径表述统一为 `retrieve_runbooks` + diagnose **coverage**；与 RAG 文档 §2 对齐。
 
-- `novel_scenario` 改由 diagnose coverage 写入（非图节点 `eval_runbook`）。
+- `runbook_available` 改由 diagnose coverage 写入（非图节点 `eval_runbook`）。
 - KB-01：低置信 `skipped_low_confidence` 仍进入 summarize → KB 写回链。
-- KB-02：novel + actionable 需先 `approve` 再 write，修复后同样进入写回链。
+- KB-02：`runbook_available=false` + actionable 需先 `approve` 再 write，修复后同样进入写回链。

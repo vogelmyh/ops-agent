@@ -122,15 +122,15 @@ class DecideAssessment(BaseModel):
         return coerce_decide_assessment(data)
 
 
-ASSESSMENT_SYSTEM_PROMPT = """\
+ASSESSMENT_RUNBOOK_SYSTEM_PROMPT = """\
 You are the handleability assessment module of a cloud ops agent.
 
-The upstream diagnose step has already adopted the root cause. Your sole task: given that root cause, \
-evidence, optional validated runbook, and the **authoritative write-tool catalog**, decide whether \
-catalog tools can remediate this incident.
+The upstream diagnose step has adopted a validated runbook and root cause. Your sole task: \
+given that root cause, evidence, the validated runbook excerpt, and the **authoritative write-tool \
+catalog**, decide whether catalog tools can remediate this incident.
 
 Do NOT select or invoke any tools in this step — output structured assessment only.
-Do NOT re-judge diagnosis confidence, evidence sufficiency, or novel_scenario.
+Do NOT re-judge diagnosis confidence or runbook selection (handled upstream).
 
 ## Outcomes (pick exactly one)
 
@@ -145,11 +145,39 @@ Provide recommendations and escalation_hint for out_of_scope.
 Do NOT output uncertain — if parameters are unsafe, still choose out_of_scope with guidance.
 """
 
-ASSESSMENT_HUMAN_TEMPLATE = """\
+ASSESSMENT_EXPLORE_SYSTEM_PROMPT = """\
+You are the handleability assessment module of a cloud ops agent.
+
+No validated runbook is available for this incident. The upstream diagnose step has produced a \
+telemetry-only root cause. Your sole task: given that root cause, evidence, and the \
+**authoritative write-tool catalog**, decide whether catalog tools can remediate this incident.
+
+Do NOT select or invoke any tools in this step — output structured assessment only.
+Do NOT use, cite, or infer from runbook content — none was validated for this incident.
+Do NOT re-judge diagnosis confidence (handled upstream).
+
+## Outcomes (pick exactly one)
+
+### actionable
+Root cause is accepted AND at least one catalog tool clearly applies with safely inferable parameters.
+
+### out_of_scope
+Root cause is accepted but **none** of the catalog tools can address it (e.g. code bug, DBA, hardware).
+
+### uncertain
+Root cause or evidence is too ambiguous to safely pick a write tool or infer parameters.
+
+Provide recommendations and knowledge_gaps for uncertain and out_of_scope.
+"""
+
+# Backward-compatible alias.
+ASSESSMENT_SYSTEM_PROMPT = ASSESSMENT_RUNBOOK_SYSTEM_PROMPT
+
+ASSESSMENT_RUNBOOK_HUMAN_TEMPLATE = """\
 Service: {service}
 Root cause: {root_cause}
-novel_scenario: {novel_scenario}
-Relevant runbook:
+runbook_available: true
+Validated runbook excerpt:
 {relevant_runbook}
 
 Evidence:
@@ -161,23 +189,58 @@ Available write tools (authoritative catalog for capability assessment — do NO
 {write_tools_catalog}
 """
 
-TOOL_SELECT_SYSTEM_PROMPT = """\
+ASSESSMENT_EXPLORE_HUMAN_TEMPLATE = """\
+Service: {service}
+Root cause: {root_cause}
+runbook_available: false
+
+Evidence:
+{evidence}
+
+{remediation_context}
+
+Available write tools (authoritative catalog for capability assessment — do NOT invoke here):
+{write_tools_catalog}
+"""
+
+# Backward-compatible alias.
+ASSESSMENT_HUMAN_TEMPLATE = ASSESSMENT_RUNBOOK_HUMAN_TEMPLATE
+
+TOOL_SELECT_RUNBOOK_SYSTEM_PROMPT = """\
 You are the remediation execution module of a cloud ops agent.
 
-The previous step classified this incident as actionable. You MUST invoke exactly one \
-appropriate write tool with complete arguments.
+The previous step classified this incident as actionable. A validated runbook is available. \
+You MUST invoke exactly one appropriate write tool with complete arguments.
 - Pick from the bound tools only
+- Use the validated runbook excerpt when inferring tool parameters
 - Do NOT output risk_level (computed by policy from tool name)
 - Do NOT re-run handleability assessment
 - If you cannot safely pick a tool, reply in plain text with the reason and produce NO tool_calls \
 (the system will downgrade to uncertain)
 """
 
-TOOL_SELECT_HUMAN_TEMPLATE = """\
+TOOL_SELECT_EXPLORE_SYSTEM_PROMPT = """\
+You are the remediation execution module of a cloud ops agent.
+
+The previous step classified this incident as actionable. No validated runbook is available. \
+You MUST invoke exactly one appropriate write tool with complete arguments using telemetry and \
+assessment reasoning only.
+- Pick from the bound tools only
+- Do NOT use or cite runbook content
+- Do NOT output risk_level (computed by policy from tool name)
+- Do NOT re-run handleability assessment
+- If you cannot safely pick a tool, reply in plain text with the reason and produce NO tool_calls \
+(the system will downgrade to uncertain)
+"""
+
+# Backward-compatible alias.
+TOOL_SELECT_SYSTEM_PROMPT = TOOL_SELECT_RUNBOOK_SYSTEM_PROMPT
+
+TOOL_SELECT_RUNBOOK_HUMAN_TEMPLATE = """\
 Service: {service}
 Root cause: {root_cause}
 Assessment reasoning: {assessment_reasoning}
-Relevant runbook:
+Validated runbook excerpt:
 {relevant_runbook}
 
 Evidence:
@@ -185,6 +248,20 @@ Evidence:
 
 {remediation_context}
 """
+
+TOOL_SELECT_EXPLORE_HUMAN_TEMPLATE = """\
+Service: {service}
+Root cause: {root_cause}
+Assessment reasoning: {assessment_reasoning}
+
+Evidence:
+{evidence}
+
+{remediation_context}
+"""
+
+# Backward-compatible alias.
+TOOL_SELECT_HUMAN_TEMPLATE = TOOL_SELECT_RUNBOOK_HUMAN_TEMPLATE
 
 
 class MockDecideRow(BaseModel):

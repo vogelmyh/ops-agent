@@ -19,7 +19,7 @@ RAG 挂在 LangGraph 节点 **`retrieve_runbooks`**，职责是 **检索 top-K r
 | `runbook_candidates` | top-3 候选 | diagnose coverage 输入 |
 | `symptom_query` | 检索 query | 观测 |
 
-`novel_scenario` 由 diagnose coverage 写入；`decide_outcome=skipped_low_confidence` 由 diagnose confidence 门槛写入。
+`runbook_available` 由 diagnose coverage 写入；`decide_outcome=skipped_low_confidence` 由 diagnose confidence 门槛写入。
 
 ---
 
@@ -46,7 +46,7 @@ runbook_candidates
   → LLM RunbookEvalLLMOutput     # rubrics: list[RunbookMatchAssessment]（每篇四维 CoT PASS/PARTIAL/FAIL）
   → finalize_runbook_match()     # 代码 policy 选 top1 + gate_reason
   → load_runbook_by_stem()       # relevant_runbook 全文
-  → novel_scenario / novel_reason / match_gate_reason
+  → runbook_available / runbook_unavailable_reason / match_gate_reason
 ```
 
 ```mermaid
@@ -104,7 +104,7 @@ flowchart LR
 | `runbook_coverage.py` | coverage LLM rubric、`RUNBOOK_RUBRIC_SYSTEM_PROMPT`、mock oracle |
 | `diagnose_runbook_step.py` | deprecated shim → `runbook_coverage` |
 | `eval_schemas.py` | `RunbookCandidate`、`RunbookEvalLLMOutput`（仅 `rubrics`）、`RunbookPerDocRubric`、`RunbookEvalResult` |
-| `runbook_eval_policy.py` | `finalize_runbook_coverage()`（别名 `finalize_runbook_eval`）、阈值、`novel_reason`、`build_eval_reasoning()` |
+| `runbook_eval_policy.py` | `finalize_runbook_coverage()`（别名 `finalize_runbook_eval`）、阈值、`runbook_unavailable_reason`、`build_eval_reasoning()` |
 | `rag_observability.py` | `rag_snapshot_from_state()`、紧凑候选（无全文） |
 
 ### 2.4 Graph State / API 字段
@@ -112,7 +112,7 @@ flowchart LR
 定义于 `app/graph/state.py`，经 `app/graph/runner.py` 暴露到 `app/schemas.py` → `DiagnoseResponse`：
 
 - `symptom_query`
-- `novel_scenario`, `novel_reason`
+- `runbook_available`, `runbook_unavailable_reason`
 - `selected_runbook_id`, `match_gate_reason`, `runbook_match_rubrics`
 - `runbook_candidates`
 - `relevant_runbook`
@@ -133,7 +133,7 @@ flowchart LR
 
 环境变量别名见 `Settings` 字段；改阈值后需同步 **policy 单测** 与 **golden 门槛**（若行为变化）。
 
-### 2.6 `novel_reason` 枚举
+### 2.6 `runbook_unavailable_reason` 枚举
 
 定义于 `app/graph/runbook_eval_policy.py`：
 
@@ -168,7 +168,7 @@ flowchart LR
 |------|------|
 | 定义 | `tests/rag_eval/golden.py` → `GOLDEN_CASES`（**46 条**） |
 | 筛选 | `select_golden_cases()`；smoke 子集 `REAL_LLM_SMOKE_IDS`（10 条） |
-| 字段 | `id`, `service`, `incident_description`, `telemetry`, `expected_doc_id`, `expected_novel`, `must_not_select`, `challenge_type`, `difficulty` |
+| 字段 | `id`, `service`, `incident_description`, `telemetry`, `expected_doc_id`, `expected_runbook_available`, `must_not_select`, `challenge_type`, `difficulty` |
 
 **challenge_type 分布**：
 
@@ -235,21 +235,21 @@ Layer 1  策略 / ingest 单元
 | `tests/test_hybrid_retrieval.py` | A | tokenize、RRF、rerank、hybrid、parent 检索 | 否 | 无 |
 | `tests/rag_eval/test_retrieve_runbooks_node.py` | A | `retrieve_runbooks` 仅输出检索字段 | 否 | 无 |
 | `tests/rag_eval/test_retrieval_golden.py` | A | Recall@3、must_not top1 | **是** | 无 |
-| `tests/test_runbook_eval_policy.py` | B | `finalize_runbook_coverage`、rubric 计分、`novel_reason` | 否 | 无 |
+| `tests/test_runbook_eval_policy.py` | B | `finalize_runbook_coverage`、rubric 计分、`runbook_unavailable_reason` | 否 | 无 |
 | `tests/test_eval_schemas.py` | B | rubric / remediation coerce | 否 | 无 |
 | `tests/test_rag_integration.py` | B | P0 query/parent；RAG-01/02；`coverage_harness_node` | mock scenario | mock |
 | `tests/rag_eval/test_coverage_golden.py` | B | retrieve + oracle rubric + finalize | **是** | oracle |
 | `tests/rag_eval/test_real_llm_smoke.py` | B | 10 条 smoke 真实 rubric | **是** | real（skip） |
 | `tests/rag_eval/test_golden_select.py` | A | `select_golden_cases` | — | — |
 | `tests/test_run_scenarios.py` | — | `steps[].rag` 观测字段 | 否 | mock |
-| `tests/graph_paths/test_kb.py` | — | KB 路径 + `novel_scenario` | 否 | mock |
+| `tests/graph_paths/test_kb.py` | — | KB 路径 + `runbook_available` | 否 | mock |
 
 ### 4.4 Golden 三层评测
 
 | 层级 | 轨道 | 命令 | 指标 |
 |------|------|------|------|
 | L1 检索 | A | `make test-rag-retrieval` 或 `pytest tests/rag_eval/test_retrieval_golden.py` | `recall_at_3`, `mrr_at_1`, `must_not_violation_rate` |
-| L2 Coverage | B | `make test-rag-coverage` 或 `pytest tests/rag_eval/test_coverage_golden.py` | `end_to_end_accuracy`, `selection_accuracy`, `novel_accuracy` |
+| L2 Coverage | B | `make test-rag-coverage` 或 `pytest tests/rag_eval/test_coverage_golden.py` | `end_to_end_accuracy`, `selection_accuracy`, `runbook_unavailable_accuracy` |
 | L3 Real LLM | B | `RAG_EVAL_REAL_LLM=1 pytest tests/rag_eval/test_real_llm_smoke.py` | 同上（真实 rubric） |
 
 ```bash
@@ -279,7 +279,7 @@ EMBEDDINGS_PROVIDER=qwen LLM_MODE=real \
 | 必须同步 | 原因 |
 |----------|------|
 | **本文 §9「版本注记」** | 追加一条**修改摘要**（日期、改动范围、关键行为变化、涉及文件/测试） |
-| 若影响场景观测或 `novel_reason` | `docs/test-scenario-trajectories.md` §变更记录 |
+| 若影响场景观测或 `runbook_unavailable_reason` | `docs/test-scenario-trajectories.md` §变更记录 |
 | 若影响 golden / 语料运维 | `docs/rag-eval-corpus.md` §变更记录 |
 
 修改摘要示例格式：`- YYYY-MM-DD：<主题> — <1～3 句说明>；关键文件：…`
@@ -370,16 +370,16 @@ EMBEDDINGS_PROVIDER=qwen LLM_MODE=real \
 
 ---
 
-### 5.6 改动 `finalize_runbook_coverage` / 阈值 / `novel_reason`
+### 5.6 改动 `finalize_runbook_coverage` / 阈值 / `runbook_unavailable_reason`
 
 **涉及文件**：`app/graph/runbook_eval_policy.py`（含 `build_eval_reasoning`、`finalize_runbook_coverage` 别名）, `app/config.py`
 
 | 必须同步 | 原因 |
 |----------|------|
-| `tests/test_runbook_eval_policy.py` | **主单测**：`finalize_runbook_coverage` 各 `novel_reason` 分支 + `build_eval_reasoning` 文案 |
+| `tests/test_runbook_eval_policy.py` | **主单测**：`finalize_runbook_coverage` 各 `runbook_unavailable_reason` 分支 + `build_eval_reasoning` 文案 |
 | `tests/rag_eval/test_coverage_golden.py` | e2e / novel 门槛 |
 | `tests/test_rag_integration.py` | RAG-01 novel 行为 |
-| `docs/test-scenario-trajectories.md` | 阈值表、`novel_reason` 表 |
+| `docs/test-scenario-trajectories.md` | 阈值表、`runbook_unavailable_reason` 表 |
 | `docs/rag-eval-corpus.md` | 指标说明 |
 | `scripts/run_scenarios.py` + `tests/test_run_scenarios.py` | 观测字段 |
 
@@ -414,7 +414,7 @@ EMBEDDINGS_PROVIDER=qwen LLM_MODE=real \
 
 1. `id` 唯一；`service` 与 runbook `适用范围` 一致  
 2. `telemetry` 足以支撑 `extract_symptoms` 产生判别性 query  
-3. 有 `expected_doc_id` 或 `expected_novel=true`  
+3. 有 `expected_doc_id` 或 `expected_runbook_available=false`  
 4. hard 消歧加 `must_not_select`  
 5. 跑 `make test-rag`（或分轨 `make test-rag-retrieval` / `make test-rag-coverage`）
 
@@ -535,7 +535,13 @@ CHECKPOINTER=memory EMBEDDINGS_PROVIDER=local-hash \
 | LLM 输出 `RunbookEvalLLMOutput` | `candidates` + 单篇 `coverage` + `selected_doc_id` + `suggested_novel` + `reasoning` | 仅 `rubrics: list[RunbookPerDocRubric]`（每篇 Stage A+B） |
 | 选篇 | LLM `selected_doc_id` | `finalize_runbook_eval` 按 relevance 排序取 top1 |
 | `runbook_eval_reasoning` | LLM `reasoning` 透传 | `build_match_gate_reason()` 规则生成 → 字段名 **`match_gate_reason`** |
-| `novel_reason` | 含 `llm_suggested_novel` | 已移除；novel 仅由阈值/消歧/scope 触发 |
+| `runbook_unavailable_reason` | 含 `llm_suggested_novel` | 已移除；无 runbook 仅由阈值/消歧/scope 触发 |
+
+### 2026-07-01 · `runbook_available` 字段与 diagnose/decide 二分
+
+- `novel_scenario` → `runbook_available`（**语义取反**：true = finalize 选中可用 runbook）；`novel_reason` → `runbook_unavailable_reason`。
+- Golden 字段 `expected_novel` → `expected_runbook_available`（默认 true）；指标 `novel_accuracy` → `runbook_unavailable_accuracy`。
+- diagnose：runbook 路径跳过 confidence LLM，代码设 `confidence_sufficient=true`；decide：runbook/explore 双 template（探索路径不传 runbook 段）。
 
 **关键文件**：`eval_schemas.py`、`nodes/eval_runbook.py`、`runbook_eval_policy.py`、`rag_observability.py`（观测字段不变）
 
@@ -555,7 +561,7 @@ CHECKPOINTER=memory EMBEDDINGS_PROVIDER=local-hash \
 
 ### 2026-06-30 · 嵌套 rubric JSON 归一化（DashScope 自由 JSON）
 
-`RunbookPerDocRubric` 增加 `coerce_runbook_per_doc_rubric()`：LLM 返回 `relevance`/`coverage` 嵌套分组时展平为策略层扁平 rubric，修复 qwen3.7 等模型在 `json_object` 路径下分数被静默归零、`novel_reason=service_mismatch` 误报。`invoke_structured()` 对 DashScope 增加 `include_raw` + 文本 JSON 兜底。
+`RunbookPerDocRubric` 增加 `coerce_runbook_per_doc_rubric()`：LLM 返回 `relevance`/`coverage` 嵌套分组时展平为策略层扁平 rubric，修复 qwen3.7 等模型在 `json_object` 路径下分数被静默归零、`runbook_unavailable_reason=service_mismatch` 误报。`invoke_structured()` 对 DashScope 增加 `include_raw` + 文本 JSON 兜底。
 
 **关键文件**：`eval_schemas.py`、`app/llm/provider.py`；**测试**：`tests/test_eval_schemas.py`；finalize / golden 门槛不变。
 

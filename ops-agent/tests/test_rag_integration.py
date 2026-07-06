@@ -130,7 +130,7 @@ def test_retrieve_runbooks_returns_parent_documents():
 # P0-4 / PR2 — RAG-01 / RAG-02 scenario contracts
 # ---------------------------------------------------------------------------
 
-def test_eval_runbook_exposes_novel_reason_on_novel_service():
+def test_eval_runbook_exposes_unavailable_reason_on_explore_service():
     state = {
         "service": "ecomm-search",
         "incident": IncidentInput(
@@ -139,14 +139,14 @@ def test_eval_runbook_exposes_novel_reason_on_novel_service():
         ),
     }
     result = eval_runbook_node(state)
-    assert result["novel_scenario"] is True
-    assert result.get("novel_reason")
+    assert result["runbook_available"] is False
+    assert result.get("runbook_unavailable_reason")
     assert result.get("match_gate_reason")
     assert result["relevant_runbook"] is None
 
 
-def test_rag_01_known_service_with_runbook_not_novel():
-    """RAG-01 guard: indexed known service should not be novel when runbooks retrieve."""
+def test_rag_01_known_service_with_runbook_available():
+    """RAG-01 guard: indexed known service should have runbook when retrieval surfaces docs."""
     state = {
         "service": "ecomm-manager",
         "incident": IncidentInput(
@@ -159,7 +159,7 @@ def test_rag_01_known_service_with_runbook_not_novel():
     result = eval_runbook_node(state)
     if not result.get("symptom_query"):
         pytest.fail("symptom_query missing")
-    if result["novel_scenario"]:
+    if not result.get("runbook_available"):
         pytest.skip("local-hash retrieval did not surface ecomm-manager runbooks")
     assert result["relevant_runbook"]
     assert "限流" in result["relevant_runbook"] or "rate-limit" in result["relevant_runbook"]
@@ -177,7 +177,7 @@ def test_rag_02_crashloop_runbook_is_full_parent_not_chunk_only():
     set_mock_scenario("ecomm-order", "crashloop")
     get_settings.cache_clear()
     result = eval_runbook_node(state)
-    if result["novel_scenario"]:
+    if not result.get("runbook_available"):
         pytest.skip("local-hash retrieval did not surface ecomm-order runbooks")
     relevant = result["relevant_runbook"] or ""
     assert "rollback_deployment" in relevant

@@ -50,7 +50,7 @@ def test_loop_02_morph_recovers_via_two_tools(chaos_morph_env, thread_values, re
     )
     thread_id, response, meta = start_diagnosis(incident)
 
-    assert response.novel_scenario is False
+    assert response.runbook_available is True
     assert response.decide_outcome == "actionable"
     assert response.remediation_attempt == 1
     assert meta["pending_node"] == "approve"

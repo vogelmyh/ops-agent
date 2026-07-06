@@ -27,8 +27,8 @@ class AgentState(TypedDict, total=False):
     # retrieve_runbooks + diagnose coverage phase
     collected_data: dict[str, Any]
     symptom_query: str
-    novel_scenario: bool
-    novel_reason: str | None
+    runbook_available: bool
+    runbook_unavailable_reason: str | None
     relevant_runbook: str | None
     selected_runbook_id: str | None
     runbook_match_rubrics: list[dict[str, Any]]

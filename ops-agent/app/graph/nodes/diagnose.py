@@ -10,9 +10,12 @@ from app.graph.runbook_coverage import (
 )
 from app.graph.diagnose_spec import (
     CONFIDENCE_SYSTEM_PROMPT,
-    RCA_SYSTEM_PROMPT,
+    RCA_EXPLORE_SYSTEM_PROMPT,
+    RCA_RUNBOOK_SYSTEM_PROMPT,
     DiagnosisConfidenceAssessment,
     RootCauseDraft,
+    adopted_runbook_confidence_assessment,
+    build_adopted_runbook_gate_reason,
     mock_confidence_assessment,
 )
 from app.graph.diagnosis_confidence_policy import (
@@ -229,14 +232,27 @@ def _build_evidence_from_data(service: str, data: dict, selected_doc_id: str | N
     return ev
 
 
-def _run_rca(
+def _append_remediation_context(state: AgentState, context: str) -> str:
+    prior_root = state.get("root_cause", "") if state.get("remediation_attempt", 0) >= 1 else None
+    remediation_block = format_remediation_context(
+        state,
+        prior_root_cause=prior_root or None,
+        extra_guidance=(
+            RCA_RETRY_GUIDANCE if state.get("remediation_attempt", 0) >= 1 else None
+        ),
+    )
+    if remediation_block:
+        return f"{context}\n\n{remediation_block}"
+    return context
+
+
+def _run_rca_runbook_path(
     state: AgentState,
     *,
     service: str,
     incident_description: str,
     data: dict,
-    novel_scenario: bool,
-    relevant_runbook: str | None,
+    relevant_runbook: str,
     settings,
 ) -> tuple[str, list[Evidence]]:
     if settings.llm_is_mock:
@@ -249,28 +265,45 @@ def _run_rca(
         return root, evidence
 
     context = _build_telemetry_context(service, incident_description, data)
-    if not novel_scenario and relevant_runbook:
-        context = (
-            f"{context}\n\n## Validated Runbook Excerpt\n"
-            f"{excerpt_runbook(relevant_runbook)}"
-        )
-
-    prior_root = state.get("root_cause", "") if state.get("remediation_attempt", 0) >= 1 else None
-    remediation_block = format_remediation_context(
-        state,
-        prior_root_cause=prior_root or None,
-        extra_guidance=(
-            RCA_RETRY_GUIDANCE if state.get("remediation_attempt", 0) >= 1 else None
-        ),
+    context = (
+        f"{context}\n\n## Validated Runbook Excerpt\n"
+        f"{excerpt_runbook(relevant_runbook)}"
     )
-    if remediation_block:
-        context = f"{context}\n\n{remediation_block}"
+    context = _append_remediation_context(state, context)
 
     draft = invoke_structured(
         get_chat_model(settings=settings),
         RootCauseDraft,
         [
-            SystemMessage(content=RCA_SYSTEM_PROMPT),
+            SystemMessage(content=RCA_RUNBOOK_SYSTEM_PROMPT),
+            HumanMessage(content=context),
+        ],
+        settings=settings,
+    )
+    return draft.root_cause.strip(), _citations_to_evidence(draft.evidence)
+
+
+def _run_rca_explore_path(
+    state: AgentState,
+    *,
+    service: str,
+    incident_description: str,
+    data: dict,
+    settings,
+) -> tuple[str, list[Evidence]]:
+    if settings.llm_is_mock:
+        root = _mock_root_cause(state, service)
+        evidence = _build_evidence_from_data(service, data, None)
+        return root, evidence
+
+    context = _build_telemetry_context(service, incident_description, data)
+    context = _append_remediation_context(state, context)
+
+    draft = invoke_structured(
+        get_chat_model(settings=settings),
+        RootCauseDraft,
+        [
+            SystemMessage(content=RCA_EXPLORE_SYSTEM_PROMPT),
             HumanMessage(content=context),
         ],
         settings=settings,
@@ -317,37 +350,49 @@ def diagnose_node(state: AgentState) -> dict:
         settings=settings,
     )
 
-    novel_scenario = coverage["novel_scenario"]
+    runbook_available = coverage["runbook_available"]
     relevant_runbook = coverage.get("relevant_runbook")
+    selected_runbook_id = coverage.get("selected_runbook_id")
 
-    root_cause, evidence = _run_rca(
-        state,
-        service=service,
-        incident_description=incident.description,
-        data=data,
-        novel_scenario=novel_scenario,
-        relevant_runbook=relevant_runbook,
-        settings=settings,
-    )
+    if runbook_available and relevant_runbook:
+        root_cause, evidence = _run_rca_runbook_path(
+            state,
+            service=service,
+            incident_description=incident.description,
+            data=data,
+            relevant_runbook=relevant_runbook,
+            settings=settings,
+        )
+        doc_id = selected_runbook_id or "unknown"
+        confidence_assessment = adopted_runbook_confidence_assessment(doc_id)
+        confidence_sufficient = True
+        confidence_gate_reason = build_adopted_runbook_gate_reason(doc_id)
+    else:
+        root_cause, evidence = _run_rca_explore_path(
+            state,
+            service=service,
+            incident_description=incident.description,
+            data=data,
+            settings=settings,
+        )
+        confidence_assessment = _run_confidence(
+            service=service,
+            root_cause=root_cause,
+            evidence=evidence,
+            settings=settings,
+        )
+        confidence_policy = confidence_policy_from_settings(settings)
+        assessment_dict = confidence_assessment.as_dict()
+        confidence_sufficient = is_diagnostic_reliable(
+            assessment_dict,
+            policy=confidence_policy,
+        )
+        confidence_gate_reason = build_confidence_gate_reason(
+            assessment_dict,
+            reliable=confidence_sufficient,
+            policy=confidence_policy,
+        )
 
-    confidence_assessment = _run_confidence(
-        service=service,
-        root_cause=root_cause,
-        evidence=evidence,
-        settings=settings,
-    )
-
-    confidence_policy = confidence_policy_from_settings(settings)
-    assessment_dict = confidence_assessment.as_dict()
-    confidence_sufficient = is_diagnostic_reliable(
-        assessment_dict,
-        policy=confidence_policy,
-    )
-    confidence_gate_reason = build_confidence_gate_reason(
-        assessment_dict,
-        reliable=confidence_sufficient,
-        policy=confidence_policy,
-    )
     findings = []
     if data.get("app_logs"):
         findings.append({"source": "app_logs", "data": data["app_logs"]})

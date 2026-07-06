@@ -48,12 +48,12 @@ For EACH dimension on EACH candidate you MUST:
 - PARTIAL: minor tension but not disqualifying.
 - FAIL: evidence matches an explicit exclusion in the runbook.
 
-Do NOT output selected_doc_id, novel_scenario, or final selection — code applies policy after your rubrics.
+Do NOT output selected_doc_id, runbook_available, or final selection — code applies policy after your rubrics.
 """
 
 _EVAL_DISPLAY_CHARS_PER_DOC = 4000
 
-_NOVEL_SERVICES = frozenset({"ecomm-search", "ecomm-catalog", "ecomm-cache"})
+_RUNBOOK_UNAVAILABLE_SERVICES = frozenset({"ecomm-search", "ecomm-catalog", "ecomm-cache"})
 
 
 def _mock_select_doc_id(service: str, candidates: list[RunbookCandidate]) -> str | None:
@@ -99,10 +99,10 @@ def _weak_match_assessment(doc_id: str, *, notes: str = "") -> RunbookMatchAsses
 def mock_llm_output_oracle(
     *,
     expected_doc_id: str | None,
-    expected_novel: bool,
+    expected_runbook_available: bool,
     candidates: list[RunbookCandidate],
 ) -> RunbookEvalLLMOutput:
-    if expected_novel or not expected_doc_id:
+    if not expected_runbook_available or not expected_doc_id:
         return RunbookEvalLLMOutput(
             rubrics=[_weak_match_assessment(c.doc_id) for c in candidates],
         )
@@ -126,7 +126,7 @@ def mock_llm_output(service: str, candidates: list[RunbookCandidate]) -> Runbook
     if not candidates:
         return RunbookEvalLLMOutput(rubrics=[])
 
-    if service in _NOVEL_SERVICES:
+    if service in _RUNBOOK_UNAVAILABLE_SERVICES:
         return RunbookEvalLLMOutput(
             rubrics=[_weak_match_assessment(c.doc_id) for c in candidates],
         )
@@ -178,8 +178,8 @@ def coverage_result_to_state(result, candidates: list[RunbookCandidate]) -> dict
                 "dimensions": assessment.model_dump(),
             })
     return {
-        "novel_scenario": result.novel_scenario,
-        "novel_reason": result.novel_reason,
+        "runbook_available": result.runbook_available,
+        "runbook_unavailable_reason": result.runbook_unavailable_reason,
         "relevant_runbook": result.relevant_runbook,
         "selected_runbook_id": result.selected_doc_id,
         "runbook_match_rubrics": rubrics,
@@ -197,7 +197,7 @@ def evaluate_runbook_coverage(
     settings=None,
     golden_oracle: bool = False,
     oracle_expected_doc_id: str | None = None,
-    oracle_expected_novel: bool = False,
+    oracle_expected_runbook_available: bool = True,
 ) -> dict:
     """Evaluate runbook candidates and finalize selection / novel flags."""
     settings = settings or get_settings()
@@ -211,7 +211,7 @@ def evaluate_runbook_coverage(
     if settings.llm_is_mock and golden_oracle:
         llm_output = mock_llm_output_oracle(
             expected_doc_id=oracle_expected_doc_id,
-            expected_novel=oracle_expected_novel,
+            expected_runbook_available=oracle_expected_runbook_available,
             candidates=candidates,
         )
     elif settings.llm_is_mock:
