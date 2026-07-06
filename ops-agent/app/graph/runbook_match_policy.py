@@ -17,13 +17,17 @@ from app.rag.parent import load_runbook_by_stem
 
 _RUNBOOK_SCOPE_RE = re.compile(r"仅适用于服务\s*`([^`]+)`")
 
-NOVEL_NO_RETRIEVAL = "no_retrieval"
-NOVEL_SERVICE_MISMATCH = "service_mismatch"
-NOVEL_LOW_MATCH = "low_match"
-NOVEL_INVALID_SELECTION = "invalid_selection"
+RUNBOOK_UNAVAILABLE_NO_RETRIEVAL = "no_retrieval"
+RUNBOOK_UNAVAILABLE_SERVICE_MISMATCH = "service_mismatch"
+RUNBOOK_UNAVAILABLE_LOW_MATCH = "low_match"
+RUNBOOK_UNAVAILABLE_INVALID_SELECTION = "invalid_selection"
 
-# Backward-compatible alias (deprecated).
-NOVEL_LOW_RELEVANCE = NOVEL_LOW_MATCH
+# Deprecated aliases (tests / legacy imports).
+NOVEL_NO_RETRIEVAL = RUNBOOK_UNAVAILABLE_NO_RETRIEVAL
+NOVEL_SERVICE_MISMATCH = RUNBOOK_UNAVAILABLE_SERVICE_MISMATCH
+NOVEL_LOW_MATCH = RUNBOOK_UNAVAILABLE_LOW_MATCH
+NOVEL_INVALID_SELECTION = RUNBOOK_UNAVAILABLE_INVALID_SELECTION
+NOVEL_LOW_RELEVANCE = RUNBOOK_UNAVAILABLE_LOW_MATCH
 
 MATCH_DIMS = (
     "service_scope",
@@ -218,7 +222,7 @@ def resolve_selected_runbook(doc_id: str | None) -> str | None:
 
 
 def build_match_gate_reason(
-    novel_reason: str | None,
+    unavailable_reason: str | None,
     *,
     ranked: list[RunbookCandidate],
     selected: RunbookCandidate | None = None,
@@ -226,22 +230,22 @@ def build_match_gate_reason(
 ) -> str:
     policy = policy or RunbookMatchPolicy()
 
-    if novel_reason == NOVEL_NO_RETRIEVAL:
+    if unavailable_reason == RUNBOOK_UNAVAILABLE_NO_RETRIEVAL:
         return "No runbook candidates retrieved from knowledge base."
 
-    if novel_reason == NOVEL_SERVICE_MISMATCH:
+    if unavailable_reason == RUNBOOK_UNAVAILABLE_SERVICE_MISMATCH:
         return "All candidates rejected: service scope does not match incident service."
 
     top1 = ranked[0] if ranked else None
     top1_id = top1.doc_id if top1 else "unknown"
 
-    if novel_reason == NOVEL_LOW_MATCH:
+    if unavailable_reason == RUNBOOK_UNAVAILABLE_LOW_MATCH:
         if top1 and top1.match_assessment:
             why = selectable_failure_reason(top1.match_assessment, policy=policy)
             return f"Top candidate {top1_id!r} not selectable: {why}"
         return f"Top candidate {top1_id!r} not selectable under match policy."
 
-    if novel_reason == NOVEL_INVALID_SELECTION:
+    if unavailable_reason == RUNBOOK_UNAVAILABLE_INVALID_SELECTION:
         doc_id = selected.doc_id if selected else top1_id
         return f"Could not load runbook file for selected candidate {doc_id!r}."
 
@@ -264,9 +268,11 @@ def finalize_runbook_match(
 
     if not candidates:
         return RunbookEvalResult(
-            novel_scenario=True,
-            novel_reason=NOVEL_NO_RETRIEVAL,
-            reasoning=build_match_gate_reason(NOVEL_NO_RETRIEVAL, ranked=[]),
+            runbook_available=False,
+            runbook_unavailable_reason=RUNBOOK_UNAVAILABLE_NO_RETRIEVAL,
+            reasoning=build_match_gate_reason(
+                RUNBOOK_UNAVAILABLE_NO_RETRIEVAL, ranked=[],
+            ),
         )
 
     if llm_output is not None:
@@ -292,11 +298,11 @@ def finalize_runbook_match(
     )
     if all_scope_fail:
         return RunbookEvalResult(
-            novel_scenario=True,
-            novel_reason=NOVEL_SERVICE_MISMATCH,
+            runbook_available=False,
+            runbook_unavailable_reason=RUNBOOK_UNAVAILABLE_SERVICE_MISMATCH,
             candidates=candidates,
             reasoning=build_match_gate_reason(
-                NOVEL_SERVICE_MISMATCH,
+                RUNBOOK_UNAVAILABLE_SERVICE_MISMATCH,
                 ranked=candidates,
                 policy=policy,
             ),
@@ -309,11 +315,11 @@ def finalize_runbook_match(
 
     if not selectable:
         return RunbookEvalResult(
-            novel_scenario=True,
-            novel_reason=NOVEL_LOW_MATCH,
+            runbook_available=False,
+            runbook_unavailable_reason=RUNBOOK_UNAVAILABLE_LOW_MATCH,
             candidates=ranked,
             reasoning=build_match_gate_reason(
-                NOVEL_LOW_MATCH,
+                RUNBOOK_UNAVAILABLE_LOW_MATCH,
                 ranked=ranked,
                 policy=policy,
             ),
@@ -324,12 +330,12 @@ def finalize_runbook_match(
     full_text = resolve_selected_runbook(selected_id)
     if not full_text:
         return RunbookEvalResult(
-            novel_scenario=True,
-            novel_reason=NOVEL_INVALID_SELECTION,
+            runbook_available=False,
+            runbook_unavailable_reason=RUNBOOK_UNAVAILABLE_INVALID_SELECTION,
             selected_doc_id=selected_id,
             candidates=ranked,
             reasoning=build_match_gate_reason(
-                NOVEL_INVALID_SELECTION,
+                RUNBOOK_UNAVAILABLE_INVALID_SELECTION,
                 ranked=ranked,
                 selected=top1,
                 policy=policy,
@@ -337,7 +343,7 @@ def finalize_runbook_match(
         )
 
     return RunbookEvalResult(
-        novel_scenario=False,
+        runbook_available=True,
         selected_doc_id=selected_id,
         relevant_runbook=full_text,
         candidates=ranked,

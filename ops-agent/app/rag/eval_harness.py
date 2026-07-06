@@ -15,7 +15,7 @@ class CaseResult:
     challenge_type: str
     difficulty: str
     expected_doc_id: str | None
-    expected_novel: bool
+    expected_runbook_available: bool
     top_doc_ids: list[str]
     recall_at_3: bool
     mrr: float
@@ -30,10 +30,10 @@ class CoverageCaseResult:
     challenge_type: str
     difficulty: str
     expected_doc_id: str | None
-    expected_novel: bool
+    expected_runbook_available: bool
     selected_runbook_id: str | None
-    novel_scenario: bool
-    novel_reason: str | None
+    runbook_available: bool
+    runbook_unavailable_reason: str | None
     passed: bool
     retrieval_recall_at_3: bool
     must_not_violation: bool
@@ -44,7 +44,7 @@ class CoverageCaseResult:
 class CoverageEvalReport:
     total: int
     end_to_end_accuracy: float
-    novel_accuracy: float
+    runbook_unavailable_accuracy: float
     selection_accuracy: float
     must_not_violation_rate: float
     by_challenge: dict[str, dict[str, float]] = field(default_factory=dict)
@@ -54,7 +54,7 @@ class CoverageEvalReport:
         return {
             "total": self.total,
             "end_to_end_accuracy": round(self.end_to_end_accuracy, 4),
-            "novel_accuracy": round(self.novel_accuracy, 4),
+            "runbook_unavailable_accuracy": round(self.runbook_unavailable_accuracy, 4),
             "selection_accuracy": round(self.selection_accuracy, 4),
             "must_not_violation_rate": round(self.must_not_violation_rate, 4),
             "by_challenge": self.by_challenge,
@@ -62,10 +62,10 @@ class CoverageEvalReport:
                 {
                     "id": c.case_id,
                     "expected_doc": c.expected_doc_id,
-                    "expected_novel": c.expected_novel,
+                    "expected_runbook_available": c.expected_runbook_available,
                     "selected": c.selected_runbook_id,
-                    "novel": c.novel_scenario,
-                    "novel_reason": c.novel_reason,
+                    "runbook_available": c.runbook_available,
+                    "runbook_unavailable_reason": c.runbook_unavailable_reason,
                     "recall_at_3": c.retrieval_recall_at_3,
                 }
                 for c in self.cases
@@ -133,8 +133,8 @@ def evaluate_retrieval_case(
             rank = top_ids.index(expected) + 1
         else:
             recall = False
-    elif case.expected_novel:
-        # Novel: empty or low-confidence retrieval is acceptable; recall N/A → pass if top1 not a false confident match
+    elif not case.expected_runbook_available:
+        # No runbook expected: empty or low-confidence retrieval is acceptable.
         recall = True
         rank = None
 
@@ -150,7 +150,7 @@ def evaluate_retrieval_case(
         challenge_type=case.challenge_type,
         difficulty=case.difficulty,
         expected_doc_id=expected,
-        expected_novel=case.expected_novel,
+        expected_runbook_available=case.expected_runbook_available,
         top_doc_ids=top_ids,
         recall_at_3=recall if expected else (not violation),
         mrr=_mrr(rank),
@@ -200,17 +200,17 @@ def evaluate_retrieval_golden(
 def _coverage_pass(
     *,
     expected_doc_id: str | None,
-    expected_novel: bool,
+    expected_runbook_available: bool,
     selected_runbook_id: str | None,
-    novel_scenario: bool,
+    runbook_available: bool,
     must_not_violation: bool,
 ) -> bool:
     if must_not_violation:
         return False
-    if expected_novel:
-        return novel_scenario is True
+    if not expected_runbook_available:
+        return runbook_available is False
     return (
-        not novel_scenario
+        runbook_available
         and selected_runbook_id == expected_doc_id
     )
 
@@ -234,7 +234,7 @@ def _run_eval_for_case(case: Any, settings, *, golden_oracle: bool) -> dict:
         settings=settings,
         golden_oracle=golden_oracle,
         oracle_expected_doc_id=case.expected_doc_id,
-        oracle_expected_novel=case.expected_novel,
+        oracle_expected_runbook_available=case.expected_runbook_available,
     )
 
 
@@ -249,15 +249,15 @@ def _evaluate_coverage_from_result(case: Any, result: dict, settings) -> Coverag
         challenge_type=case.challenge_type,
         difficulty=case.difficulty,
         expected_doc_id=case.expected_doc_id,
-        expected_novel=case.expected_novel,
+        expected_runbook_available=case.expected_runbook_available,
         selected_runbook_id=selected,
-        novel_scenario=bool(result.get("novel_scenario")),
-        novel_reason=result.get("novel_reason"),
+        runbook_available=bool(result.get("runbook_available")),
+        runbook_unavailable_reason=result.get("runbook_unavailable_reason"),
         passed=_coverage_pass(
             expected_doc_id=case.expected_doc_id,
-            expected_novel=case.expected_novel,
+            expected_runbook_available=case.expected_runbook_available,
             selected_runbook_id=selected,
-            novel_scenario=bool(result.get("novel_scenario")),
+            runbook_available=bool(result.get("runbook_available")),
             must_not_violation=violation,
         ),
         retrieval_recall_at_3=retrieval.recall_at_3,
@@ -269,12 +269,14 @@ def _evaluate_coverage_from_result(case: Any, result: dict, settings) -> Coverag
 def _build_coverage_report(results: list[CoverageCaseResult]) -> CoverageEvalReport:
     total = len(results)
     e2e = sum(1 for r in results if r.passed) / max(total, 1)
-    novel_cases = [r for r in results if r.expected_novel]
-    novel_acc = sum(1 for r in novel_cases if r.novel_scenario) / max(len(novel_cases), 1)
+    unavailable_cases = [r for r in results if not r.expected_runbook_available]
+    unavailable_acc = sum(
+        1 for r in unavailable_cases if not r.runbook_available
+    ) / max(len(unavailable_cases), 1)
     selection_cases = [r for r in results if r.expected_doc_id]
     selection_acc = sum(
         1 for r in selection_cases
-        if not r.novel_scenario and r.selected_runbook_id == r.expected_doc_id
+        if r.runbook_available and r.selected_runbook_id == r.expected_doc_id
     ) / max(len(selection_cases), 1)
     violations = sum(1 for r in results if r.must_not_violation) / max(total, 1)
 
@@ -291,7 +293,7 @@ def _build_coverage_report(results: list[CoverageCaseResult]) -> CoverageEvalRep
     return CoverageEvalReport(
         total=total,
         end_to_end_accuracy=e2e,
-        novel_accuracy=novel_acc,
+        runbook_unavailable_accuracy=unavailable_acc,
         selection_accuracy=selection_acc,
         must_not_violation_rate=violations,
         by_challenge=by_challenge,

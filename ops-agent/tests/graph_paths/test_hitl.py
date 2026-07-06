@@ -42,7 +42,7 @@ def test_hitl_02_runbook_review_rejected(thread_values):
     )
     thread_id, response, meta = start_diagnosis(incident)
 
-    assert response.novel_scenario is True
+    assert response.runbook_available is False
     assert response.decide_outcome == "skipped_low_confidence"
     assert meta["pending_node"] == "request_runbook_notes"
 

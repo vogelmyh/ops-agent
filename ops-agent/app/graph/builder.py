@@ -61,7 +61,7 @@ def _route_after_verify_remediation(state: AgentState) -> str:
 
 
 def _route_after_summarize(state: AgentState) -> str:
-    if state.get("novel_scenario"):
+    if not state.get("runbook_available"):
         return "request_runbook_notes"
     return END
 

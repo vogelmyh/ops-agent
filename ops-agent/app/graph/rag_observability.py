@@ -45,8 +45,8 @@ def rag_snapshot_from_state(state: dict[str, Any] | None) -> dict[str, Any]:
     relevant = state.get("relevant_runbook") or ""
     return {
         "symptom_query": state.get("symptom_query"),
-        "novel_scenario": state.get("novel_scenario"),
-        "novel_reason": state.get("novel_reason"),
+        "runbook_available": state.get("runbook_available"),
+        "runbook_unavailable_reason": state.get("runbook_unavailable_reason"),
         "selected_runbook_id": state.get("selected_runbook_id"),
         "match_gate_reason": state.get("match_gate_reason"),
         "relevant_runbook_title": _title_from_runbook(relevant),

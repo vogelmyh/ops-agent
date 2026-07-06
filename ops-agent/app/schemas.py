@@ -166,7 +166,7 @@ class DiagnoseResponse(BaseModel):
     execution_results: list[dict[str, Any]] = Field(default_factory=list)
     needs_approval: bool
     status: str
-    novel_scenario: bool = False
+    runbook_available: bool = False
     runbook_draft: str | None = None
     decision_class: str | None = None
     decide_outcome: str | None = None
@@ -177,7 +177,7 @@ class DiagnoseResponse(BaseModel):
     remediation_attempt: int = 0
     # eval_runbook / RAG (optional — populated after eval_runbook node)
     symptom_query: str | None = None
-    novel_reason: str | None = None
+    runbook_unavailable_reason: str | None = None
     selected_runbook_id: str | None = None
     match_gate_reason: str | None = None
     confidence_sufficient: bool | None = None

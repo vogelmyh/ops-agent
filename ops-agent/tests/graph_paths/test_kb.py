@@ -17,7 +17,7 @@ def test_kb_01_novel_ambiguous_runbook_writeback(thread_values):
     )
     thread_id, response, meta = start_diagnosis(incident)
 
-    assert response.novel_scenario is True
+    assert response.runbook_available is False
     assert response.decide_outcome == "skipped_low_confidence"
     assert not response.pending_tool_calls
     assert meta["pending_node"] == "request_runbook_notes"
@@ -41,7 +41,7 @@ def test_kb_02_novel_actionable_then_runbook_writeback(thread_values):
     )
     thread_id, response, meta = start_diagnosis(incident)
 
-    assert response.novel_scenario is True
+    assert response.runbook_available is False
     assert response.decide_outcome == "actionable"
     assert response.needs_approval is True
     assert meta["pending_node"] == "approve"

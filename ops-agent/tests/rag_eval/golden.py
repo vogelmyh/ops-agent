@@ -26,7 +26,7 @@ class GoldenCase:
     challenge_type: ChallengeType
     difficulty: Difficulty
     must_not_select: list[str] = field(default_factory=list)
-    expected_novel: bool = False
+    expected_runbook_available: bool = True
     telemetry: dict[str, Any] = field(default_factory=dict)
 
 
@@ -387,7 +387,7 @@ GOLDEN_CASES: list[GoldenCase] = [
         service="ecomm-order",
         incident_description="【P1】ecomm-order Pod Pending 节点 NotReady 调度失败",
         expected_doc_id=None,
-        expected_novel=True,
+        expected_runbook_available=False,
         challenge_type="novel",
         difficulty="medium",
         telemetry={**_k8s("FailedScheduling", "node(s) not ready"), **_status(ready=0, desired=3)},
@@ -397,7 +397,7 @@ GOLDEN_CASES: list[GoldenCase] = [
         service="ecomm-fulfillment",
         incident_description="【P1】ecomm-fulfillment 仓配 WMS 接口超时 无 runbook",
         expected_doc_id=None,
-        expected_novel=True,
+        expected_runbook_available=False,
         challenge_type="novel",
         difficulty="easy",
         telemetry={**_log("ERROR", "WMS warehouse API timeout")},
@@ -407,7 +407,7 @@ GOLDEN_CASES: list[GoldenCase] = [
         service="ecomm-manager",
         incident_description="【P0】ecomm-manager 疑似数据泄露 非标准运维故障",
         expected_doc_id=None,
-        expected_novel=True,
+        expected_runbook_available=False,
         challenge_type="novel",
         difficulty="medium",
         telemetry={**_log("FATAL", "security audit suspicious data exfiltration alert")},
@@ -417,7 +417,7 @@ GOLDEN_CASES: list[GoldenCase] = [
         service="ecomm-recommendation",
         incident_description="【P1】ecomm-recommendation GPU 节点宕机 推理不可用",
         expected_doc_id=None,
-        expected_novel=True,
+        expected_runbook_available=False,
         challenge_type="novel",
         difficulty="easy",
         telemetry={**_log("ERROR", "CUDA driver shutdown GPU unavailable")},

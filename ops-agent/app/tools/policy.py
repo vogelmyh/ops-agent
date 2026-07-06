@@ -66,6 +66,6 @@ def compute_needs_approval(state: dict, tool_calls: list[dict]) -> bool:
         return True
     if any(risk_for_tool(tc.get("name", "")) == RiskLevel.HIGH for tc in tool_calls):
         return True
-    if state.get("novel_scenario"):
+    if not state.get("runbook_available"):
         return True
     return False

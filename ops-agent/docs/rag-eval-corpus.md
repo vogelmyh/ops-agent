@@ -50,7 +50,7 @@ make test-rag
 Harness：`run_retrieve_and_coverage()`（`nodes/eval_runbook.py`）。Oracle rubric 在 `runbook_coverage.py`：
 
 - LLM 结构化输出仅为 `RunbookEvalLLMOutput.rubrics`（每篇四维 CoT PASS/PARTIAL/FAIL）
-- `expected_novel=true`：所有候选 symptom FAIL 等 → `low_match`
+- `expected_runbook_available=false`：所有候选 symptom FAIL 等 → `low_match`
 - 有 `expected_doc_id`：期望篇全 PASS、其余弱匹配 → `finalize_runbook_match` 选 top1
 - 选篇与 `match_gate_reason` 由代码生成，**不由 LLM 输出**
 
@@ -65,7 +65,7 @@ RAG_EVAL_REAL_LLM=1 .venv/bin/pytest tests/rag_eval/test_real_llm_smoke.py -v
 | 轨道 | 关键指标 |
 |------|----------|
 | A | `recall_at_3`, `mrr_at_1`, `must_not_violation_rate` |
-| B | `end_to_end_accuracy`, `selection_accuracy`, `novel_accuracy` |
+| B | `end_to_end_accuracy`, `selection_accuracy`, `runbook_unavailable_accuracy` |
 
 按 `challenge_type` 分层见 `scripts/rag_eval.py` 报告 `by_challenge`。
 
@@ -77,6 +77,11 @@ RAG_EVAL_REAL_LLM=1 .venv/bin/pytest tests/rag_eval/test_real_llm_smoke.py -v
 4. 跑 Track B；必要时用 `qwen` embedding 复测
 
 ## 变更记录
+
+### 2026-07-01 · `runbook_available` 字段与 golden 指标
+
+- Golden case 字段 `expected_novel` → **`expected_runbook_available`**（默认 true；探索路径用例为 false）。
+- Coverage 报告指标 `novel_accuracy` → **`runbook_unavailable_accuracy`**（无 runbook 检出率）。
 
 ### 2026-07-02 · CoT 范畴化评估
 

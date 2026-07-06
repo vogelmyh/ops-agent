@@ -110,8 +110,8 @@ class RunbookEvalLLMOutput(BaseModel):
 class RunbookEvalResult(BaseModel):
     """Final coverage decision after policy finalize."""
 
-    novel_scenario: bool
-    novel_reason: str | None = None
+    runbook_available: bool
+    runbook_unavailable_reason: str | None = None
     selected_doc_id: str | None = None
     relevant_runbook: str | None = None
     candidates: list[RunbookCandidate] = Field(default_factory=list)

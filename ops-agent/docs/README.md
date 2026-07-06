@@ -42,7 +42,7 @@
 | [**rag-architecture-and-tests.md**](rag-architecture-and-tests.md) | `app/rag/`, `retrieve_runbooks`, `runbook_coverage`, `runbook_eval_policy` | 混合检索、覆盖裁决、golden 评测 |
 | [**decide-remediation-architecture.md**](decide-remediation-architecture.md) | `decide*`, `tools/`, `verify_remediation` | 决策三分支、审批、写工具、验收 |
 | [**backend-adapters-architecture.md**](backend-adapters-architecture.md) | `app/adapters/` | mock/real 遥测与写路径；Simulator 联调 |
-| [**kb-lifecycle-architecture.md**](kb-lifecycle-architecture.md) | notes → draft → review → `ingest_runbook` | novel 场景 KB 写回（与 RAG 读路径分离） |
+| [**kb-lifecycle-architecture.md**](kb-lifecycle-architecture.md) | notes → draft → review → `ingest_runbook` | 无 runbook 覆盖（`runbook_available=false`）时 KB 写回（与 RAG 读路径分离） |
 | [**api-runtime-architecture.md**](api-runtime-architecture.md) | `app/main.py`, `config.py`, `llm/`, `memory/` | HTTP API、配置、checkpoint、观测 |
 
 ### 专题 / 目录
@@ -69,7 +69,7 @@
 | 调 RAG 阈值 / 检索链 | `rag-architecture-and-tests.md` |
 | 新增写工具 | `decide-remediation-architecture.md` + `backend-adapters-architecture.md` |
 | 新增 Simulator 场景 | simulator README → `backend-adapters-architecture.md` §5 |
-| 新增 KB / novel 场景 | `kb-lifecycle-architecture.md` + `test-scenario-trajectories.md` |
+| 新增 KB / 探索路径（无 runbook）场景 | `kb-lifecycle-architecture.md` + `test-scenario-trajectories.md` |
 | 新增 HTTP 端点或 env | `api-runtime-architecture.md` |
 | 新增 REM/LOOP 等测试 ID | `test-scenario-trajectories.md` |
 | 跑 RAG 指标 | `rag-architecture-and-tests.md` + `scripts/rag_eval.py` |

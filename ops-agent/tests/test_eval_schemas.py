@@ -85,7 +85,7 @@ def test_nested_rubric_finalize_selects_crashloop():
     )
     enriched = attach_llm_assessments("ecomm-order", [candidate], llm_output)
     result = finalize_runbook_match("ecomm-order", enriched, llm_output)
-    assert result.novel_scenario is False
+    assert result.runbook_available is True
     assert result.selected_doc_id == "ecomm-order-crashloop"
 
 

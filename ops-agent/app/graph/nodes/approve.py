@@ -12,7 +12,7 @@ def approve_node(state: AgentState) -> dict:
     payload = {
         "message": "诊断评估或高风险操作需要人工审批",
         "pending_tool_calls": tool_calls,
-        "novel_scenario": state.get("novel_scenario", False),
+        "runbook_available": state.get("runbook_available", False),
         "confidence_sufficient": state.get("confidence_sufficient"),
         "confidence_gate_reason": state.get("confidence_gate_reason"),
     }

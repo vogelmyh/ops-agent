@@ -103,8 +103,8 @@ def test_exclusion_fail_not_selectable():
 
 def test_finalize_no_candidates():
     result = finalize_runbook_match("ecomm-order", [])
-    assert result.novel_scenario is True
-    assert result.novel_reason == NOVEL_NO_RETRIEVAL
+    assert result.runbook_available is False
+    assert result.runbook_unavailable_reason == NOVEL_NO_RETRIEVAL
 
 
 def test_finalize_all_service_mismatch():
@@ -115,16 +115,16 @@ def test_finalize_all_service_mismatch():
         [wrong],
         _llm_output(assessment),
     )
-    assert result.novel_scenario is True
-    assert result.novel_reason == NOVEL_SERVICE_MISMATCH
+    assert result.runbook_available is False
+    assert result.runbook_unavailable_reason == NOVEL_SERVICE_MISMATCH
 
 
 def test_finalize_low_match():
     candidate = _candidate("ecomm-order-crashloop")
     assessment = _assessment(candidate.doc_id, symptom="FAIL")
     result = finalize_runbook_match("ecomm-order", [candidate], _llm_output(assessment))
-    assert result.novel_scenario is True
-    assert result.novel_reason == NOVEL_LOW_MATCH
+    assert result.runbook_available is False
+    assert result.runbook_unavailable_reason == NOVEL_LOW_MATCH
 
 
 def test_finalize_close_scores_top1_wins():
@@ -133,7 +133,7 @@ def test_finalize_close_scores_top1_wins():
     a1 = _assessment(c1.doc_id, telemetry="PARTIAL")
     a2 = _assessment(c2.doc_id, telemetry="FAIL")
     result = finalize_runbook_match("ecomm-order", [c1, c2], _llm_output(a1, a2))
-    assert result.novel_scenario is False
+    assert result.runbook_available is True
     assert result.selected_doc_id == "ecomm-order-crashloop"
 
 
@@ -141,7 +141,7 @@ def test_finalize_success_loads_runbook_from_disk():
     candidate = _candidate("ecomm-order-crashloop")
     assessment = _assessment(candidate.doc_id)
     result = finalize_runbook_match("ecomm-order", [candidate], _llm_output(assessment))
-    assert result.novel_scenario is False
+    assert result.runbook_available is True
     assert result.selected_doc_id == "ecomm-order-crashloop"
     assert result.relevant_runbook
     assert "勿用手段" in result.relevant_runbook

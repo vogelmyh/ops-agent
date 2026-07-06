@@ -28,24 +28,27 @@ def test_coverage_no_must_not_selections(coverage_report):
     assert not violations, f"forbidden runbook selected: {[c.case_id for c in violations]}"
 
 
-def test_coverage_novel_accuracy(coverage_report):
-    novel = [c for c in coverage_report.cases if c.expected_novel]
-    hits = sum(1 for c in novel if c.novel_scenario)
-    rate = hits / max(len(novel), 1)
-    assert rate >= 0.75, f"novel accuracy={rate:.2f} failures: {[c.case_id for c in novel if not c.novel_scenario]}"
+def test_coverage_runbook_unavailable_accuracy(coverage_report):
+    unavailable = [c for c in coverage_report.cases if not c.expected_runbook_available]
+    hits = sum(1 for c in unavailable if not c.runbook_available)
+    rate = hits / max(len(unavailable), 1)
+    assert rate >= 0.75, (
+        f"runbook_unavailable accuracy={rate:.2f} failures: "
+        f"{[c.case_id for c in unavailable if c.runbook_available]}"
+    )
 
 
 def test_coverage_selection_accuracy(coverage_report):
     labeled = [c for c in coverage_report.cases if c.expected_doc_id]
     hits = sum(
         1 for c in labeled
-        if not c.novel_scenario and c.selected_runbook_id == c.expected_doc_id
+        if c.runbook_available and c.selected_runbook_id == c.expected_doc_id
     )
     rate = hits / max(len(labeled), 1)
     min_rate = 0.85 if get_settings().embeddings_provider == "local-hash" else 0.90
     assert rate >= min_rate, (
         f"selection accuracy={rate:.2f} failures: "
-        f"{[c.case_id for c in labeled if c.selected_runbook_id != c.expected_doc_id or c.novel_scenario]}"
+        f"{[c.case_id for c in labeled if c.selected_runbook_id != c.expected_doc_id or not c.runbook_available]}"
     )
 
 
