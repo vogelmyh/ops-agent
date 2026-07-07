@@ -15,6 +15,8 @@ import sys
 import threading
 import time
 from contextlib import contextmanager
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Callable
 
 import httpx
@@ -77,6 +79,7 @@ STATE_KEYS = (
 )
 
 SIM_PORT = 8081
+SCENARIO_REPORT_DIR = Path(ROOT) / "data" / "scenario_runs"
 _ISOLATED_ENV_KEYS = (
     "LLM_MODE",
     "EMBEDDINGS_PROVIDER",
@@ -221,6 +224,51 @@ def _result(
         "passed": passed,
         "steps": steps,
         **extra,
+    }
+
+
+def _scenario_summary_row(result: dict[str, Any]) -> dict[str, Any]:
+    """Compact per-scenario row for stdout (no step payloads)."""
+    last = result["steps"][-1]["response"] if result.get("steps") else {}
+    row: dict[str, Any] = {
+        "scenario_id": result["scenario_id"],
+        "label": result.get("label"),
+        "passed": result["passed"],
+        "backend": result.get("backend"),
+        "llm": result.get("llm"),
+        "elapsed_s": result.get("elapsed_s"),
+        "thread_id": result.get("thread_id"),
+        "status": last.get("status"),
+        "decide_outcome": last.get("decide_outcome"),
+        "incident_resolved": last.get("incident_resolved"),
+        "remediation_attempt": last.get("remediation_attempt"),
+    }
+    for key in ("tools_sequence", "simulator_final"):
+        if key in result:
+            row[key] = result[key]
+    return row
+
+
+def _default_report_path() -> Path:
+    SCENARIO_REPORT_DIR.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    return SCENARIO_REPORT_DIR / f"run_scenarios_{stamp}.json"
+
+
+def _write_report(results: list[dict[str, Any]], report_path: Path) -> None:
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.write_text(
+        json.dumps(results, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+
+def _stdout_summary(results: list[dict[str, Any]], report_path: Path) -> dict[str, Any]:
+    return {
+        "all_passed": all(r["passed"] for r in results),
+        "report_path": str(report_path.resolve()),
+        "scenario_count": len(results),
+        "scenarios": [_scenario_summary_row(r) for r in results],
     }
 
 
@@ -407,15 +455,15 @@ def run_loop_02() -> dict[str, Any]:
 
 
 def run_loop_03() -> dict[str, Any]:
-    """LOOP-03: chaos-exhaust — never recovers."""
+    """LOOP-03: cascade-exhaust — layered faults, never recovers."""
     _start_simulator()
     os.environ["BACKEND_MODE"] = "real"
     os.environ["BACKEND_BASE_URL"] = f"http://127.0.0.1:{SIM_PORT}"
     _reset_caches()
-    set_mock_scenario("ecomm-manager", "chaos-exhaust")
+    set_mock_scenario("ecomm-manager", "cascade-exhaust")
 
     client = httpx.Client(base_url=f"http://127.0.0.1:{SIM_PORT}", timeout=120.0)
-    client.post("/admin/scenario/ecomm-manager-chaos-exhaust").raise_for_status()
+    client.post("/admin/scenario/ecomm-manager-cascade-exhaust").raise_for_status()
     client.post("/admin/reset").raise_for_status()
 
     incident = IncidentInput(
@@ -436,8 +484,9 @@ def run_loop_03() -> dict[str, Any]:
         and resp.incident_resolved is False
         and resp.remediation_attempt == get_settings().max_remediation_attempts
         and sim_after.get("phase") == "BROKEN"
+        and sim_after.get("details", {}).get("fault_layer") == "CONN_LEAK"
     )
-    return _result("LOOP-03", "chaos-exhaust", passed=passed, steps=steps, t0=t0, backend="simulator")
+    return _result("LOOP-03", "cascade-exhaust", passed=passed, steps=steps, t0=t0, backend="simulator")
 
 
 def run_dec_02() -> dict[str, Any]:
@@ -520,6 +569,17 @@ def main() -> None:
         action="store_true",
         help="Force LLM_MODE=mock for DEC/LOOP runners (KB runners always mock regardless)",
     )
+    parser.add_argument(
+        "--full-json",
+        action="store_true",
+        help="Print full step JSON to stdout (default: compact summary + report file)",
+    )
+    parser.add_argument(
+        "--report",
+        metavar="PATH",
+        default=None,
+        help=f"Write full step JSON to PATH (default: {SCENARIO_REPORT_DIR}/run_scenarios_<utc>.json)",
+    )
     args = parser.parse_args()
     if args.mock_llm:
         _apply_ci_mock_env()
@@ -528,7 +588,12 @@ def main() -> None:
     selected = list(SCENARIO_RUNNERS.keys()) if "all" in args.scenarios else args.scenarios
 
     results = [SCENARIO_RUNNERS[sid]() for sid in selected]
-    print(json.dumps(results, ensure_ascii=False, indent=2))
+    report_path = Path(args.report) if args.report else _default_report_path()
+    _write_report(results, report_path)
+    if args.full_json:
+        print(json.dumps(results, ensure_ascii=False, indent=2))
+    else:
+        print(json.dumps(_stdout_summary(results, report_path), ensure_ascii=False, indent=2))
     if not all(r["passed"] for r in results):
         sys.exit(1)
 

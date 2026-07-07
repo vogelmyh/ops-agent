@@ -181,6 +181,7 @@ CHECKPOINTER=memory .venv/bin/python scripts/run_scenarios.py --scenarios REM-01
 ## 9. 版本注记
 
 - **2026-07-01**：`novel_scenario` / `novel_reason` 重命名为 `runbook_available` / `runbook_unavailable_reason`（布尔语义取反：true = 有可用 runbook）。diagnose runbook 路径跳过 confidence LLM；decide 拆 runbook/explore 双 prompt（探索路径不传 runbook）。详见 [`design-pending-diagnose-runbook-split.md`](design-pending-diagnose-runbook-split.md)。
+- **2026-07-07**：LOOP-03 绑定 `cascade-exhaust`；`verify_remediation` 按 metric 层验收；chaos runbook 已从 KB 移除。`run_scenarios` 默认 stdout 紧凑摘要 + `data/scenario_runs/` 报告文件（`--full-json` 恢复旧行为）。
 - **2026-07-03**：文档明确 KB-01/KB-02 在 `run_scenarios` 为固定 **mock smoke**（非 real LLM 表征）；real LLM 表征仅 DEC/LOOP。见 [`test-scenario-trajectories.md`](test-scenario-trajectories.md) §KB、`run_scenarios.py --help`。
 - **2026-07-03**：`RootCauseDraft` 增加 `coerce_root_cause_draft` / `normalize_evidence_source`，将 LLM 自然语言 source（如 `Application Logs`）映射为 `EvidenceSource` 枚举；`RCA_SYSTEM_PROMPT` 补充机器标签示例 JSON，修复 real LLM 场景表征在 `diagnose` RCA 阶段的 schema 校验失败。`run_scenarios` KB runner 使用 `_isolated_mock_backend_env()`，避免 mock env 污染后续 real LLM 场景。
 - **2026-07-02**：remediation 重入时 RCA 注入 `RCA_RETRY_GUIDANCE`；删除纯观测字段 `needs_human_review`、`diagnosis_reasoning`、`runbook_eval_reasoning`（统一 `match_gate_reason`）。

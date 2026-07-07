@@ -20,7 +20,8 @@ Together this is the **write → read verification loop** that mock-only tests c
 |------|----------|----------------|
 | **Recoverable** | rate-limit, feature-flag, crashloop, stream-paused, … | `true` after correct write |
 | **Static unrecoverable** | discount-bug, rds-timeout | always `false`; writes FAIL or do not help |
-| **Dynamic chaos** | chaos-morph (recoverable demo), chaos-exhaust, chaos-oos | rules change after a correct step (morph) or never recover |
+| **Dynamic chaos** | chaos-morph (recoverable demo), chaos-oos (early OOS) | rules change after a correct step (morph) |
+| **Layered cascade** | cascade-exhaust | each correct write reveals next ops-fixable layer; never `RECOVERED` |
 
 Chaos scenarios are for **react-loop / honest-termination** testing (LOOP / DEC in ops-agent), not the only reason Simulator exists.
 
@@ -32,9 +33,9 @@ Chaos scenarios are for **react-loop / honest-termination** testing (LOOP / DEC 
 | `scripts/run_scenarios.py` (real LLM) | **yes** | Ground truth for write + post-write telemetry |
 | KB / HITL / `block_remediation` tests | **no** | Novel services and agent-side hooks, not backend worlds |
 
-- **Simulator `SCENARIO_ID`** = backend world script (e.g. `ecomm-manager-chaos-exhaust`).
-- **ops-agent test ID** = agent behaviour spec (e.g. LOOP-03) — see [test-scenario-trajectories.md](../ops-agent/docs/test-scenario-trajectories.md).
-- When mock LLM is used with Simulator, also set `set_mock_scenario(service, "<key>")` in ops-agent (`chaos-exhaust`, not the full scenario id).
+- **Simulator `SCENARIO_ID`** = backend world script (e.g. `ecomm-manager-cascade-exhaust`).
+- **ops-agent test ID** = agent behaviour spec (e.g. `LOOP-03`) — see [test-scenario-trajectories.md](../ops-agent/docs/test-scenario-trajectories.md).
+- When mock LLM is used with Simulator, also set `set_mock_scenario(service, "<key>")` in ops-agent (`cascade-exhaust`, not the full scenario id).
 
 Simulator defines **world truth**; agent tests assert **graph + LLM behaviour** in that world.
 
@@ -48,7 +49,7 @@ Simulator defines **world truth**; agent tests assert **graph + LLM behaviour** 
 | `ecomm-manager-disk-full` | ecomm-manager | recoverable | `cleanup_storage` |
 | `ecomm-manager-discount-bug` | ecomm-manager | static OOS | no recovery (logic bug) |
 | `ecomm-manager-chaos-morph` | ecomm-manager | chaos (recoverable) | `patch_config` then `toggle_feature_flag` |
-| `ecomm-manager-chaos-exhaust` | ecomm-manager | chaos (exhaust) | morph; never `RECOVERED` |
+| `ecomm-manager-cascade-exhaust` | ecomm-manager | layered exhaust | rate-limit → feature-flag → disk-full → conn-leak; never `RECOVERED` |
 | `ecomm-manager-chaos-oos` | ecomm-manager | chaos (early OOS) | morph to logic bug; ops cannot fix |
 | `ecomm-order-stream-paused` | ecomm-order | recoverable | `resume_event_stream` (`order-events`) |
 | `ecomm-order-memory-leak` | ecomm-order | recoverable | `restart_pods` |
@@ -91,7 +92,7 @@ For each new `ecomm-manager` / `ecomm-order` scenario key, extend `mock_data.py`
 
 ### 5. Agent mock matrix (mock LLM only)
 
-If graph_paths tests use mock LLM, update `decide_spec.py`, `diagnose.py`, `eval_remediation.py` as needed. Use a **short mock key** (e.g. `chaos-exhaust`) separate from `SCENARIO_ID`.
+If graph_paths tests use mock LLM, update `decide_spec.py`, `diagnose.py`, `verify_remediation.py` as needed. Use a **short mock key** (e.g. `cascade-exhaust`) separate from `SCENARIO_ID`.
 
 ### 6. Runbook
 

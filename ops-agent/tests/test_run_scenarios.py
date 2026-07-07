@@ -6,6 +6,7 @@ import json
 import os
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -149,7 +150,11 @@ def test_run_scenarios_cli_mock_llm_kb01():
         },
     )
     assert proc.returncode == 0, proc.stderr
-    payload = json.loads(proc.stdout)
+    summary = json.loads(proc.stdout)
+    assert summary["all_passed"] is True
+    report_path = summary["report_path"]
+    assert os.path.isfile(report_path)
+    payload = json.loads(Path(report_path).read_text(encoding="utf-8"))
     assert payload[0]["scenario_id"] == "KB-01"
     assert payload[0]["passed"] is True
     assert payload[0]["llm"] == "mock"
@@ -194,7 +199,9 @@ def test_run_scenarios_cli_mock_llm_all():
         },
     )
     assert proc.returncode == 0, proc.stderr or proc.stdout
-    payload = json.loads(proc.stdout)
+    summary = json.loads(proc.stdout)
+    assert summary["all_passed"] is True
+    payload = json.loads(Path(summary["report_path"]).read_text(encoding="utf-8"))
     assert len(payload) == 6
     assert all(row["passed"] for row in payload), [
         (row["scenario_id"], row["passed"]) for row in payload if not row["passed"]

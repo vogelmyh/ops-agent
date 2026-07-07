@@ -125,9 +125,13 @@ diagnose
 # mock LLM 图路径
 .venv/bin/pytest tests/graph_paths/test_rem.py -q
 
-# 真实 LLM + simulator（LOOP 等）
+# mock 图路径 — react 环耗尽（LOOP-01，不测 real LLM）
+CHECKPOINTER=memory LLM_MODE=mock \
+  .venv/bin/pytest tests/graph_paths/test_loop.py::test_loop_01_retry_exhausted_without_resolution -q
+
+# 真实 LLM + simulator（LOOP-03 等；LOOP-01 无 runner，见 test-scenario-trajectories.md §LOOP-01）
 BACKEND_MODE=real BACKEND_BASE_URL=http://127.0.0.1:8081 \
-  .venv/bin/python scripts/run_scenarios.py --scenarios LOOP-01
+  .venv/bin/python scripts/run_scenarios.py --scenarios LOOP-03
 ```
 
 ---
@@ -169,6 +173,8 @@ LLM_MODE=real .venv/bin/python eval/run_eval.py   # 可选，需 API key
 
 ## 10. 版本注记
 
+- **2026-07-07**：LOOP-03 改为 `cascade-exhaust` 分层场景；删除 3 篇 chaos runbook；mock 矩阵按 `remediation_attempt` 映射 rate-limit / feature-flag / disk-full。
+- **2026-07-07**：文档修正 §6 示例：移除不存在的 `run_scenarios LOOP-01`；LOOP-01 仅 `graph_paths` mock 契约（见 `test-scenario-trajectories.md` §LOOP-01）。
 - **2026-07-07**：decide assessment prompt 收紧：明确 JSON 契约（`outcome` + 非空 `reasoning`）、禁止 `tool`/`parameters` 等 step2 字段；runbook 路径说明处置章节仅供分类参考，避免 DeepSeek 在 actionable 时合并 tool_select。
 - **2026-07-03**：`coerce_decide_assessment` 增加 `assessment` / `verdict` / `result` 别名与嵌套 dict 解包；outcome 字符串前缀归一化，修复 real LLM decide 节点 `Field required: outcome` 崩溃。
 - **2026-07-02**：删除纯观测字段 `needs_human_review`（路由已由 `confidence_sufficient` 承担）。
