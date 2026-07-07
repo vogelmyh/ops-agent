@@ -462,6 +462,11 @@ cd ops-backend-simulator && python3 -m pytest tests/test_cascade_exhaust.py test
 
 ## 变更记录
 
+### 2026-07-07 · run_demo 面试演示脚本
+
+- 新增 `scripts/run_demo.py`（real LLM 旁白演示）与 `docs/demo-scenarios.md`。
+- 与 `run_scenarios.py` 分工：演示用软检查 + 叙事；表征仍用 `run_scenarios`。
+
 ### 2026-07-07 · run_scenarios 默认紧凑 stdout + 报告文件
 
 - 默认 stdout 仅 `all_passed` + `report_path` + 每场景摘要；完整 `steps` 写入 `data/scenario_runs/`。

@@ -51,6 +51,7 @@
 |------|------|
 | [**rag-eval-corpus.md**](rag-eval-corpus.md) | RAG 语料生成、golden 集运维（补充 RAG 主文档） |
 | [**test-scenario-trajectories.md**](test-scenario-trajectories.md) | REM / HITL / LOOP / DEC / KB / RAG 场景矩阵与预期轨迹 |
+| [**demo-scenarios.md**](demo-scenarios.md) | 面试 real LLM E2E 演示 profile 与 `run_demo.py` |
 
 ### 外部仓库
 
@@ -72,6 +73,7 @@
 | 新增 KB / 探索路径（无 runbook）场景 | `kb-lifecycle-architecture.md` + `test-scenario-trajectories.md` |
 | 新增 HTTP 端点或 env | `api-runtime-architecture.md` |
 | 新增 REM/LOOP 等测试 ID | `test-scenario-trajectories.md` |
+| 面试 real LLM 演示 | `demo-scenarios.md` + `scripts/run_demo.py` |
 | 跑 RAG 指标 | `rag-architecture-and-tests.md` + `scripts/rag_eval.py` |
 
 ---

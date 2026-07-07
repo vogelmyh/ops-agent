@@ -12,7 +12,6 @@ import argparse
 import json
 import os
 import sys
-import threading
 import time
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -20,10 +19,11 @@ from pathlib import Path
 from typing import Any, Callable
 
 import httpx
-import uvicorn
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SCRIPTS = os.path.join(ROOT, "scripts")
 sys.path.insert(0, ROOT)
+sys.path.insert(0, SCRIPTS)
 sys.path.insert(0, os.path.join(os.path.dirname(ROOT), "ops-backend-simulator"))
 
 from dotenv import load_dotenv
@@ -32,9 +32,7 @@ load_dotenv(os.path.join(ROOT, ".env"), override=True)
 os.environ.setdefault("LLM_MODE", "real")
 os.environ.setdefault("CHECKPOINTER", "memory")
 
-from app.adapters.backend_client import get_backend_client
-from app.adapters.mock_data import reset_mock_scenarios, set_mock_scenario
-from app.adapters.mock_remediation import clear_remediated
+from app.adapters.mock_data import set_mock_scenario
 from app.config import get_settings
 from app.graph.builder import build_graph
 from app.graph.rag_observability import (
@@ -48,7 +46,8 @@ from app.graph.runner import (
     start_diagnosis,
 )
 from app.schemas import IncidentInput
-from simulator.app import app as sim_app
+
+import scenario_runtime as rt
 
 STATE_KEYS = (
     "status",
@@ -78,7 +77,7 @@ STATE_KEYS = (
     "remediation_history",
 )
 
-SIM_PORT = 8081
+SIM_PORT = rt.SIM_PORT
 SCENARIO_REPORT_DIR = Path(ROOT) / "data" / "scenario_runs"
 _ISOLATED_ENV_KEYS = (
     "LLM_MODE",
@@ -116,33 +115,32 @@ def _isolated_mock_backend_env():
 
 
 def _reset_caches() -> None:
-    clear_remediated()
-    reset_mock_scenarios()
-    get_settings.cache_clear()
-    build_graph.cache_clear()
-    get_backend_client.cache_clear()
+    rt.reset_scenario_caches()
 
 
 def _start_simulator() -> None:
-    threading.Thread(
-        target=lambda: uvicorn.run(sim_app, host="127.0.0.1", port=SIM_PORT, log_level="error"),
-        daemon=True,
-    ).start()
-    for _ in range(40):
-        try:
-            if httpx.get(f"http://127.0.0.1:{SIM_PORT}/actuator/health", timeout=1).status_code == 200:
-                return
-        except Exception:
-            time.sleep(0.25)
-    raise RuntimeError("simulator failed to start")
+    rt.start_simulator()
 
 
 def _pending_meta(thread_id: str) -> dict[str, Any]:
-    graph = build_graph()
-    snap = graph.get_state({"configurable": {"thread_id": thread_id}})
-    if snap and snap.next:
-        return {"pending_interrupt": True, "pending_node": snap.next[0]}
-    return {"pending_interrupt": False, "pending_node": None}
+    return rt.pending_meta(thread_id)
+
+
+def _response_dict(resp) -> dict[str, Any]:
+    return rt.response_dict(resp)
+
+
+def _prepare_sim(
+    simulator_scenario_id: str,
+    *,
+    mock_service: str,
+    mock_scenario: str,
+) -> httpx.Client:
+    return rt.prepare_simulator(
+        simulator_scenario_id,
+        mock_service=mock_service,
+        mock_scenario=mock_scenario,
+    )
 
 
 def _graph_state(thread_id: str) -> dict[str, Any]:
@@ -155,33 +153,6 @@ def _graph_state(thread_id: str) -> dict[str, Any]:
     if out.get("runbook_candidates"):
         out["runbook_candidates"] = compact_runbook_candidates(out["runbook_candidates"])
     return out
-
-
-def _response_dict(resp) -> dict[str, Any]:
-    return {
-        "status": resp.status,
-        "runbook_available": resp.runbook_available,
-        "symptom_query": resp.symptom_query,
-        "runbook_unavailable_reason": resp.runbook_unavailable_reason,
-        "selected_runbook_id": resp.selected_runbook_id,
-        "match_gate_reason": resp.match_gate_reason,
-        "root_cause": resp.root_cause,
-        "confidence_gate_reason": resp.confidence_gate_reason,
-        "confidence_sufficient": resp.confidence_sufficient,
-        "decide_outcome": resp.decide_outcome,
-        "decision_class": resp.decision_class,
-        "escalation_hint": resp.escalation_hint,
-        "recommendations": resp.recommendations,
-        "knowledge_gaps": resp.knowledge_gaps,
-        "pending_tool_calls": resp.pending_tool_calls,
-        "execution_results": resp.execution_results,
-        "needs_approval": resp.needs_approval,
-        "incident_resolved": resp.incident_resolved,
-        "remediation_attempt": resp.remediation_attempt,
-        "summary": resp.summary,
-        "runbook_draft": (resp.runbook_draft or "")[:500] if resp.runbook_draft else None,
-        "evidence_refs": [e.ref for e in resp.evidence],
-    }
 
 
 def _step(name: str, resp, meta: dict, thread_id: str, extra: dict | None = None) -> dict[str, Any]:

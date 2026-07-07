@@ -9,5 +9,6 @@ data/checkpoints.db-*
 data/audit.jsonl
 data/incident_memory.jsonl
 data/scenario_runs/
+data/demo_runs/
 eval/report.json
 .pytest_cache/

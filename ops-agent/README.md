@@ -14,7 +14,8 @@ curl http://localhost:8000/healthz
 ```
 
 ```bash
-CHECKPOINTER=memory python scripts/demo.py    # 三场景离线演示
+CHECKPOINTER=memory python scripts/demo.py    # 三场景离线演示（mock）
+CHECKPOINTER=memory LLM_MODE=real BACKEND_MODE=real python scripts/run_demo.py --profile standard  # 面试 real LLM 演示
 CHECKPOINTER=memory python eval/run_eval.py # 15 场景评测
 python -m pytest tests/ -q
 ```
@@ -46,6 +47,7 @@ python -m pytest tests/ -q
 - **索引**：[docs/README.md](docs/README.md)
 - **总览**：[docs/architecture.md](docs/architecture.md)
 - **场景目录**（测什么）：[docs/test-scenario-trajectories.md](docs/test-scenario-trajectories.md)
+- **面试演示**（real LLM E2E）：[docs/demo-scenarios.md](docs/demo-scenarios.md)
 - **组件**：`docs/*-architecture.md`（图、RAG、决策修复、后端适配、KB、API）
 - **Simulator 联调**（ops-agent 视角）：[docs/backend-adapters-architecture.md](docs/backend-adapters-architecture.md) §5；实现细节见 [ops-backend-simulator/README.md](../ops-backend-simulator/README.md)
 
