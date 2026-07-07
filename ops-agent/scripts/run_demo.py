@@ -447,6 +447,8 @@ SIMULATOR_BY_ACT: dict[str, str | None] = {
     "DEMO-KB-02": None,
 }
 
+SIMULATOR_ACT_IDS = frozenset(aid for aid, sim in SIMULATOR_BY_ACT.items() if sim)
+
 
 def resolve_act_ids(profile: str | None, acts: list[str] | None, include_appendix: bool) -> list[str]:
     if acts:
@@ -567,10 +569,20 @@ def main() -> None:
     )
 
     results: list[DemoActResult] = []
-    for i, act_id in enumerate(act_ids, start=1):
-        spec = ACT_SPECS[act_id]
-        _banner(i, len(act_ids), spec, SIMULATOR_BY_ACT.get(act_id))
-        results.append(ACT_RUNNERS[act_id](spec))
+    needs_simulator = any(aid in SIMULATOR_ACT_IDS for aid in act_ids)
+
+    def _run_acts() -> None:
+        nonlocal results
+        for i, act_id in enumerate(act_ids, start=1):
+            spec = ACT_SPECS[act_id]
+            _banner(i, len(act_ids), spec, SIMULATOR_BY_ACT.get(act_id))
+            results.append(ACT_RUNNERS[act_id](spec))
+
+    if needs_simulator:
+        with rt.SimulatorSession():
+            _run_acts()
+    else:
+        _run_acts()
 
     report_path = Path(args.report) if args.report else _default_report_path()
     _write_report(results, report_path, profile_label, act_ids)

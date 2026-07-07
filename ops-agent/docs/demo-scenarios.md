@@ -73,7 +73,7 @@ python scripts/run_demo.py --list
 ## 演示前检查
 
 1. `.env` 已配置 `OPENAI_*` / `EMBEDDINGS_PROVIDER`
-2. 8081 端口空闲（或接受复用已有 simulator）
+2. 脚本会自动启动并复用单个 simulator（`:8081`）；结束时关闭自启进程。若端口已被外部 uvicorn 占用，将复用该实例且不强行杀进程
 3. 预演：`python scripts/run_demo.py --profile standard`
 4. LangSmith 可选：`LANGSMITH_TRACING=true`
 
