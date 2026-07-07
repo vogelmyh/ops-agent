@@ -45,7 +45,7 @@ collection.collect / write_tools
 | write → read 闭环、混沌场景、真实 LLM 表征 | `real` + **simulator** |
 | 生产契约验证 | `real` + Java `ops-backend` |
 
-**注意**：simulator 的 `SCENARIO_ID`（如 `ecomm-manager-chaos-exhaust`）与 ops-agent 测试 ID（如 `LOOP-03`）不是同一命名空间；mock LLM 联调 simulator 时还需 `set_mock_scenario(service, "<short-key>")`。详见 simulator README § Relationship to ops-agent tests。
+**注意**：simulator 的 `SCENARIO_ID`（如 `ecomm-manager-cascade-exhaust`）与 ops-agent 测试 ID（如 `LOOP-03`）不是同一命名空间；mock LLM 联调 simulator 时还需 `set_mock_scenario(service, "<short-key>")`。详见 simulator README § Relationship to ops-agent tests。
 
 ---
 
@@ -171,4 +171,4 @@ BACKEND_MODE=real BACKEND_BASE_URL=http://127.0.0.1:8081 \
 
 ## 10. 版本注记
 
-（暂无组件级变更；合入 mock/adapter/simulator 联调相关修改时在此追加摘要。）
+- **2026-07-07**：LOOP-03 改用 `ecomm-manager-cascade-exhaust` simulator；mock key `cascade-exhaust`；移除 `chaos-exhaust` 绑定。

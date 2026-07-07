@@ -48,11 +48,14 @@ _MOCK_ROOT_CAUSES: dict[tuple[str, str], str] = {
     ("ecomm-manager", "disk-full"): (
         "操作审计日志占满 /var/log/ecomm-manager，磁盘使用率 99%，写入失败。"
     ),
+    ("ecomm-manager", "connection-leak"): (
+        "HTTP 客户端连接未释放导致文件句柄耗尽，管理 API 延迟升高。"
+    ),
     ("ecomm-manager", "chaos-morph"): (
         "两阶段故障：限流误配掩盖 promotion-v2 功能开关 NPE（修复限流后暴露）。"
     ),
-    ("ecomm-manager", "chaos-exhaust"): (
-        "两阶段混沌：限流误配后暴露功能开关故障；catalog 工具无法彻底恢复 incident。"
+    ("ecomm-manager", "cascade-exhaust"): (
+        "分层故障：当前层为限流误配（后续层由验收失败后重新诊断揭示）。"
     ),
     ("ecomm-manager", "chaos-oos"): (
         "两阶段混沌：限流误配后暴露 DiscountEngine 逻辑缺陷，超出运维工具能力。"
@@ -146,9 +149,17 @@ def _mock_root_cause(state: AgentState, service: str) -> str:
 
     key = (service, get_mock_scenario(service))
     scenario = get_mock_scenario(service)
+    attempt = state.get("remediation_attempt", 0)
+    if service == "ecomm-manager" and scenario == "cascade-exhaust":
+        if attempt >= 2:
+            phase_key = ("ecomm-manager", "disk-full")
+        elif attempt >= 1:
+            phase_key = ("ecomm-manager", "feature-flag")
+        else:
+            phase_key = ("ecomm-manager", "rate-limit")
+        return _MOCK_ROOT_CAUSES.get(phase_key, _MOCK_ROOT_CAUSES[key])
     if key in (
         ("ecomm-manager", "chaos-morph"),
-        ("ecomm-manager", "chaos-exhaust"),
         ("ecomm-manager", "chaos-oos"),
     ):
         if scenario == "chaos-oos" and state.get("remediation_attempt", 0) >= 1:

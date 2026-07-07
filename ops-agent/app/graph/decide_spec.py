@@ -366,6 +366,15 @@ SCENARIO_DECIDE_ROWS: dict[tuple[str, str], MockDecideRow] = {
         expected_needs_approval=False,
         expected_route="write_tools",
     ),
+    ("ecomm-manager", "connection-leak"): MockDecideRow(
+        outcome=DecideOutcome.ACTIONABLE,
+        tool_name="restart_pods",
+        tool_args={"strategy": "rolling"},
+        tool_content="HTTP connection leak; rolling restart to clear stale connections.",
+        reasoning="Connection leak detected; runbook recommends restart_pods.",
+        expected_needs_approval=True,
+        expected_route="approve",
+    ),
     ("ecomm-order", "crashloop"): MockDecideRow(
         outcome=DecideOutcome.ACTIONABLE,
         tool_name="rollback_deployment",
@@ -469,7 +478,13 @@ def mock_row_for_state(state: dict) -> MockDecideRow:
     service = state["service"]
     scenario = get_mock_scenario(service)
     attempt = state.get("remediation_attempt", 0)
-    if service == "ecomm-manager" and scenario in ("chaos-morph", "chaos-exhaust"):
+    if service == "ecomm-manager" and scenario == "cascade-exhaust":
+        if attempt >= 2:
+            return SCENARIO_DECIDE_ROWS[("ecomm-manager", "disk-full")]
+        if attempt >= 1:
+            return SCENARIO_DECIDE_ROWS[("ecomm-manager", "feature-flag")]
+        return SCENARIO_DECIDE_ROWS[("ecomm-manager", "rate-limit")]
+    if service == "ecomm-manager" and scenario == "chaos-morph":
         if attempt >= 1:
             return SCENARIO_DECIDE_ROWS[("ecomm-manager", "feature-flag")]
         return SCENARIO_DECIDE_ROWS[("ecomm-manager", "rate-limit")]

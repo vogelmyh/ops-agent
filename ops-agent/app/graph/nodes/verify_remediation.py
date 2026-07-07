@@ -108,29 +108,26 @@ def _rule_based_resolved(service: str, data: dict) -> RemediationEvalAssessment 
             residual_symptoms=["disk usage high"],
         )
 
-    if service == "ecomm-manager" and scenario == "chaos-exhaust":
+    if service == "ecomm-manager" and scenario == "cascade-exhaust":
         metrics = data.get("metrics") or {}
         metric_name = metrics.get("metric", "")
         points = metrics.get("points") or []
         value = points[-1]["value"] if points else 0
-        if metric_name == "error_rate":
-            return RemediationEvalAssessment(
-                resolved=False,
-                reasoning=(
-                    f"Chaos exhaust: error_rate still {value}; "
-                    "feature-flag remediation did not resolve incident."
-                ),
-                residual_symptoms=["elevated error rate", "PromotionService NPE"],
-            )
-        if metric_name == "admin_api_qps":
-            return RemediationEvalAssessment(
-                resolved=False,
-                reasoning=(
-                    f"Chaos exhaust phase A: admin_api_qps still {value}; "
-                    "rate-limit patch required or ineffective."
-                ),
-                residual_symptoms=["admin API QPS degraded"],
-            )
+        layer_hints = {
+            "admin_api_qps": "rate-limit layer",
+            "error_rate": "feature-flag layer",
+            "disk_usage_percent": "disk-full layer",
+            "open_connections": "connection-leak layer",
+        }
+        layer = layer_hints.get(metric_name, "cascade layer")
+        return RemediationEvalAssessment(
+            resolved=False,
+            reasoning=(
+                f"Cascade exhaust: {metric_name}={value} at {layer}; "
+                "incident remains unresolved after remediation."
+            ),
+            residual_symptoms=[layer, "incident not fully recovered"],
+        )
 
     if service == "ecomm-manager" and scenario == "chaos-oos":
         metrics = data.get("metrics") or {}

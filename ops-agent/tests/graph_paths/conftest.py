@@ -117,8 +117,8 @@ def chaos_morph_env(simulator_8083):
 
 
 @pytest.fixture
-def chaos_exhaust_env(simulator_8083):
-    client = _simulator_env("ecomm-manager-chaos-exhaust", "chaos-exhaust")
+def cascade_exhaust_env(simulator_8083):
+    client = _simulator_env("ecomm-manager-cascade-exhaust", "cascade-exhaust")
     yield client
     os.environ["BACKEND_MODE"] = "mock"
 

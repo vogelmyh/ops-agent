@@ -152,7 +152,7 @@ flowchart LR
 
 | 项目 | 说明 |
 |------|------|
-| 路径 | `data/runbooks/*.md`（当前 **55 篇**） |
+| 路径 | `data/runbooks/*.md`（当前 **52 篇**，不含 KB 测试写回污染稿） |
 | 构成 | 17 篇原生产（接 simulator）+ 38 篇 RAG 扩充 |
 | 规格源 | `scripts/rag_corpus_specs.py` |
 | 生成 | `scripts/generate_rag_corpus.py` |
@@ -492,6 +492,10 @@ CHECKPOINTER=memory EMBEDDINGS_PROVIDER=local-hash \
 ---
 
 ## 9. 版本注记
+
+### 2026-07-07 · 移除 chaos 剧本文档
+
+- 删除 `ecomm-manager-chaos-{exhaust,morph,oos}.md`；移除 golden `easy-chaos-morph-01`；**需 `reindex()`**。
 
 ### 2026-07-02 · 观测字段清理 + RCA 重试指引
 

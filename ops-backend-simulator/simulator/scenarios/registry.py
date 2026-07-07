@@ -5,7 +5,7 @@ from __future__ import annotations
 from types import ModuleType
 
 from simulator.scenarios import (
-    ecomm_manager_chaos_exhaust,
+    ecomm_manager_cascade_exhaust,
     ecomm_manager_chaos_morph,
     ecomm_manager_chaos_oos,
     ecomm_manager_crashloop,
@@ -26,7 +26,7 @@ _MODULES: list[ModuleType] = [
     ecomm_manager_rate_limit,
     ecomm_manager_feature_flag,
     ecomm_manager_chaos_morph,
-    ecomm_manager_chaos_exhaust,
+    ecomm_manager_cascade_exhaust,
     ecomm_manager_chaos_oos,
     ecomm_manager_crashloop,
     ecomm_manager_discount_bug,

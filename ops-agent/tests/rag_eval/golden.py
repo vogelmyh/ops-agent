@@ -541,15 +541,6 @@ GOLDEN_CASES: list[GoldenCase] = [
         must_not_select=["ecomm-inventory-oversell-race"],
         telemetry={**_log("WARN", "reservation leak unreleased hold")},
     ),
-    GoldenCase(
-        id="easy-chaos-morph-01",
-        service="ecomm-manager",
-        incident_description="【P1】ecomm-manager rate limit 恢复后 feature flag 问题",
-        expected_doc_id="ecomm-manager-chaos-morph",
-        challenge_type="easy_match",
-        difficulty="medium",
-        telemetry={**_log("WARN", "rate limit exceeded"), **_metrics("admin_api_qps", 8000, 400)},
-    ),
 ]
 
 assert len(GOLDEN_CASES) >= 40, len(GOLDEN_CASES)

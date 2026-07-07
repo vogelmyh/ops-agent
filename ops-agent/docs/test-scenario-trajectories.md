@@ -15,7 +15,7 @@
 | **场景表征** | `scripts/run_scenarios.py` | **DEC/LOOP：real**；**KB：mock（固定）** | 人工 / 夜间抽检 simulator 轨迹；KB 仅 runner 冒烟（见下） |
 | **单元测试** | `tests/test_*.py`（非 graph_paths） | mock 或无需 | 单节点、RAG 纯函数、policy 等 |
 
-**`run_scenarios` 与 LLM 分工**：DEC-01、LOOP-02、LOOP-03、DEC-02 在 `LLM_MODE=real` 下做真实 LLM 表征（需 simulator + API）。**KB-01 / KB-02 在 runner 内始终 mock LLM + mock backend**（`_isolated_mock_backend_env`），不随命令行 `LLM_MODE=real` 改变；图路由契约见 `graph_paths/test_kb.py`。real LLM 下的 novel / coverage 质量见 RAG golden（`make test-rag-coverage`）而非 KB 场景表征。
+**`run_scenarios` 与 LLM 分工**：DEC-01、LOOP-02、LOOP-03、DEC-02 在 `LLM_MODE=real` 下做真实 LLM 表征（需 simulator + API）。**KB-01 / KB-02 在 runner 内始终 mock LLM + mock backend**（`_isolated_mock_backend_env`），不随命令行 `LLM_MODE=real` 改变；图路由契约见 `graph_paths/test_kb.py`。**LOOP-01 无 `run_scenarios` runner**，仅 `graph_paths/test_loop.py`（mock LLM + mock backend）；不测 real LLM，见 §LOOP-01。real LLM 下的 novel / coverage 质量见 RAG golden（`make test-rag-coverage`）而非 KB 场景表征。
 
 图主路径：
 
@@ -84,9 +84,9 @@ triage → retrieve_runbooks → diagnose
 | REM-02 | REM | P2 | 高风险审批通过后修复（crashloop） | mock | `graph_paths/test_rem.py` | `eval/run_eval.py` |
 | HITL-01 | HITL | P2 | 操作审批拒绝 | mock | `graph_paths/test_hitl.py` | — |
 | HITL-02 | HITL | P5 | Runbook review 拒绝不入库 | mock | `graph_paths/test_hitl.py` | — |
-| LOOP-01 | LOOP | P4 | 同根因验收失败重试耗尽 | mock + `block_remediation` | `graph_paths/test_loop.py` | — |
+| LOOP-01 | LOOP | P4 | 同根因验收失败重试耗尽（**仅 mock 图契约**） | mock + `block_remediation` | `graph_paths/test_loop.py` | **—（不测 real LLM）** |
 | LOOP-02 | LOOP | P4 | Morph 后两步可恢复（demo） | simulator | `graph_paths/test_loop.py` | `run_scenarios.py` |
-| LOOP-03 | LOOP | P4 | Morph 后多轮仍不可恢复 | simulator | `graph_paths/test_loop.py` | `run_scenarios.py` |
+| LOOP-03 | LOOP | P4 | 分层故障 react 耗尽（cascade-exhaust） | simulator | `graph_paths/test_loop.py` | `run_scenarios.py` |
 | DEC-01 | DEC | P3 | 静态 out_of_scope | simulator | — | `run_scenarios.py` |
 | DEC-02 | DEC | P3/P4 | Morph 后 early out_of_scope | simulator | `graph_paths/test_dec.py` | `run_scenarios.py` |
 | KB-01 | KB | P5 | Novel + 低置信诊断 → skipped_low_confidence → 写回 | mock | `graph_paths/test_kb.py` | `run_scenarios.py` |
@@ -96,7 +96,7 @@ triage → retrieve_runbooks → diagnose
 | EXEC-01 | EXEC | P4 | Write 执行 FAILED | simulator | 待补 | 手工 real LLM |
 | EXEC-02 | EXEC | P4 | Write 成功但验收失败 | mock / exhaust | LOOP-01、LOOP-03 | — |
 
-**场景表征 LLM 列（补充）**：上表「场景表征」列仅表入口脚本。KB-* 在 `run_scenarios.py` 内**固定 mock**；DEC-* / LOOP-* 期望 **real LLM**（`--mock-llm` 仅用于无 API 的降级调试）。
+**场景表征 LLM 列（补充）**：上表「场景表征」列仅表入口脚本。KB-* 在 `run_scenarios.py` 内**固定 mock**；DEC-* / LOOP-02 / LOOP-03 期望 **real LLM**（`--mock-llm` 仅用于无 API 的降级调试）。**LOOP-01 无场景表征**，仅 mock 图路径契约。
 
 ---
 
@@ -158,16 +158,28 @@ triage → retrieve_runbooks → diagnose
 
 ## LOOP · 处置反馈环
 
-### LOOP-01 · 验收失败重试耗尽
+### LOOP-01 · 验收失败重试耗尽（仅 mock 图契约）
 
-**输入**：`block_remediation("ecomm-manager")` + rate-limit。
+**输入**：`block_remediation("ecomm-manager")` + rate-limit；`BACKEND_MODE=mock`，`LLM_MODE=mock`。
 
 | Step | 节点链 | 关键 state / response |
 |------|--------|------------------------|
-| 1..N | write → eval（失败）→ … | `remediation_history[*].resolved=false` |
+| 1..N | write → verify（失败）→ … | `remediation_history[*].resolved=false` |
 | 末 | summarize | `remediation_attempt=3`, `incident_resolved=false` |
 
-**与 LOOP-03 区别**：根因不变、无 simulator morph；测 **eval 环**。
+**与 LOOP-03 区别**：根因不变、无 simulator morph；测 **verify react 环计数器**。
+
+**不测 real LLM（设计说明）**：
+
+| 项 | 说明 |
+|----|------|
+| **测什么** | `verify_remediation` 未恢复 → `retrieve_runbooks` → diagnose → decide → … 直到 `remediation_attempt == max_remediation_attempts` |
+| **不测什么** | real LLM 在重试时是否重复同一工具、是否提前 `out_of_scope` / `uncertain` |
+| **为何无 runner** | `DECIDE_RETRY_GUIDANCE` 禁止重复同一 write tool；同根因同遥测下 real LLM 更可能提前 OOS/uncertain（`attempt=1`），与「同工具 ×3 耗尽」的 mock oracle 不一致 |
+| **mock 刻意行为** | `mock_row_for_state` 每轮仍返回 `patch_config`（无视 retry guidance），配合 `block_remediation` 让 verify 恒失败 |
+| **权威测试** | `make test-graph` → `test_loop_01_retry_exhausted_without_resolution` |
+
+**不应做**：在 `run_scenarios.py` 增加 LOOP-01 real LLM 表征并断言 `attempt=3`（会与 prompt 策略冲突）。
 
 ---
 
@@ -185,24 +197,38 @@ triage → retrieve_runbooks → diagnose
 
 ---
 
-### LOOP-03 · Morph 不可恢复耗尽
+### LOOP-03 · 分层故障 react 耗尽
 
-**输入**：simulator `ecomm-manager-chaos-exhaust`。
+**输入**：simulator `ecomm-manager-cascade-exhaust`；mock key `cascade-exhaust`。
+
+每层症状对应**标准单篇 runbook**（非 chaos 剧本文档）：
+
+| 层 | 遥测特征 | Runbook | 工具 |
+|----|----------|---------|------|
+| 1 | `admin_api_qps` 低、限流日志 | `ecomm-manager-rate-limit` | `patch_config` |
+| 2 | `error_rate` 高、NPE / `promotion-v2` | `ecomm-manager-feature-flag` | `toggle_feature_flag` |
+| 3 | `disk_usage_percent` 高、ENOSPC | `ecomm-manager-disk-full` | `cleanup_storage` |
+| 末态 | `too many open files` | `ecomm-manager-connection-leak` | （第 3 轮 write 后为 CONN_LEAK；`attempt=3` 耗尽） |
 
 | Step | 节点链 | 关键 state / response |
 |------|--------|------------------------|
-| 1 | write `patch_config` | morph REVEALED |
-| 2..3 | approve → toggle / 再轮 | eval: `resolved=false` |
+| 1 | write `patch_config` | 进入 FEATURE_FLAG 层 |
+| 2 | approve → `toggle_feature_flag` | 进入 DISK_FULL 层 |
+| 3 | approve → `cleanup_storage` | 进入 CONN_LEAK 层；verify `resolved=false` |
 | 末 | summarize | `remediation_attempt=3`, `incident_resolved=false` |
-| — | simulator | 始终 `BROKEN`, `recoverable=false` |
+| — | simulator | `phase=BROKEN`, `fault_layer=CONN_LEAK`, `recoverable=false` |
+
+**与 LOOP-02 区别**：LOOP-02 仅两层且最终 `RECOVERED`；LOOP-03 三层 write + 末态连接泄漏，永不恢复。
+
+**与 DEC-02 区别**：DEC-02 为 morph + early `out_of_scope`（simulator `chaos-oos` 仍保留）；LOOP-03 每层均为 catalog actionable。
 
 ```mermaid
 stateDiagram-v2
-    [*] --> PhaseA: 告警 QPS 低
-    PhaseA --> PhaseB: patch_config OK
-    PhaseB --> Retry: toggle 仍失败
-    Retry --> Retry: attempt < 3
-    Retry --> Summarize: attempt = 3
+    [*] --> L1: RATE_LIMIT
+    L1 --> L2: patch_config OK
+    L2 --> L3: toggle OK
+    L3 --> L4: cleanup OK
+    L4 --> Summarize: attempt = 3
     Summarize --> [*]: incident_resolved=false
 ```
 
@@ -351,7 +377,9 @@ retrieve / rubric 选错 runbook（如 crashloop vs memory-leak）。
 
 ## run_scenarios 观测字段
 
-`scripts/run_scenarios.py` 每步输出 JSON 结构，便于 LangSmith / 日志对照：
+**默认 stdout**：紧凑摘要（`all_passed`、`report_path`、`scenarios[]` 每场景 `passed` / `elapsed_s` / 末步 `status` 等），**不含**逐步 `steps`。完整逐步 JSON 写入 `data/scenario_runs/run_scenarios_<utc>.json`（已 gitignore）。需要旧行为时加 `--full-json`；自定义路径用 `--report PATH`。
+
+报告文件内每步 JSON 结构，便于 LangSmith / 日志对照：
 
 | 字段 | 位置 | 说明 |
 |------|------|------|
@@ -427,12 +455,28 @@ CHECKPOINTER=memory .venv/bin/python scripts/run_scenarios.py
 CHECKPOINTER=memory .venv/bin/python scripts/run_scenarios.py --mock-llm --scenarios all
 
 # Simulator 状态机单测
-cd ops-backend-simulator && python3 -m pytest tests/test_chaos_exhaust.py tests/test_chaos_oos.py -q
+cd ops-backend-simulator && python3 -m pytest tests/test_cascade_exhaust.py tests/test_chaos_oos.py -q
 ```
 
 ---
 
 ## 变更记录
+
+### 2026-07-07 · run_scenarios 默认紧凑 stdout + 报告文件
+
+- 默认 stdout 仅 `all_passed` + `report_path` + 每场景摘要；完整 `steps` 写入 `data/scenario_runs/`。
+- `--full-json` 恢复逐步 JSON 打到 stdout；`--report PATH` 自定义报告路径。
+
+### 2026-07-07 · LOOP-03 分层场景 + 移除 chaos runbook
+
+- LOOP-03 绑定 simulator `ecomm-manager-cascade-exhaust`（四层遥测、三层 write、标准 runbook 序列）。
+- 删除 KB 中 `ecomm-manager-chaos-{exhaust,morph,oos}.md`；移除 golden `easy-chaos-morph-01`。
+- LOOP-02/DEC-02 仍使用 `chaos-morph` / `chaos-oos` simulator（无 chaos 专篇 runbook）。
+
+### 2026-07-07 · LOOP-01 明确仅 mock 图契约、不测 real LLM
+
+- §LOOP-01 补充设计说明：无 `run_scenarios` runner；mock 故意同工具 ×3 以测 react 计数器；与 `DECIDE_RETRY_GUIDANCE` 在 real LLM 下的行为刻意分离。
+- 场景总览表与 §测试分层脚注：LOOP-01 从「DEC/LOOP real LLM」集合中排除。
 
 ### 2026-07-03 · KB 场景表征分工文档化
 

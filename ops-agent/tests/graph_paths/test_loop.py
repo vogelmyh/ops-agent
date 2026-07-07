@@ -7,7 +7,11 @@ from app.schemas import IncidentInput
 
 
 def test_loop_01_retry_exhausted_without_resolution(thread_values):
-    """LOOP-01: write succeeds but telemetry blocked → exhaust max attempts."""
+    """LOOP-01: mock-only graph contract — verify react loop exhausts (see test-scenario-trajectories §LOOP-01).
+
+    Intentionally repeats patch_config each round (mock oracle ignores DECIDE_RETRY_GUIDANCE).
+    Not a real-LLM characterization scenario.
+    """
     block_remediation("ecomm-manager")
 
     incident = IncidentInput(
@@ -71,8 +75,8 @@ def test_loop_02_morph_recovers_via_two_tools(chaos_morph_env, thread_values, re
     assert sim_after.get("phase") == "RECOVERED"
 
 
-def test_loop_03_exhaust_never_resolves(chaos_exhaust_env, thread_values, resume_until_approved):
-    """LOOP-03: morph after patch; 3 rounds; incident stays unresolved."""
+def test_loop_03_exhaust_never_resolves(cascade_exhaust_env, thread_values, resume_until_approved):
+    """LOOP-03: cascade layers after each write; 3 rounds; incident stays unresolved."""
     incident = IncidentInput(
         service="ecomm-manager",
         description="【P1】ecomm-manager 商家后台 admin_api_qps 较基线下降超 80%，持续 15 分钟",
@@ -91,6 +95,7 @@ def test_loop_03_exhaust_never_resolves(chaos_exhaust_env, thread_values, resume
     assert len(history) == 3
     assert all(not h["resolved"] for h in history)
 
-    admin = chaos_exhaust_env.get("/admin/state").json()
+    admin = cascade_exhaust_env.get("/admin/state").json()
     assert admin.get("phase") == "BROKEN"
+    assert admin["details"].get("fault_layer") == "CONN_LEAK"
     assert admin["details"].get("recoverable") is False
