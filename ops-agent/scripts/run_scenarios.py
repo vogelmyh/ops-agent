@@ -118,10 +118,6 @@ def _reset_caches() -> None:
     rt.reset_scenario_caches()
 
 
-def _start_simulator() -> None:
-    rt.start_simulator()
-
-
 def _pending_meta(thread_id: str) -> dict[str, Any]:
     return rt.pending_meta(thread_id)
 
@@ -352,15 +348,11 @@ def check_dec_01_passed(
 
 def run_dec_01() -> dict[str, Any]:
     """DEC-01: static out_of_scope (discount-bug)."""
-    _start_simulator()
-    os.environ["BACKEND_MODE"] = "real"
-    os.environ["BACKEND_BASE_URL"] = f"http://127.0.0.1:{SIM_PORT}"
-    _reset_caches()
-    set_mock_scenario("ecomm-manager", "discount-bug")
-
-    client = httpx.Client(base_url=f"http://127.0.0.1:{SIM_PORT}", timeout=120.0)
-    client.post("/admin/scenario/ecomm-manager-discount-bug").raise_for_status()
-    client.post("/admin/reset").raise_for_status()
+    client = _prepare_sim(
+        "ecomm-manager-discount-bug",
+        mock_service="ecomm-manager",
+        mock_scenario="discount-bug",
+    )
     sim_before = client.get("/admin/state").json()
 
     incident = IncidentInput(
@@ -380,15 +372,11 @@ def run_dec_01() -> dict[str, Any]:
 
 def run_loop_02() -> dict[str, Any]:
     """LOOP-02: chaos-morph recoverable react loop (real LLM characterization)."""
-    _start_simulator()
-    os.environ["BACKEND_MODE"] = "real"
-    os.environ["BACKEND_BASE_URL"] = f"http://127.0.0.1:{SIM_PORT}"
-    _reset_caches()
-    set_mock_scenario("ecomm-manager", "chaos-morph")
-
-    client = httpx.Client(base_url=f"http://127.0.0.1:{SIM_PORT}", timeout=120.0)
-    client.post("/admin/scenario/ecomm-manager-chaos-morph").raise_for_status()
-    client.post("/admin/reset").raise_for_status()
+    client = _prepare_sim(
+        "ecomm-manager-chaos-morph",
+        mock_service="ecomm-manager",
+        mock_scenario="chaos-morph",
+    )
 
     incident = IncidentInput(
         service="ecomm-manager",
@@ -427,15 +415,11 @@ def run_loop_02() -> dict[str, Any]:
 
 def run_loop_03() -> dict[str, Any]:
     """LOOP-03: cascade-exhaust — layered faults, never recovers."""
-    _start_simulator()
-    os.environ["BACKEND_MODE"] = "real"
-    os.environ["BACKEND_BASE_URL"] = f"http://127.0.0.1:{SIM_PORT}"
-    _reset_caches()
-    set_mock_scenario("ecomm-manager", "cascade-exhaust")
-
-    client = httpx.Client(base_url=f"http://127.0.0.1:{SIM_PORT}", timeout=120.0)
-    client.post("/admin/scenario/ecomm-manager-cascade-exhaust").raise_for_status()
-    client.post("/admin/reset").raise_for_status()
+    client = _prepare_sim(
+        "ecomm-manager-cascade-exhaust",
+        mock_service="ecomm-manager",
+        mock_scenario="cascade-exhaust",
+    )
 
     incident = IncidentInput(
         service="ecomm-manager",
@@ -462,15 +446,11 @@ def run_loop_03() -> dict[str, Any]:
 
 def run_dec_02() -> dict[str, Any]:
     """DEC-02: chaos-oos early out_of_scope."""
-    _start_simulator()
-    os.environ["BACKEND_MODE"] = "real"
-    os.environ["BACKEND_BASE_URL"] = f"http://127.0.0.1:{SIM_PORT}"
-    _reset_caches()
-    set_mock_scenario("ecomm-manager", "chaos-oos")
-
-    client = httpx.Client(base_url=f"http://127.0.0.1:{SIM_PORT}", timeout=120.0)
-    client.post("/admin/scenario/ecomm-manager-chaos-oos").raise_for_status()
-    client.post("/admin/reset").raise_for_status()
+    client = _prepare_sim(
+        "ecomm-manager-chaos-oos",
+        mock_service="ecomm-manager",
+        mock_scenario="chaos-oos",
+    )
 
     incident = IncidentInput(
         service="ecomm-manager",
@@ -499,6 +479,8 @@ SCENARIO_RUNNERS: dict[str, Callable[[], dict[str, Any]]] = {
     "LOOP-03": run_loop_03,
     "DEC-02": run_dec_02,
 }
+
+SIMULATOR_SCENARIO_IDS = frozenset({"DEC-01", "LOOP-02", "LOOP-03", "DEC-02"})
 
 DEFAULT_SCENARIOS = ("KB-01", "DEC-01")
 
@@ -558,7 +540,14 @@ def main() -> None:
         build_graph.cache_clear()
     selected = list(SCENARIO_RUNNERS.keys()) if "all" in args.scenarios else args.scenarios
 
-    results = [SCENARIO_RUNNERS[sid]() for sid in selected]
+    def _run_all() -> list[dict[str, Any]]:
+        return [SCENARIO_RUNNERS[sid]() for sid in selected]
+
+    if any(sid in SIMULATOR_SCENARIO_IDS for sid in selected):
+        with rt.SimulatorSession():
+            results = _run_all()
+    else:
+        results = _run_all()
     report_path = Path(args.report) if args.report else _default_report_path()
     _write_report(results, report_path)
     if args.full_json:

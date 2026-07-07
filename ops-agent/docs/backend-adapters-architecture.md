@@ -171,4 +171,5 @@ BACKEND_MODE=real BACKEND_BASE_URL=http://127.0.0.1:8081 \
 
 ## 10. 版本注记
 
+- **2026-07-07**：`scripts/scenario_runtime.SimulatorSession`：`run_demo` / `run_scenarios` / `graph_paths` 单次运行内复用同一 simulator 进程，act 间 `admin/scenario` + `reset`。
 - **2026-07-07**：LOOP-03 改用 `ecomm-manager-cascade-exhaust` simulator；mock key `cascade-exhaust`；移除 `chaos-exhaust` 绑定。
