@@ -34,7 +34,7 @@ diagnose
 
 ### 2.1 decide 输入输出
 
-- **输入**：`root_cause`, `evidence`, `relevant_runbook`, `novel_scenario`, `collected_data`（信任上游 diagnose，不重复校验诊断置信）
+- **输入**：`root_cause`, `evidence`, `relevant_runbook`, `runbook_available`, `collected_data`（信任上游 diagnose，不重复校验诊断置信）
 - **输出**：`decision_class`, `decide_outcome`, `escalation_hint`, `recommendations`, `knowledge_gaps`
 - **实现**：`app/graph/nodes/decide.py` + `app/graph/decide_spec.py`（mock LLM 结构化输出）
 
@@ -44,7 +44,7 @@ diagnose
 
 - 任一 **HIGH** 风险工具（如 `rollback_deployment`）
 - `remediation_attempt >= 1` 且仍未 `incident_resolved`
-- `novel_scenario` 为真（KB 无覆盖时所有写操作需人审）
+- `runbook_available=false`（KB 无覆盖时所有写操作需人审）
 
 路由与审批以 `confidence_sufficient` 为准；`needs_human_review` 已删除（与前者冗余）。
 
@@ -105,7 +105,7 @@ diagnose
 ### 6.1 本组件测什么
 
 - **decide 三分支**：mock LLM 固定 `decide_outcome` 后是否进入 summarize / approve / write_tools
-- **审批**：HIGH 风险工具、`novel_scenario`、二次修复未恢复时是否 `needs_approval`
+- **审批**：HIGH 风险工具、`runbook_available=false`、二次修复未恢复时是否 `needs_approval`
 - **verify_remediation**：mock 写后遥测下 `incident_resolved` 与 react 回边
 - **LOOP**：混沌 / 不可恢复场景下诚实终止（常与 simulator 或 `mock_remediation` 配合）
 
@@ -125,9 +125,13 @@ diagnose
 # mock LLM 图路径
 .venv/bin/pytest tests/graph_paths/test_rem.py -q
 
-# 真实 LLM + simulator（LOOP 等）
+# mock 图路径 — react 环耗尽（LOOP-01，不测 real LLM）
+CHECKPOINTER=memory LLM_MODE=mock \
+  .venv/bin/pytest tests/graph_paths/test_loop.py::test_loop_01_retry_exhausted_without_resolution -q
+
+# 真实 LLM + simulator（LOOP-03 等；LOOP-01 无 runner，见 test-scenario-trajectories.md §LOOP-01）
 BACKEND_MODE=real BACKEND_BASE_URL=http://127.0.0.1:8081 \
-  .venv/bin/python scripts/run_scenarios.py --scenarios LOOP-01
+  .venv/bin/python scripts/run_scenarios.py --scenarios LOOP-03
 ```
 
 ---
@@ -169,10 +173,14 @@ LLM_MODE=real .venv/bin/python eval/run_eval.py   # 可选，需 API key
 
 ## 10. 版本注记
 
+- **2026-07-07**：LOOP-03 改为 `cascade-exhaust` 分层场景；删除 3 篇 chaos runbook；mock 矩阵按 `remediation_attempt` 映射 rate-limit / feature-flag / disk-full。
+- **2026-07-07**：文档修正 §6 示例：移除不存在的 `run_scenarios LOOP-01`；LOOP-01 仅 `graph_paths` mock 契约（见 `test-scenario-trajectories.md` §LOOP-01）。
+- **2026-07-07**：decide assessment prompt 收紧：明确 JSON 契约（`outcome` + 非空 `reasoning`）、禁止 `tool`/`parameters` 等 step2 字段；runbook 路径说明处置章节仅供分类参考，避免 DeepSeek 在 actionable 时合并 tool_select。
 - **2026-07-03**：`coerce_decide_assessment` 增加 `assessment` / `verdict` / `result` 别名与嵌套 dict 解包；outcome 字符串前缀归一化，修复 real LLM decide 节点 `Field required: outcome` 崩溃。
 - **2026-07-02**：删除纯观测字段 `needs_human_review`（路由已由 `confidence_sufficient` 承担）。
 - **2026-07-01**：图节点 `eval_remediation` 重命名为 **`verify_remediation`**；state 字段 `remediation_verify_reasoning`（别名兼容 `remediation_eval_reasoning`）。
-- **2026-07-01**：审批策略：`novel_scenario` 触发 approve；移除 `needs_human_review` 审批项。decide assessment 仅 `actionable | out_of_scope`（`uncertain` 仅 tool_select 代码降级）；decide 输入与 §6.1 测试说明已同步。
+- **2026-07-01**：字段重命名 `novel_scenario` → `runbook_available`（语义取反）；`novel_reason` → `runbook_unavailable_reason`。diagnose runbook 路径跳过 confidence LLM；decide 拆 runbook/explore 双模板（探索路径不传 runbook）。
+- **2026-07-01**：审批策略：`runbook_available=false` 触发 approve；移除 `needs_human_review` 审批项。decide assessment 仅 `actionable | out_of_scope`（`uncertain` 仅 tool_select 代码降级）；decide 输入与 §6.1 测试说明已同步。
 - **2026-06-30**：`RemediationEvalAssessment` 增加 `coerce_remediation_eval_assessment()`（缺省 `reasoning`、别名 `resolved`/`residual_symptoms` 归一化），修复 DeepSeek `json_mode` 下 `eval_remediation` 节点字段漂移硬崩。
 - **2026-06-30**：`DecideAssessment` 增加 `coerce_decide_assessment()`（`classification`→`outcome`、列表字段与缺省 `reasoning` 归一化），修复 DeepSeek `json_mode` 下 decide 节点字段漂移硬崩。DEC-01 场景断言见 [`test-scenario-trajectories.md`](test-scenario-trajectories.md) §变更记录。
 - **2026-06-30**：`invoke_structured()` 对 DeepSeek chat 使用 `json_mode` + thinking 关闭；`decide` / `eval_remediation` / `diagnose` 经此入口自动受益。详见 [`api-runtime-architecture.md`](api-runtime-architecture.md) §5.1、§10。

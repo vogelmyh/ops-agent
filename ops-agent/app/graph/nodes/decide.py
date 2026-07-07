@@ -2,16 +2,21 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from app.config import get_settings
 from app.graph.decide_spec import (
-    ASSESSMENT_HUMAN_TEMPLATE,
-    ASSESSMENT_SYSTEM_PROMPT,
+    ASSESSMENT_EXPLORE_HUMAN_TEMPLATE,
+    ASSESSMENT_EXPLORE_SYSTEM_PROMPT,
+    ASSESSMENT_RUNBOOK_HUMAN_TEMPLATE,
+    ASSESSMENT_RUNBOOK_SYSTEM_PROMPT,
     DecideAssessment,
     DecideOutcome,
-    TOOL_SELECT_HUMAN_TEMPLATE,
-    TOOL_SELECT_SYSTEM_PROMPT,
+    TOOL_SELECT_EXPLORE_HUMAN_TEMPLATE,
+    TOOL_SELECT_EXPLORE_SYSTEM_PROMPT,
+    TOOL_SELECT_RUNBOOK_HUMAN_TEMPLATE,
+    TOOL_SELECT_RUNBOOK_SYSTEM_PROMPT,
     build_tool_call,
     mock_row_for_state,
 )
 from app.graph.remediation_context import DECIDE_RETRY_GUIDANCE, format_remediation_context
+from app.graph.runbook_excerpt import excerpt_runbook
 from app.graph.state import AgentState
 from app.llm.provider import get_chat_model, invoke_structured
 from app.schemas import DecisionClass
@@ -35,6 +40,13 @@ def _remediation_context_for_decide(state: AgentState) -> str:
     return block or "(none)"
 
 
+def _runbook_excerpt_for_prompt(state: AgentState) -> str:
+    raw = state.get("relevant_runbook")
+    if not raw:
+        return "(none)"
+    return excerpt_runbook(raw)[:800]
+
+
 def _run_assessment(state: AgentState, settings) -> DecideAssessment:
     service = state["service"]
     if settings.llm_is_mock:
@@ -47,20 +59,32 @@ def _run_assessment(state: AgentState, settings) -> DecideAssessment:
             escalation_hint=row.escalation_hint,
         )
 
-    human = ASSESSMENT_HUMAN_TEMPLATE.format(
-        service=service,
-        root_cause=state.get("root_cause", ""),
-        novel_scenario=state.get("novel_scenario"),
-        relevant_runbook=(state.get("relevant_runbook") or "(none)")[:800],
-        evidence=_evidence_text(state),
-        remediation_context=_remediation_context_for_decide(state),
-        write_tools_catalog=format_write_tools_catalog(WRITE_TOOLS),
-    )
+    runbook_available = bool(state.get("runbook_available"))
+    if runbook_available:
+        system_prompt = ASSESSMENT_RUNBOOK_SYSTEM_PROMPT
+        human = ASSESSMENT_RUNBOOK_HUMAN_TEMPLATE.format(
+            service=service,
+            root_cause=state.get("root_cause", ""),
+            relevant_runbook=_runbook_excerpt_for_prompt(state),
+            evidence=_evidence_text(state),
+            remediation_context=_remediation_context_for_decide(state),
+            write_tools_catalog=format_write_tools_catalog(WRITE_TOOLS),
+        )
+    else:
+        system_prompt = ASSESSMENT_EXPLORE_SYSTEM_PROMPT
+        human = ASSESSMENT_EXPLORE_HUMAN_TEMPLATE.format(
+            service=service,
+            root_cause=state.get("root_cause", ""),
+            evidence=_evidence_text(state),
+            remediation_context=_remediation_context_for_decide(state),
+            write_tools_catalog=format_write_tools_catalog(WRITE_TOOLS),
+        )
+
     return invoke_structured(
         get_chat_model(settings=settings),
         DecideAssessment,
         [
-            SystemMessage(content=ASSESSMENT_SYSTEM_PROMPT),
+            SystemMessage(content=system_prompt),
             HumanMessage(content=human),
         ],
         settings=settings,
@@ -82,17 +106,30 @@ def _run_tool_select(
             tool_calls=[build_tool_call(row, service, f"call_mock_{row.tool_name}")],
         )
 
+    runbook_available = bool(state.get("runbook_available"))
+    if runbook_available:
+        system_prompt = TOOL_SELECT_RUNBOOK_SYSTEM_PROMPT
+        human = TOOL_SELECT_RUNBOOK_HUMAN_TEMPLATE.format(
+            service=service,
+            root_cause=state.get("root_cause", ""),
+            assessment_reasoning=assessment.reasoning,
+            relevant_runbook=_runbook_excerpt_for_prompt(state),
+            evidence=_evidence_text(state),
+            remediation_context=_remediation_context_for_decide(state),
+        )
+    else:
+        system_prompt = TOOL_SELECT_EXPLORE_SYSTEM_PROMPT
+        human = TOOL_SELECT_EXPLORE_HUMAN_TEMPLATE.format(
+            service=service,
+            root_cause=state.get("root_cause", ""),
+            assessment_reasoning=assessment.reasoning,
+            evidence=_evidence_text(state),
+            remediation_context=_remediation_context_for_decide(state),
+        )
+
     llm = get_chat_model(settings=settings).bind_tools(WRITE_TOOLS)
-    human = TOOL_SELECT_HUMAN_TEMPLATE.format(
-        service=service,
-        root_cause=state.get("root_cause", ""),
-        assessment_reasoning=assessment.reasoning,
-        relevant_runbook=(state.get("relevant_runbook") or "(none)")[:800],
-        evidence=_evidence_text(state),
-        remediation_context=_remediation_context_for_decide(state),
-    )
     response = llm.invoke([
-        SystemMessage(content=TOOL_SELECT_SYSTEM_PROMPT),
+        SystemMessage(content=system_prompt),
         HumanMessage(content=human),
     ])
     if isinstance(response, AIMessage):

@@ -39,7 +39,7 @@ def test_retrieve_runbooks_node_outputs_retrieval_only():
     assert result["status"] == "runbooks_retrieved"
     assert result.get("symptom_query")
     assert result.get("runbook_candidates")
-    assert "novel_scenario" not in result
+    assert "runbook_available" not in result
     assert "selected_runbook_id" not in result
     assert "match_gate_reason" not in result
     assert "relevant_runbook" not in result

@@ -122,34 +122,107 @@ class DecideAssessment(BaseModel):
         return coerce_decide_assessment(data)
 
 
-ASSESSMENT_SYSTEM_PROMPT = """\
+_ASSESSMENT_OUTPUT_CONTRACT = """\
+## Output contract (assessment step ONLY — no tool execution)
+
+Respond with a **single JSON object**. A separate step selects tools and arguments; do NOT merge steps.
+
+### Required fields
+- **outcome**: exactly one of the allowed values for this path (use `outcome`, not `tool`/`parameters`)
+- **reasoning**: non-empty string — why this outcome; cite root cause + catalog capability (NOT concrete args)
+
+### Forbidden in this step
+Do NOT output: `tool`, `tool_name`, `parameters`, `args`, `tool_calls`, `action`, or any concrete config keys/values.
+Even if the runbook lists remediation steps with tool names, only classify handleability here.
+
+### Examples
+
+actionable (name catalog tool **category** only; no argument values):
+{
+  "outcome": "actionable",
+  "reasoning": "Rate-limit misconfiguration is accepted; write-tool catalog includes patch_config for config remediation (arguments are selected in the next step)."
+}
+
+out_of_scope:
+{
+  "outcome": "out_of_scope",
+  "reasoning": "Root cause is a code defect; no catalog write tool can fix application logic.",
+  "recommendations": ["Escalate to development team for a code fix"],
+  "escalation_hint": "development team"
+}
+"""
+
+_ASSESSMENT_UNCERTAIN_EXAMPLE = """\
+uncertain (explore path only):
+{
+  "outcome": "uncertain",
+  "reasoning": "Telemetry supports multiple competing failure modes; cannot safely infer which write tool applies.",
+  "recommendations": ["Gather more discriminating logs before remediation"],
+  "knowledge_gaps": ["Ambiguous root cause"]
+}
+"""
+
+ASSESSMENT_RUNBOOK_SYSTEM_PROMPT = """\
 You are the handleability assessment module of a cloud ops agent.
 
-The upstream diagnose step has already adopted the root cause. Your sole task: given that root cause, \
-evidence, optional validated runbook, and the **authoritative write-tool catalog**, decide whether \
-catalog tools can remediate this incident.
+The upstream diagnose step has adopted a validated runbook and root cause. Your sole task: \
+given that root cause, evidence, the validated runbook excerpt, and the **authoritative write-tool \
+catalog**, decide whether catalog tools can remediate this incident.
 
 Do NOT select or invoke any tools in this step — output structured assessment only.
-Do NOT re-judge diagnosis confidence, evidence sufficiency, or novel_scenario.
+Do NOT re-judge diagnosis confidence or runbook selection (handled upstream).
+The validated runbook excerpt describes remediation for reference; do NOT copy its tool steps into output.
 
 ## Outcomes (pick exactly one)
 
 ### actionable
-Root cause is accepted AND at least one catalog tool clearly applies with safely inferable parameters.
+Root cause is accepted AND at least one **catalog write-tool type** clearly applies (e.g. config patch, rollback).
+Explain which capability fits in reasoning — do NOT output tool names with arguments.
 
 ### out_of_scope
 Root cause is accepted but **none** of the catalog tools can address it (e.g. code bug, DBA, hardware).
 
 Provide recommendations and escalation_hint for out_of_scope.
 
-Do NOT output uncertain — if parameters are unsafe, still choose out_of_scope with guidance.
-"""
+Do NOT output uncertain — if parameters would be unsafe, still choose out_of_scope with guidance.
 
-ASSESSMENT_HUMAN_TEMPLATE = """\
+""" + _ASSESSMENT_OUTPUT_CONTRACT
+
+ASSESSMENT_EXPLORE_SYSTEM_PROMPT = """\
+You are the handleability assessment module of a cloud ops agent.
+
+No validated runbook is available for this incident. The upstream diagnose step has produced a \
+telemetry-only root cause. Your sole task: given that root cause, evidence, and the \
+**authoritative write-tool catalog**, decide whether catalog tools can remediate this incident.
+
+Do NOT select or invoke any tools in this step — output structured assessment only.
+Do NOT use, cite, or infer from runbook content — none was validated for this incident.
+Do NOT re-judge diagnosis confidence (handled upstream).
+
+## Outcomes (pick exactly one)
+
+### actionable
+Root cause is accepted AND at least one **catalog write-tool type** clearly applies.
+Explain which capability fits in reasoning — do NOT output tool names with arguments.
+
+### out_of_scope
+Root cause is accepted but **none** of the catalog tools can address it (e.g. code bug, DBA, hardware).
+
+### uncertain
+Root cause or evidence is too ambiguous to safely determine which write tool applies.
+
+Provide recommendations and knowledge_gaps for uncertain and out_of_scope.
+
+""" + _ASSESSMENT_OUTPUT_CONTRACT + "\n" + _ASSESSMENT_UNCERTAIN_EXAMPLE
+
+# Backward-compatible alias.
+ASSESSMENT_SYSTEM_PROMPT = ASSESSMENT_RUNBOOK_SYSTEM_PROMPT
+
+ASSESSMENT_RUNBOOK_HUMAN_TEMPLATE = """\
 Service: {service}
 Root cause: {root_cause}
-novel_scenario: {novel_scenario}
-Relevant runbook:
+runbook_available: true
+Validated runbook excerpt:
 {relevant_runbook}
 
 Evidence:
@@ -161,23 +234,58 @@ Available write tools (authoritative catalog for capability assessment — do NO
 {write_tools_catalog}
 """
 
-TOOL_SELECT_SYSTEM_PROMPT = """\
+ASSESSMENT_EXPLORE_HUMAN_TEMPLATE = """\
+Service: {service}
+Root cause: {root_cause}
+runbook_available: false
+
+Evidence:
+{evidence}
+
+{remediation_context}
+
+Available write tools (authoritative catalog for capability assessment — do NOT invoke here):
+{write_tools_catalog}
+"""
+
+# Backward-compatible alias.
+ASSESSMENT_HUMAN_TEMPLATE = ASSESSMENT_RUNBOOK_HUMAN_TEMPLATE
+
+TOOL_SELECT_RUNBOOK_SYSTEM_PROMPT = """\
 You are the remediation execution module of a cloud ops agent.
 
-The previous step classified this incident as actionable. You MUST invoke exactly one \
-appropriate write tool with complete arguments.
+The previous step classified this incident as actionable. A validated runbook is available. \
+You MUST invoke exactly one appropriate write tool with complete arguments.
 - Pick from the bound tools only
+- Use the validated runbook excerpt when inferring tool parameters
 - Do NOT output risk_level (computed by policy from tool name)
 - Do NOT re-run handleability assessment
 - If you cannot safely pick a tool, reply in plain text with the reason and produce NO tool_calls \
 (the system will downgrade to uncertain)
 """
 
-TOOL_SELECT_HUMAN_TEMPLATE = """\
+TOOL_SELECT_EXPLORE_SYSTEM_PROMPT = """\
+You are the remediation execution module of a cloud ops agent.
+
+The previous step classified this incident as actionable. No validated runbook is available. \
+You MUST invoke exactly one appropriate write tool with complete arguments using telemetry and \
+assessment reasoning only.
+- Pick from the bound tools only
+- Do NOT use or cite runbook content
+- Do NOT output risk_level (computed by policy from tool name)
+- Do NOT re-run handleability assessment
+- If you cannot safely pick a tool, reply in plain text with the reason and produce NO tool_calls \
+(the system will downgrade to uncertain)
+"""
+
+# Backward-compatible alias.
+TOOL_SELECT_SYSTEM_PROMPT = TOOL_SELECT_RUNBOOK_SYSTEM_PROMPT
+
+TOOL_SELECT_RUNBOOK_HUMAN_TEMPLATE = """\
 Service: {service}
 Root cause: {root_cause}
 Assessment reasoning: {assessment_reasoning}
-Relevant runbook:
+Validated runbook excerpt:
 {relevant_runbook}
 
 Evidence:
@@ -185,6 +293,20 @@ Evidence:
 
 {remediation_context}
 """
+
+TOOL_SELECT_EXPLORE_HUMAN_TEMPLATE = """\
+Service: {service}
+Root cause: {root_cause}
+Assessment reasoning: {assessment_reasoning}
+
+Evidence:
+{evidence}
+
+{remediation_context}
+"""
+
+# Backward-compatible alias.
+TOOL_SELECT_HUMAN_TEMPLATE = TOOL_SELECT_RUNBOOK_HUMAN_TEMPLATE
 
 
 class MockDecideRow(BaseModel):
@@ -243,6 +365,15 @@ SCENARIO_DECIDE_ROWS: dict[tuple[str, str], MockDecideRow] = {
         reasoning="Disk full on audit log path; runbook supports cleanup_storage.",
         expected_needs_approval=False,
         expected_route="write_tools",
+    ),
+    ("ecomm-manager", "connection-leak"): MockDecideRow(
+        outcome=DecideOutcome.ACTIONABLE,
+        tool_name="restart_pods",
+        tool_args={"strategy": "rolling"},
+        tool_content="HTTP connection leak; rolling restart to clear stale connections.",
+        reasoning="Connection leak detected; runbook recommends restart_pods.",
+        expected_needs_approval=True,
+        expected_route="approve",
     ),
     ("ecomm-order", "crashloop"): MockDecideRow(
         outcome=DecideOutcome.ACTIONABLE,
@@ -347,7 +478,13 @@ def mock_row_for_state(state: dict) -> MockDecideRow:
     service = state["service"]
     scenario = get_mock_scenario(service)
     attempt = state.get("remediation_attempt", 0)
-    if service == "ecomm-manager" and scenario in ("chaos-morph", "chaos-exhaust"):
+    if service == "ecomm-manager" and scenario == "cascade-exhaust":
+        if attempt >= 2:
+            return SCENARIO_DECIDE_ROWS[("ecomm-manager", "disk-full")]
+        if attempt >= 1:
+            return SCENARIO_DECIDE_ROWS[("ecomm-manager", "feature-flag")]
+        return SCENARIO_DECIDE_ROWS[("ecomm-manager", "rate-limit")]
+    if service == "ecomm-manager" and scenario == "chaos-morph":
         if attempt >= 1:
             return SCENARIO_DECIDE_ROWS[("ecomm-manager", "feature-flag")]
         return SCENARIO_DECIDE_ROWS[("ecomm-manager", "rate-limit")]

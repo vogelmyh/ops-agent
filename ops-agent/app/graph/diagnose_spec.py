@@ -131,9 +131,10 @@ class RootCauseDraft(BaseModel):
         return coerce_root_cause_draft(data)
 
 
-RCA_SYSTEM_PROMPT = """\
+RCA_RUNBOOK_SYSTEM_PROMPT = """\
 You are a senior cloud operations engineer.
-Given incident telemetry (and an optional validated runbook excerpt), produce a root cause analysis.
+A validated runbook has been selected for this incident. Produce a root cause analysis
+that aligns with the runbook's diagnosis path and cited telemetry.
 
 Write root_cause in Chinese: 2-4 sentences, cite exact errors/metrics/misconfigurations.
 List evidence items with source, snippet, and ref.
@@ -145,19 +146,40 @@ Example JSON shape:
   "root_cause": "…",
   "evidence": [
     {
-      "source": "app_logs",
-      "snippet": "ERROR discount validation failed",
-      "ref": "query_app_logs:ecomm-manager"
-    },
-    {
-      "source": "metrics",
-      "snippet": "order_amount_error_rate elevated",
-      "ref": "get_metrics:ecomm-manager"
+      "source": "runbook",
+      "snippet": "Validated runbook section excerpt",
+      "ref": "ecomm-manager-rate-limit"
     }
   ]
 }
 Do NOT recommend remediation steps or tool invocations.
 """
+
+RCA_EXPLORE_SYSTEM_PROMPT = """\
+You are a senior cloud operations engineer.
+No validated runbook is available — infer root cause from incident telemetry only.
+
+Write root_cause in Chinese: 2-4 sentences, cite exact errors/metrics/misconfigurations.
+List evidence items with source, snippet, and ref.
+For each evidence item, source MUST be exactly one of these machine tags (no human labels):
+app_logs | k8s_events | status | metrics | streams | operation
+
+Example JSON shape:
+{
+  "root_cause": "…",
+  "evidence": [
+    {
+      "source": "app_logs",
+      "snippet": "ERROR discount validation failed",
+      "ref": "query_app_logs:ecomm-manager"
+    }
+  ]
+}
+Do NOT use or cite runbook content. Do NOT recommend remediation steps or tool invocations.
+"""
+
+# Backward-compatible alias.
+RCA_SYSTEM_PROMPT = RCA_EXPLORE_SYSTEM_PROMPT
 
 
 CONFIDENCE_SYSTEM_PROMPT = """\
@@ -230,7 +252,7 @@ DiagnosisConfidenceRubric = DiagnosisConfidenceAssessment
 
 
 _LOW_CONFIDENCE_SERVICES = frozenset({"ecomm-search", "ecomm-catalog"})
-_HIGH_CONFIDENCE_NOVEL = frozenset({"ecomm-cache"})
+_HIGH_CONFIDENCE_EXPLORE = frozenset({"ecomm-cache"})
 
 
 def _dim(reasoning: str, rating: str) -> DimensionAssessment:
@@ -245,7 +267,7 @@ def mock_confidence_assessment(service: str) -> DiagnosisConfidenceAssessment:
             alternative_excluded=_dim("Competing hypotheses not ruled out.", "FAIL"),
             contradiction_clear=_dim("Minor tension with sparse telemetry.", "FAIL"),
         )
-    if service in _HIGH_CONFIDENCE_NOVEL:
+    if service in _HIGH_CONFIDENCE_EXPLORE:
         return DiagnosisConfidenceAssessment(
             evidence_grounding=_dim("OOM/restart pattern grounded in k8s events.", "PASS"),
             causal_specificity=_dim("OOMKilled + memory limit is specific and testable.", "PASS"),
@@ -261,3 +283,19 @@ def mock_confidence_assessment(service: str) -> DiagnosisConfidenceAssessment:
 
 
 mock_confidence_rubric = mock_confidence_assessment
+
+
+def adopted_runbook_confidence_assessment(doc_id: str) -> DiagnosisConfidenceAssessment:
+    """Synthetic PASS rubric when diagnose adopts a validated runbook (confidence LLM skipped)."""
+    reason = f"Adopted validated runbook {doc_id}; confidence rubric skipped."
+    pass_dim = _dim(reason, "PASS")
+    return DiagnosisConfidenceAssessment(
+        evidence_grounding=pass_dim,
+        causal_specificity=pass_dim,
+        alternative_excluded=pass_dim,
+        contradiction_clear=pass_dim,
+    )
+
+
+def build_adopted_runbook_gate_reason(doc_id: str) -> str:
+    return f"Diagnosis adopted validated runbook {doc_id!r}; confidence rubric skipped."

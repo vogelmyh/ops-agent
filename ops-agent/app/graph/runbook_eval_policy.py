@@ -1,6 +1,10 @@
 """Deprecated shim — use app.graph.runbook_match_policy."""
 
 from app.graph.runbook_match_policy import (  # noqa: F401
+    RUNBOOK_UNAVAILABLE_INVALID_SELECTION,
+    RUNBOOK_UNAVAILABLE_LOW_MATCH,
+    RUNBOOK_UNAVAILABLE_NO_RETRIEVAL,
+    RUNBOOK_UNAVAILABLE_SERVICE_MISMATCH,
     NOVEL_INVALID_SELECTION,
     NOVEL_LOW_MATCH,
     NOVEL_LOW_RELEVANCE,
@@ -26,6 +30,10 @@ build_eval_reasoning = build_match_gate_reason
 rank_candidates_by_relevance = lambda candidates: candidates  # noqa: E731
 
 __all__ = [
+    "RUNBOOK_UNAVAILABLE_INVALID_SELECTION",
+    "RUNBOOK_UNAVAILABLE_LOW_MATCH",
+    "RUNBOOK_UNAVAILABLE_NO_RETRIEVAL",
+    "RUNBOOK_UNAVAILABLE_SERVICE_MISMATCH",
     "NOVEL_INVALID_SELECTION",
     "NOVEL_LOW_MATCH",
     "NOVEL_LOW_RELEVANCE",

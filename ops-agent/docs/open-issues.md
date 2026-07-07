@@ -7,29 +7,11 @@
 
 ## 1. Real LLM 场景表征轨迹不稳定（`run_scenarios.py`）
 
-**状态**：未解决（schema / env 硬崩已修，轨迹断言仍常失败）
+**状态**：部分缓解（2026-07-07 LOOP-03 改为 `cascade-exhaust` 分层场景 + 标准 runbook；DEC/LOOP 仍建议人工抽检）
 
-**现象**（2026-07-03 联跑 `KB-01 KB-02 DEC-01 LOOP-02 LOOP-03 DEC-02`，`LLM_MODE=real`）：
+**历史现象**（2026-07-03 联跑）：DEC-01 `skipped_low_confidence`；LOOP-03 morph 后误 OOS（旧 `chaos-exhaust` 设计）。
 
-| 场景 | 崩溃 | `passed` | 典型原因 |
-|------|------|----------|----------|
-| KB-01/02 | 否 | ✅ | 设计为 mock LLM，非 real 表征 |
-| DEC-01 | 否 | ❌ | `decide_outcome=skipped_low_confidence`，非预期 `out_of_scope` |
-| LOOP-02/03 | 否 | ❌ | 置信度 rubric `alternative_excluded=FAIL` → 跳过 decide，未进入修复环 |
-| DEC-02 | 否 | ❌ | 同上或轨迹未满足断言 |
-
-**根因方向**：
-
-- Real LLM 置信度 rubric（尤其 `alternative_excluded`）偏严，与 mock oracle 行为不一致
-- chaos-morph 场景 Phase A telemetry 与 rate-limit runbook 高度相似，LLM 易给出「足够具体」的 RCA 但 rubric 仍 FAIL
-- DEC-01 discount-bug 静态 OOS 在 real LLM 下可能先被低置信门槛拦截
-
-**可选处理方向**（待你决策）：
-
-1. 调 `CONFIDENCE_SYSTEM_PROMPT`：runbook 四维 PASS 时放宽 `alternative_excluded`
-2. 调 `diagnosis_confidence_threshold` / policy 权重
-3. 为 DEC/LOOP 场景强化 simulator telemetry 区分度
-4. 将 real LLM 表征改为「软断言 + 人工抽检」，与 mock graph_paths 契约分离
+**LOOP-03（2026-07-07 后）**：simulator `ecomm-manager-cascade-exhaust`；每层对应 `rate-limit` / `feature-flag` / `disk-full` runbook；断言 `fault_layer=CONN_LEAK` + `attempt=3`。
 
 **相关文档**：`test-scenario-trajectories.md`、`graph-agent-architecture.md`、`decide-remediation-architecture.md`
 
@@ -78,6 +60,7 @@ KB 测试写回仍会改 runbook 文件；跑 `run_scenarios` KB 场景后注意
 
 | 日期 | 说明 |
 |------|------|
+| 2026-07-07 | LOOP-03 分层场景；删除 chaos runbook；更新 open-issues §1 |
 | 2026-07-03 | 初版：记录 real LLM 场景表征、KB mock 设计、端口占用、checkpoint 警告、脏数据 |
 | 2026-07-03 | #5 脏数据已清理（restore runbooks + 删除 repro 产物） |
 | 2026-07-03 | #2 KB mock smoke 分工已写入 test-scenario-trajectories / run_scenarios --help |

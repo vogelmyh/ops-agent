@@ -94,9 +94,9 @@ Checkpoint 线程 ID：`thread_id`（`app/graph/runner.py`）。
 
 | 概念 | 含义 |
 |------|------|
-| `novel_scenario` | KB 是否覆盖（diagnose coverage 裁决） |
+| `runbook_available` | 是否有可用 runbook（diagnose coverage finalize） |
 | `decide_outcome` | 是否可执行写工具（`actionable` / `skipped_low_confidence` / `uncertain` / `out_of_scope`） |
-| `needs_approval` | 高风险、novel 或二次修复未恢复等策略，不等于不可执行 |
+| `needs_approval` | 高风险、`runbook_available=false` 或二次修复未恢复等策略，不等于不可执行 |
 
 ---
 
@@ -234,7 +234,8 @@ CHECKPOINTER=memory .venv/bin/python scripts/run_scenarios.py --scenarios KB-01 
 ## 9. 版本注记
 
 - **2026-07-01**：命名清理（coverage / verify_remediation）、双轨 RAG 测试（`make test-rag-retrieval` / `test-rag-coverage`）；组件地图与主路径图已同步。
-- **2026-07-01**：主图 `retrieve_runbooks` + `diagnose` 三阶段；KB-01 `skipped_low_confidence`、KB-02 novel approve；`decide_outcome` 枚举已同步。
+- **2026-07-01**：状态字段 `runbook_available` / `runbook_unavailable_reason` 替代 `novel_scenario` / `novel_reason`（布尔语义取反）；diagnose/decide runbook 与探索路径二分见 [`design-pending-diagnose-runbook-split.md`](design-pending-diagnose-runbook-split.md)。
+- **2026-07-01**：主图 `retrieve_runbooks` + `diagnose` 三阶段；KB-01 `skipped_low_confidence`、KB-02 探索路径 approve；`decide_outcome` 枚举已同步。
 - **2026-06-30**：`RemediationEvalAssessment` coerce（`eval_schemas`）修复 DeepSeek `json_mode` 下 `eval_remediation` 缺 `reasoning` 硬崩；见 [`decide-remediation-architecture.md`](decide-remediation-architecture.md) §10。
 - **2026-06-30**：结构化输出 fallback 收紧 + `DecideAssessment` coerce + DEC-01 场景断言对齐 novel 写回链；详见 [`api-runtime-architecture.md`](api-runtime-architecture.md) §10、[`decide-remediation-architecture.md`](decide-remediation-architecture.md) §10、[`test-scenario-trajectories.md`](test-scenario-trajectories.md) §变更记录。
 - **2026-06-30**：推荐 **DeepSeek V4 chat + Qwen embedding**；`invoke_structured()` 供应商分流见 [`api-runtime-architecture.md`](api-runtime-architecture.md) §10、[`rag-architecture-and-tests.md`](rag-architecture-and-tests.md) §9。

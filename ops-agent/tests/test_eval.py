@@ -44,17 +44,17 @@ def _base_state(service: str) -> dict:
     }
 
 
-@pytest.mark.parametrize("service,expected_novel", [
-    ("ecomm-manager", False),
-    ("ecomm-order", False),
-    ("ecomm-catalog", True),
+@pytest.mark.parametrize("service,expected_runbook_available", [
+    ("ecomm-manager", True),
+    ("ecomm-order", True),
+    ("ecomm-catalog", False),
 ])
-def test_eval_runbook_novel_scenario(service, expected_novel):
+def test_eval_runbook_runbook_available(service, expected_runbook_available):
     result = eval_runbook_node(_base_state(service))
-    assert result["novel_scenario"] is expected_novel
+    assert result["runbook_available"] is expected_runbook_available
     assert result["collected_data"]
-    if expected_novel:
-        assert result.get("novel_reason")
+    if not expected_runbook_available:
+        assert result.get("runbook_unavailable_reason")
         assert result.get("match_gate_reason")
     else:
         assert result.get("match_gate_reason")
@@ -74,7 +74,7 @@ def test_diagnose_ecomm_search_low_confidence_skips_decide():
     state = _base_state("ecomm-search")
     state.update(retrieve_runbooks_node(state))
     result = diagnose_node(state)
-    assert result["novel_scenario"] is True
+    assert result["runbook_available"] is False
     assert result["confidence_sufficient"] is False
     assert result["decide_outcome"] == SKIPPED_LOW_CONFIDENCE
 
@@ -83,14 +83,14 @@ def test_diagnose_ecomm_cache_confident_novel():
     state = _base_state("ecomm-cache")
     state.update(retrieve_runbooks_node(state))
     result = diagnose_node(state)
-    assert result["novel_scenario"] is True
+    assert result["runbook_available"] is False
     assert result["confidence_sufficient"] is True
     assert result.get("decide_outcome") is None
 
 
 def test_decide_ecomm_catalog_uncertain():
     state = _base_state("ecomm-catalog")
-    state.update({"root_cause": "目录服务异常", "novel_scenario": True})
+    state.update({"root_cause": "目录服务异常", "runbook_available": False})
     result = decide_node(state)
     assert result["decide_outcome"] == DecideOutcome.UNCERTAIN.value
     assert result["decision_class"] == DecisionClass.UNCERTAIN.value
@@ -107,14 +107,14 @@ def test_decide_ecomm_catalog_uncertain():
 def test_decide_actionable_services(service, scenario, tool_name, decision_class):
     set_mock_scenario(service, scenario)
     state = _base_state(service)
-    state.update({"root_cause": "test root cause", "novel_scenario": False})
+    state.update({"root_cause": "test root cause", "runbook_available": True})
     result = decide_node(state)
     assert result["decide_outcome"] == DecideOutcome.ACTIONABLE.value
     assert result["decision_class"] == decision_class.value
     assert pending_tool_calls(result["messages"])[0]["name"] == tool_name
 
 
-def test_novel_scenario_ecomm_catalog_completes_to_runbook():
+def test_runbook_unavailable_ecomm_catalog_completes_to_runbook():
     from app.graph.runner import (
         resume_runbook_notes,
         resume_runbook_review,
@@ -137,7 +137,7 @@ def test_novel_scenario_ecomm_catalog_completes_to_runbook():
     assert final.status == "completed"
 
 
-def test_policy_novel_requires_approval():
+def test_policy_runbook_unavailable_requires_approval():
     tool_calls = [{"name": "restart_pods", "args": {"service": "ecomm-cache"}}]
-    assert compute_needs_approval({"novel_scenario": True}, tool_calls) is True
-    assert compute_needs_approval({"novel_scenario": False}, tool_calls) is False
+    assert compute_needs_approval({"runbook_available": False}, tool_calls) is True
+    assert compute_needs_approval({"runbook_available": True}, tool_calls) is False

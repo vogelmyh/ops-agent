@@ -15,6 +15,8 @@ import sys
 import threading
 import time
 from contextlib import contextmanager
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Callable
 
 import httpx
@@ -51,8 +53,8 @@ from simulator.app import app as sim_app
 STATE_KEYS = (
     "status",
     "symptom_query",
-    "novel_scenario",
-    "novel_reason",
+    "runbook_available",
+    "runbook_unavailable_reason",
     "match_gate_reason",
     "selected_runbook_id",
     "runbook_candidates",
@@ -77,6 +79,7 @@ STATE_KEYS = (
 )
 
 SIM_PORT = 8081
+SCENARIO_REPORT_DIR = Path(ROOT) / "data" / "scenario_runs"
 _ISOLATED_ENV_KEYS = (
     "LLM_MODE",
     "EMBEDDINGS_PROVIDER",
@@ -157,9 +160,9 @@ def _graph_state(thread_id: str) -> dict[str, Any]:
 def _response_dict(resp) -> dict[str, Any]:
     return {
         "status": resp.status,
-        "novel_scenario": resp.novel_scenario,
+        "runbook_available": resp.runbook_available,
         "symptom_query": resp.symptom_query,
-        "novel_reason": resp.novel_reason,
+        "runbook_unavailable_reason": resp.runbook_unavailable_reason,
         "selected_runbook_id": resp.selected_runbook_id,
         "match_gate_reason": resp.match_gate_reason,
         "root_cause": resp.root_cause,
@@ -224,8 +227,53 @@ def _result(
     }
 
 
+def _scenario_summary_row(result: dict[str, Any]) -> dict[str, Any]:
+    """Compact per-scenario row for stdout (no step payloads)."""
+    last = result["steps"][-1]["response"] if result.get("steps") else {}
+    row: dict[str, Any] = {
+        "scenario_id": result["scenario_id"],
+        "label": result.get("label"),
+        "passed": result["passed"],
+        "backend": result.get("backend"),
+        "llm": result.get("llm"),
+        "elapsed_s": result.get("elapsed_s"),
+        "thread_id": result.get("thread_id"),
+        "status": last.get("status"),
+        "decide_outcome": last.get("decide_outcome"),
+        "incident_resolved": last.get("incident_resolved"),
+        "remediation_attempt": last.get("remediation_attempt"),
+    }
+    for key in ("tools_sequence", "simulator_final"):
+        if key in result:
+            row[key] = result[key]
+    return row
+
+
+def _default_report_path() -> Path:
+    SCENARIO_REPORT_DIR.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    return SCENARIO_REPORT_DIR / f"run_scenarios_{stamp}.json"
+
+
+def _write_report(results: list[dict[str, Any]], report_path: Path) -> None:
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.write_text(
+        json.dumps(results, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+
+def _stdout_summary(results: list[dict[str, Any]], report_path: Path) -> dict[str, Any]:
+    return {
+        "all_passed": all(r["passed"] for r in results),
+        "report_path": str(report_path.resolve()),
+        "scenario_count": len(results),
+        "scenarios": [_scenario_summary_row(r) for r in results],
+    }
+
+
 def run_kb_01() -> dict[str, Any]:
-    """KB-01: novel + low-confidence ecomm-search → skipped_low_confidence → runbook HITL writeback.
+    """KB-01: no runbook + low-confidence ecomm-search → skipped_low_confidence → runbook HITL writeback.
 
     Always runs under mock LLM + mock backend (not real LLM characterization).
     """
@@ -252,15 +300,15 @@ def run_kb_01() -> dict[str, Any]:
             steps.append(_step("3_resume_runbook_review", resp, _pending_meta(thread_id), thread_id))
 
         passed = bool(
-            steps[0]["response"]["novel_scenario"] is True
+            steps[0]["response"]["runbook_available"] is False
             and steps[0]["response"]["decide_outcome"] == "skipped_low_confidence"
             and steps[-1]["graph_state"].get("runbook_saved_path")
         )
-        return _result("KB-01", "novel ambiguous runbook writeback", passed=passed, steps=steps, t0=t0, backend="mock")
+        return _result("KB-01", "explore ambiguous runbook writeback", passed=passed, steps=steps, t0=t0, backend="mock")
 
 
 def run_kb_02() -> dict[str, Any]:
-    """KB-02: novel + clear OOM pattern ecomm-cache → approve → fix → runbook writeback.
+    """KB-02: no runbook + clear OOM pattern ecomm-cache → approve → fix → runbook writeback.
 
     Always runs under mock LLM + mock backend (not real LLM characterization).
     """
@@ -292,12 +340,12 @@ def run_kb_02() -> dict[str, Any]:
 
         resolved = any(s["response"].get("incident_resolved") for s in steps)
         passed = bool(
-            steps[0]["response"]["novel_scenario"] is True
+            steps[0]["response"]["runbook_available"] is False
             and steps[0]["response"]["decide_outcome"] == "actionable"
             and resolved
             and steps[-1]["graph_state"].get("runbook_saved_path")
         )
-        return _result("KB-02", "novel actionable then runbook writeback", passed=passed, steps=steps, t0=t0, backend="mock")
+        return _result("KB-02", "explore actionable then runbook writeback", passed=passed, steps=steps, t0=t0, backend="mock")
 
 
 def check_dec_01_passed(
@@ -310,9 +358,9 @@ def check_dec_01_passed(
     """DEC-01 pass criteria aligned with graph routing (builder._route_after_summarize).
 
     Core: discount-bug → decide out_of_scope, no writes, simulator stays BROKEN.
-    Terminal status depends on novel_scenario:
-    - novel=true  → summarize then request_runbook_notes (awaiting_runbook_notes)
-    - novel=false → summarize then END (completed)
+    Terminal status depends on runbook_available:
+    - runbook_available=false → summarize then request_runbook_notes (awaiting_runbook_notes)
+    - runbook_available=true  → summarize then END (completed)
     """
     core = (
         resp.decide_outcome == "out_of_scope"
@@ -322,7 +370,7 @@ def check_dec_01_passed(
     )
     if not core:
         return False
-    if resp.novel_scenario:
+    if not resp.runbook_available:
         return (
             resp.status == "awaiting_runbook_notes"
             and meta.get("pending_node") == "request_runbook_notes"
@@ -389,7 +437,7 @@ def run_loop_02() -> dict[str, Any]:
     history = steps[-1]["graph_state"].get("remediation_history") or []
     tools = [t for h in history for t in (h.get("tools_attempted") or [])]
     passed = bool(
-        steps[0]["response"]["novel_scenario"] is False
+        steps[0]["response"]["runbook_available"] is True
         and "patch_config" in tools
         and resp.incident_resolved is True
         and sim_final.get("phase") == "RECOVERED"
@@ -407,15 +455,15 @@ def run_loop_02() -> dict[str, Any]:
 
 
 def run_loop_03() -> dict[str, Any]:
-    """LOOP-03: chaos-exhaust — never recovers."""
+    """LOOP-03: cascade-exhaust — layered faults, never recovers."""
     _start_simulator()
     os.environ["BACKEND_MODE"] = "real"
     os.environ["BACKEND_BASE_URL"] = f"http://127.0.0.1:{SIM_PORT}"
     _reset_caches()
-    set_mock_scenario("ecomm-manager", "chaos-exhaust")
+    set_mock_scenario("ecomm-manager", "cascade-exhaust")
 
     client = httpx.Client(base_url=f"http://127.0.0.1:{SIM_PORT}", timeout=120.0)
-    client.post("/admin/scenario/ecomm-manager-chaos-exhaust").raise_for_status()
+    client.post("/admin/scenario/ecomm-manager-cascade-exhaust").raise_for_status()
     client.post("/admin/reset").raise_for_status()
 
     incident = IncidentInput(
@@ -436,8 +484,9 @@ def run_loop_03() -> dict[str, Any]:
         and resp.incident_resolved is False
         and resp.remediation_attempt == get_settings().max_remediation_attempts
         and sim_after.get("phase") == "BROKEN"
+        and sim_after.get("details", {}).get("fault_layer") == "CONN_LEAK"
     )
-    return _result("LOOP-03", "chaos-exhaust", passed=passed, steps=steps, t0=t0, backend="simulator")
+    return _result("LOOP-03", "cascade-exhaust", passed=passed, steps=steps, t0=t0, backend="simulator")
 
 
 def run_dec_02() -> dict[str, Any]:
@@ -520,6 +569,17 @@ def main() -> None:
         action="store_true",
         help="Force LLM_MODE=mock for DEC/LOOP runners (KB runners always mock regardless)",
     )
+    parser.add_argument(
+        "--full-json",
+        action="store_true",
+        help="Print full step JSON to stdout (default: compact summary + report file)",
+    )
+    parser.add_argument(
+        "--report",
+        metavar="PATH",
+        default=None,
+        help=f"Write full step JSON to PATH (default: {SCENARIO_REPORT_DIR}/run_scenarios_<utc>.json)",
+    )
     args = parser.parse_args()
     if args.mock_llm:
         _apply_ci_mock_env()
@@ -528,7 +588,12 @@ def main() -> None:
     selected = list(SCENARIO_RUNNERS.keys()) if "all" in args.scenarios else args.scenarios
 
     results = [SCENARIO_RUNNERS[sid]() for sid in selected]
-    print(json.dumps(results, ensure_ascii=False, indent=2))
+    report_path = Path(args.report) if args.report else _default_report_path()
+    _write_report(results, report_path)
+    if args.full_json:
+        print(json.dumps(results, ensure_ascii=False, indent=2))
+    else:
+        print(json.dumps(_stdout_summary(results, report_path), ensure_ascii=False, indent=2))
     if not all(r["passed"] for r in results):
         sys.exit(1)
 

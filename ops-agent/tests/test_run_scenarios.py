@@ -6,6 +6,7 @@ import json
 import os
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -80,8 +81,8 @@ def test_compact_runbook_candidates_omits_full_content():
 def test_rag_snapshot_from_state():
     snap = rag_snapshot_from_state({
         "symptom_query": "ecomm-order BackOff CrashLoop",
-        "novel_scenario": False,
-        "novel_reason": None,
+        "runbook_available": True,
+        "runbook_unavailable_reason": None,
         "selected_runbook_id": "ecomm-order-crashloop",
         "match_gate_reason": "matched crashloop",
         "relevant_runbook": "# CrashLoop\n\n## 症状\nBackOff",
@@ -111,8 +112,8 @@ def test_run_kb_01_mock_scenario_runner():
     step0 = result["steps"][0]
     assert step0["thread_id"]
     assert "rag" in step0
-    assert step0["rag"]["novel_scenario"] is True
-    assert step0["rag"].get("novel_reason")
+    assert step0["rag"]["runbook_available"] is False
+    assert step0["rag"].get("runbook_unavailable_reason")
     assert step0["rag"].get("match_gate_reason")
     assert step0["response"]["symptom_query"]
     assert step0["response"]["decide_outcome"] == "skipped_low_confidence"
@@ -127,7 +128,7 @@ def test_run_kb_02_mock_scenario_runner():
     result = run_kb_02()
     assert result["passed"] is True
     rag = result["steps"][0]["rag"]
-    assert rag["novel_scenario"] is True
+    assert rag["runbook_available"] is False
     assert result["steps"][0]["response"]["decide_outcome"] == "actionable"
     assert result["steps"][0]["response"]["confidence_sufficient"] is True
 
@@ -149,7 +150,11 @@ def test_run_scenarios_cli_mock_llm_kb01():
         },
     )
     assert proc.returncode == 0, proc.stderr
-    payload = json.loads(proc.stdout)
+    summary = json.loads(proc.stdout)
+    assert summary["all_passed"] is True
+    report_path = summary["report_path"]
+    assert os.path.isfile(report_path)
+    payload = json.loads(Path(report_path).read_text(encoding="utf-8"))
     assert payload[0]["scenario_id"] == "KB-01"
     assert payload[0]["passed"] is True
     assert payload[0]["llm"] == "mock"
@@ -194,14 +199,16 @@ def test_run_scenarios_cli_mock_llm_all():
         },
     )
     assert proc.returncode == 0, proc.stderr or proc.stdout
-    payload = json.loads(proc.stdout)
+    summary = json.loads(proc.stdout)
+    assert summary["all_passed"] is True
+    payload = json.loads(Path(summary["report_path"]).read_text(encoding="utf-8"))
     assert len(payload) == 6
     assert all(row["passed"] for row in payload), [
         (row["scenario_id"], row["passed"]) for row in payload if not row["passed"]
     ]
 
 
-def test_check_dec_01_passed_novel_hitl_path():
+def test_check_dec_01_passed_runbook_unavailable_hitl_path():
     from types import SimpleNamespace
 
     from scripts.run_scenarios import check_dec_01_passed
@@ -209,7 +216,7 @@ def test_check_dec_01_passed_novel_hitl_path():
     resp = SimpleNamespace(
         decide_outcome="out_of_scope",
         execution_results=[],
-        novel_scenario=True,
+        runbook_available=False,
         status="awaiting_runbook_notes",
     )
     meta = {"pending_node": "request_runbook_notes", "pending_interrupt": True}
@@ -218,7 +225,7 @@ def test_check_dec_01_passed_novel_hitl_path():
     assert check_dec_01_passed(resp, meta, sim_before=sim_before, sim_after=sim_after)
 
 
-def test_check_dec_01_passed_completed_when_not_novel():
+def test_check_dec_01_passed_completed_when_runbook_available():
     from types import SimpleNamespace
 
     from scripts.run_scenarios import check_dec_01_passed
@@ -226,7 +233,7 @@ def test_check_dec_01_passed_completed_when_not_novel():
     resp = SimpleNamespace(
         decide_outcome="out_of_scope",
         execution_results=[],
-        novel_scenario=False,
+        runbook_available=True,
         status="completed",
     )
     meta = {"pending_interrupt": False, "pending_node": None}
@@ -235,7 +242,7 @@ def test_check_dec_01_passed_completed_when_not_novel():
     )
 
 
-def test_check_dec_01_fails_when_novel_but_completed_status():
+def test_check_dec_01_fails_when_runbook_unavailable_but_completed_status():
     from types import SimpleNamespace
 
     from scripts.run_scenarios import check_dec_01_passed
@@ -243,7 +250,7 @@ def test_check_dec_01_fails_when_novel_but_completed_status():
     resp = SimpleNamespace(
         decide_outcome="out_of_scope",
         execution_results=[],
-        novel_scenario=True,
+        runbook_available=False,
         status="completed",
     )
     meta = {"pending_node": None, "pending_interrupt": False}
