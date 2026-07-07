@@ -169,6 +169,7 @@ LLM_MODE=real .venv/bin/python eval/run_eval.py   # 可选，需 API key
 
 ## 10. 版本注记
 
+- **2026-07-07**：decide assessment prompt 收紧：明确 JSON 契约（`outcome` + 非空 `reasoning`）、禁止 `tool`/`parameters` 等 step2 字段；runbook 路径说明处置章节仅供分类参考，避免 DeepSeek 在 actionable 时合并 tool_select。
 - **2026-07-03**：`coerce_decide_assessment` 增加 `assessment` / `verdict` / `result` 别名与嵌套 dict 解包；outcome 字符串前缀归一化，修复 real LLM decide 节点 `Field required: outcome` 崩溃。
 - **2026-07-02**：删除纯观测字段 `needs_human_review`（路由已由 `confidence_sufficient` 承担）。
 - **2026-07-01**：图节点 `eval_remediation` 重命名为 **`verify_remediation`**；state 字段 `remediation_verify_reasoning`（别名兼容 `remediation_eval_reasoning`）。
