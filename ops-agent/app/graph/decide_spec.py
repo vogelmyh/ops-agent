@@ -122,6 +122,46 @@ class DecideAssessment(BaseModel):
         return coerce_decide_assessment(data)
 
 
+_ASSESSMENT_OUTPUT_CONTRACT = """\
+## Output contract (assessment step ONLY — no tool execution)
+
+Respond with a **single JSON object**. A separate step selects tools and arguments; do NOT merge steps.
+
+### Required fields
+- **outcome**: exactly one of the allowed values for this path (use `outcome`, not `tool`/`parameters`)
+- **reasoning**: non-empty string — why this outcome; cite root cause + catalog capability (NOT concrete args)
+
+### Forbidden in this step
+Do NOT output: `tool`, `tool_name`, `parameters`, `args`, `tool_calls`, `action`, or any concrete config keys/values.
+Even if the runbook lists remediation steps with tool names, only classify handleability here.
+
+### Examples
+
+actionable (name catalog tool **category** only; no argument values):
+{
+  "outcome": "actionable",
+  "reasoning": "Rate-limit misconfiguration is accepted; write-tool catalog includes patch_config for config remediation (arguments are selected in the next step)."
+}
+
+out_of_scope:
+{
+  "outcome": "out_of_scope",
+  "reasoning": "Root cause is a code defect; no catalog write tool can fix application logic.",
+  "recommendations": ["Escalate to development team for a code fix"],
+  "escalation_hint": "development team"
+}
+"""
+
+_ASSESSMENT_UNCERTAIN_EXAMPLE = """\
+uncertain (explore path only):
+{
+  "outcome": "uncertain",
+  "reasoning": "Telemetry supports multiple competing failure modes; cannot safely infer which write tool applies.",
+  "recommendations": ["Gather more discriminating logs before remediation"],
+  "knowledge_gaps": ["Ambiguous root cause"]
+}
+"""
+
 ASSESSMENT_RUNBOOK_SYSTEM_PROMPT = """\
 You are the handleability assessment module of a cloud ops agent.
 
@@ -131,19 +171,22 @@ catalog**, decide whether catalog tools can remediate this incident.
 
 Do NOT select or invoke any tools in this step — output structured assessment only.
 Do NOT re-judge diagnosis confidence or runbook selection (handled upstream).
+The validated runbook excerpt describes remediation for reference; do NOT copy its tool steps into output.
 
 ## Outcomes (pick exactly one)
 
 ### actionable
-Root cause is accepted AND at least one catalog tool clearly applies with safely inferable parameters.
+Root cause is accepted AND at least one **catalog write-tool type** clearly applies (e.g. config patch, rollback).
+Explain which capability fits in reasoning — do NOT output tool names with arguments.
 
 ### out_of_scope
 Root cause is accepted but **none** of the catalog tools can address it (e.g. code bug, DBA, hardware).
 
 Provide recommendations and escalation_hint for out_of_scope.
 
-Do NOT output uncertain — if parameters are unsafe, still choose out_of_scope with guidance.
-"""
+Do NOT output uncertain — if parameters would be unsafe, still choose out_of_scope with guidance.
+
+""" + _ASSESSMENT_OUTPUT_CONTRACT
 
 ASSESSMENT_EXPLORE_SYSTEM_PROMPT = """\
 You are the handleability assessment module of a cloud ops agent.
@@ -159,16 +202,18 @@ Do NOT re-judge diagnosis confidence (handled upstream).
 ## Outcomes (pick exactly one)
 
 ### actionable
-Root cause is accepted AND at least one catalog tool clearly applies with safely inferable parameters.
+Root cause is accepted AND at least one **catalog write-tool type** clearly applies.
+Explain which capability fits in reasoning — do NOT output tool names with arguments.
 
 ### out_of_scope
 Root cause is accepted but **none** of the catalog tools can address it (e.g. code bug, DBA, hardware).
 
 ### uncertain
-Root cause or evidence is too ambiguous to safely pick a write tool or infer parameters.
+Root cause or evidence is too ambiguous to safely determine which write tool applies.
 
 Provide recommendations and knowledge_gaps for uncertain and out_of_scope.
-"""
+
+""" + _ASSESSMENT_OUTPUT_CONTRACT + "\n" + _ASSESSMENT_UNCERTAIN_EXAMPLE
 
 # Backward-compatible alias.
 ASSESSMENT_SYSTEM_PROMPT = ASSESSMENT_RUNBOOK_SYSTEM_PROMPT
