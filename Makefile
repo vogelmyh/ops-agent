@@ -1,4 +1,4 @@
-.PHONY: test test-rag test-rag-retrieval test-rag-coverage test-graph test-api test-simulator graph-paths scenarios demo eval build up down k8s-dry-run impact install-hooks pre-commit-check
+.PHONY: test test-rag test-rag-retrieval test-rag-coverage test-graph test-api test-simulator graph-paths scenarios demo demo-real eval build up down k8s-dry-run impact install-hooks pre-commit-check
 
 PY = cd ops-agent && .venv/bin/python
 SIM_PY = $(PY)
@@ -34,6 +34,10 @@ scenarios:
 
 demo:
 	cd ops-agent && CHECKPOINTER=memory .venv/bin/python scripts/demo.py
+
+demo-real:
+	cd ops-agent && CHECKPOINTER=memory LLM_MODE=real BACKEND_MODE=real \
+	  .venv/bin/python scripts/run_demo.py --profile standard
 
 eval:
 	cd ops-agent && CHECKPOINTER=memory .venv/bin/python eval/run_eval.py
