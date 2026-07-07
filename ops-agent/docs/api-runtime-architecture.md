@@ -172,6 +172,7 @@ curl -s localhost:8000/readyz | jq .
 
 ## 10. 版本注记
 
+- **2026-07-07**：`get_checkpointer()` 使用带 `allowed_msgpack_modules` 的 `JsonPlusSerializer`，显式允许 `IncidentInput` / `Evidence` checkpoint 反序列化，消除 LangGraph 运行警告。
 - **2026-07-01**：`DiagnoseResponse` / `AgentState`：`novel_scenario` → **`runbook_available`**（语义取反，true = 有可用 runbook）；`novel_reason` → **`runbook_unavailable_reason`**。`runner._to_response` 与 OpenAPI 字段已同步；无向后兼容别名。
 - **2026-07-01**：图节点 `verify_remediation` 替代 `eval_remediation`；state 观测字段 `remediation_verify_reasoning`（`remediation_eval_reasoning` 为兼容别名）。
 - **2026-06-30**：`RemediationEvalAssessment` coerce（缺省 `reasoning`、字段别名）见 [`decide-remediation-architecture.md`](decide-remediation-architecture.md) §10；`verify_remediation` 节点经 `invoke_structured()` 继承。

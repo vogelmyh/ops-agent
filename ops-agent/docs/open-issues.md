@@ -39,9 +39,9 @@
 
 ## 4. LangGraph checkpoint 反序列化警告
 
-**状态**：低优先级
+**状态**：已缓解（2026-07-07）
 
-运行中出现 `Deserializing unregistered type app.schemas.IncidentInput/Evidence` 警告；未来 LangGraph 版本可能阻断。需配置 `allowed_msgpack_modules` 或 `LANGGRAPH_STRICT_MSGPACK`。
+`get_checkpointer()` 为 `JsonPlusSerializer` 注册 `IncidentInput` / `Evidence`（`app/memory/short_term.py`）。若 LangGraph 升级后仍有新类型告警，按日志补 `allowed_msgpack_modules`。
 
 ---
 
@@ -60,6 +60,7 @@ KB 测试写回仍会改 runbook 文件；跑 `run_scenarios` KB 场景后注意
 
 | 日期 | 说明 |
 |------|------|
+| 2026-07-07 | checkpoint serde 注册 IncidentInput/Evidence，消除反序列化 warning |
 | 2026-07-07 | LOOP-03 分层场景；删除 chaos runbook；更新 open-issues §1 |
 | 2026-07-03 | 初版：记录 real LLM 场景表征、KB mock 设计、端口占用、checkpoint 警告、脏数据 |
 | 2026-07-03 | #5 脏数据已清理（restore runbooks + 删除 repro 产物） |
