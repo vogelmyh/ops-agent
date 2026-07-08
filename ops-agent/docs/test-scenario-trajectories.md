@@ -462,6 +462,16 @@ cd ops-backend-simulator && python3 -m pytest tests/test_cascade_exhaust.py test
 
 ## 变更记录
 
+### 2026-07-07 · SimulatorSession 单次启动复用
+
+- `scenario_runtime.SimulatorSession`：`run_demo` / `run_scenarios` 一次运行内单进程；act 间 `admin/scenario` + `reset`。
+- `start_simulator()` 在端口已健康时不再重复 bind；`graph_paths` 8083 fixture 同步。
+
+### 2026-07-07 · run_demo E2E 演示脚本
+
+- 新增 `scripts/run_demo.py`（real LLM 旁白演示）与 `docs/demo-scenarios.md`。
+- 与 `run_scenarios.py` 分工：演示用软检查 + 叙事；表征仍用 `run_scenarios`。
+
 ### 2026-07-07 · run_scenarios 默认紧凑 stdout + 报告文件
 
 - 默认 stdout 仅 `all_passed` + `report_path` + 每场景摘要；完整 `steps` 写入 `data/scenario_runs/`。

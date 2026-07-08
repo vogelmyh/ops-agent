@@ -31,17 +31,17 @@
 
 ## 3. Simulator 端口占用（本地并发）
 
-**状态**：环境类，未代码修复
+**状态**：已缓解（2026-07-07）
 
-`make test-graph` / `run_scenarios` 时 8081、8083 若已被占用，uvicorn 线程报错但常复用已有实例。干净环境需先释放端口。
+`SimulatorSession`（`scripts/scenario_runtime.py`）在 `run_demo` / `run_scenarios` 单次运行内只启动一个 simulator 进程（或复用已有健康实例）；各 act/scenario 通过 `/admin/scenario` + `/admin/reset` 切换。`graph_paths` 模块 fixture（8083）同模式。若仍报错，检查遗留 uvicorn 进程。
 
 ---
 
 ## 4. LangGraph checkpoint 反序列化警告
 
-**状态**：低优先级
+**状态**：已缓解（2026-07-07）
 
-运行中出现 `Deserializing unregistered type app.schemas.IncidentInput/Evidence` 警告；未来 LangGraph 版本可能阻断。需配置 `allowed_msgpack_modules` 或 `LANGGRAPH_STRICT_MSGPACK`。
+`get_checkpointer()` 为 `JsonPlusSerializer` 注册 `IncidentInput` / `Evidence`（`app/memory/short_term.py`）。若 LangGraph 升级后仍有新类型告警，按日志补 `allowed_msgpack_modules`。
 
 ---
 
@@ -60,6 +60,8 @@ KB 测试写回仍会改 runbook 文件；跑 `run_scenarios` KB 场景后注意
 
 | 日期 | 说明 |
 |------|------|
+| 2026-07-07 | SimulatorSession 单次启动；消除 8081 重复 bind 报错 |
+| 2026-07-07 | checkpoint serde 注册 IncidentInput/Evidence，消除反序列化 warning |
 | 2026-07-07 | LOOP-03 分层场景；删除 chaos runbook；更新 open-issues §1 |
 | 2026-07-03 | 初版：记录 real LLM 场景表征、KB mock 设计、端口占用、checkpoint 警告、脏数据 |
 | 2026-07-03 | #5 脏数据已清理（restore runbooks + 删除 repro 产物） |
