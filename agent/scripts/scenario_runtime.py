@@ -149,6 +149,12 @@ class SimulatorSession:
         self._client = httpx.Client(base_url=self.base_url, timeout=120.0)
         return self
 
+    @property
+    def client(self) -> httpx.Client:
+        if self._client is None:
+            raise RuntimeError("SimulatorSession is not active")
+        return self._client
+
     def __exit__(self, exc_type, exc, tb) -> None:
         global _active_session
         if self._client is not None:
@@ -177,6 +183,42 @@ class SimulatorSession:
         self._client.post(f"/admin/scenario/{simulator_scenario_id}").raise_for_status()
         self._client.post("/admin/reset").raise_for_status()
         return self._client
+
+
+def lab_health(client: httpx.Client) -> dict[str, Any]:
+    r = client.get("/actuator/health")
+    r.raise_for_status()
+    return r.json()
+
+
+def lab_admin_state(client: httpx.Client) -> dict[str, Any]:
+    r = client.get("/admin/state")
+    r.raise_for_status()
+    return r.json()
+
+
+def lab_list_scenarios(client: httpx.Client) -> list[dict[str, Any]]:
+    r = client.get("/admin/scenarios")
+    r.raise_for_status()
+    return r.json()
+
+
+def lab_load_scenario(client: httpx.Client, scenario_id: str) -> dict[str, Any]:
+    r = client.post(f"/admin/scenario/{scenario_id}")
+    r.raise_for_status()
+    return r.json()
+
+
+def lab_reset(client: httpx.Client) -> dict[str, Any]:
+    r = client.post("/admin/reset")
+    r.raise_for_status()
+    return r.json()
+
+
+def lab_ops_action(client: httpx.Client, action: str, body: dict[str, Any]) -> dict[str, Any]:
+    r = client.post(f"/api/v1/ops/{action}", json=body)
+    r.raise_for_status()
+    return r.json()
 
 
 def pending_meta(thread_id: str) -> dict[str, Any]:

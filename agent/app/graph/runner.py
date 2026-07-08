@@ -1,4 +1,5 @@
 import uuid
+from collections.abc import Callable
 from typing import Any
 
 from langgraph.types import Command
@@ -16,6 +17,12 @@ def _pending_interrupt(snapshot) -> tuple[bool, str | None]:
     if not snapshot or not snapshot.next:
         return False, None
     return True, snapshot.next[0]
+
+
+def _state_from_snapshot(snapshot) -> dict[str, Any]:
+    if snapshot and snapshot.values:
+        return dict(snapshot.values)
+    return {}
 
 
 def _status_from_pending(node: str | None, result: dict) -> str:
@@ -59,6 +66,67 @@ def _to_response(thread_id: str, result: dict, pending_node: str | None = None) 
     )
 
 
+def _stream_graph(
+    input_payload: dict[str, Any] | Command,
+    config: dict[str, Any],
+    *,
+    on_node_update: Callable[[str, dict[str, Any]], None] | None = None,
+) -> list[str]:
+    graph = _graph()
+    visited: list[str] = []
+    for chunk in graph.stream(input_payload, config=config, stream_mode="updates"):
+        for node_name, update in chunk.items():
+            visited.append(node_name)
+            if on_node_update is not None:
+                on_node_update(node_name, dict(update or {}))
+    return visited
+
+
+def stream_diagnosis(
+    incident: IncidentInput,
+    *,
+    on_node_update: Callable[[str, dict[str, Any]], None] | None = None,
+) -> tuple[str, DiagnoseResponse, dict[str, Any], list[str]]:
+    """Run diagnosis with per-node updates (demo narration). invoke() path unchanged."""
+    thread_id = incident.thread_id or str(uuid.uuid4())
+    config = {"configurable": {"thread_id": thread_id}}
+    visited = _stream_graph(
+        {"incident": incident, "messages": []},
+        config,
+        on_node_update=on_node_update,
+    )
+    snapshot = _graph().get_state(config)
+    pending, pending_node = _pending_interrupt(snapshot)
+    state = _state_from_snapshot(snapshot)
+    response = _to_response(thread_id, state, pending_node if pending else None)
+    meta = {
+        "pending_interrupt": pending,
+        "pending_node": pending_node,
+        "visited_nodes": visited,
+    }
+    return thread_id, response, meta, visited
+
+
+def stream_resume(
+    thread_id: str,
+    payload: dict[str, Any],
+    *,
+    on_node_update: Callable[[str, dict[str, Any]], None] | None = None,
+) -> tuple[DiagnoseResponse, dict[str, Any], list[str]]:
+    config = {"configurable": {"thread_id": thread_id}}
+    visited = _stream_graph(Command(resume=payload), config, on_node_update=on_node_update)
+    snapshot = _graph().get_state(config)
+    pending, pending_node = _pending_interrupt(snapshot)
+    state = _state_from_snapshot(snapshot)
+    response = _to_response(thread_id, state, pending_node if pending else None)
+    meta = {
+        "pending_interrupt": pending,
+        "pending_node": pending_node,
+        "visited_nodes": visited,
+    }
+    return response, meta, visited
+
+
 def start_diagnosis(incident: IncidentInput) -> tuple[str, DiagnoseResponse, dict[str, Any]]:
     thread_id = incident.thread_id or str(uuid.uuid4())
     config = {"configurable": {"thread_id": thread_id}}
@@ -66,7 +134,8 @@ def start_diagnosis(incident: IncidentInput) -> tuple[str, DiagnoseResponse, dic
     result = graph.invoke({"incident": incident, "messages": []}, config=config)
     snapshot = graph.get_state(config)
     pending, pending_node = _pending_interrupt(snapshot)
-    response = _to_response(thread_id, result, pending_node if pending else None)
+    state = _state_from_snapshot(snapshot) or result
+    response = _to_response(thread_id, state, pending_node if pending else None)
     return thread_id, response, {
         "pending_interrupt": pending,
         "pending_node": pending_node,
@@ -79,7 +148,8 @@ def resume_graph(thread_id: str, payload: dict[str, Any]) -> tuple[DiagnoseRespo
     result = graph.invoke(Command(resume=payload), config=config)
     snapshot = graph.get_state(config)
     pending, pending_node = _pending_interrupt(snapshot)
-    response = _to_response(thread_id, result, pending_node if pending else None)
+    state = _state_from_snapshot(snapshot) or result
+    response = _to_response(thread_id, state, pending_node if pending else None)
     return response, {
         "pending_interrupt": pending,
         "pending_node": pending_node,

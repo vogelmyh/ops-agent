@@ -180,6 +180,7 @@ CHECKPOINTER=memory .venv/bin/python scripts/run_scenarios.py --scenarios REM-01
 
 ## 9. 版本注记
 
+- **2026-07-08**：`runner.stream_diagnosis` / `stream_resume` 供交互式 demo 流式旁白；生产 `invoke` 路径不变。见 [`demo-presenter.md`](demo-presenter.md)。
 - **2026-07-01**：`novel_scenario` / `novel_reason` 重命名为 `runbook_available` / `runbook_unavailable_reason`（布尔语义取反：true = 有可用 runbook）。diagnose runbook 路径跳过 confidence LLM；decide 拆 runbook/explore 双 prompt（探索路径不传 runbook）。详见 [`archive/design-diagnose-runbook-split.md`](archive/design-diagnose-runbook-split.md)。
 - **2026-07-07**：LOOP-03 绑定 `cascade-exhaust`；`verify_remediation` 按 metric 层验收；chaos runbook 已从 KB 移除。`run_scenarios` 默认 stdout 紧凑摘要 + `data/scenario_runs/` 报告文件（`--full-json` 恢复旧行为）。
 - **2026-07-03**：文档明确 KB-01/KB-02 在 `run_scenarios` 为固定 **mock smoke**（非 real LLM 表征）；real LLM 表征仅 DEC/LOOP。见 [`test-scenario-trajectories.md`](test-scenario-trajectories.md) §KB、`run_scenarios.py --help`。
