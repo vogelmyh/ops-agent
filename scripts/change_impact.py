@@ -63,7 +63,6 @@ DOC_ONLY_PREFIXES = (
     ".cursor/",
     "AGENTS.md",
     "README.md",
-***REMOVED***
 )
 DOC_ONLY_SUFFIXES = (".md", ".mdc")
 

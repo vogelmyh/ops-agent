@@ -1,6 +1,6 @@
 # Real LLM E2E 演示方案
 
-> **定位**：现场 walkthrough 用的 **纯 real LLM** 旁白演示（CLI）。  
+> **定位**：现场 walkthrough 用的 **纯 real LLM** 旁白演示（CLI）。
 > **与测试的关系**：`run_scenarios.py` 做表征与硬断言；`run_demo.py` 做叙事与软检查（偏离预期时 warning，不中断演示）。
 
 ## 快速开始

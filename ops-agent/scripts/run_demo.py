@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Real LLM E2E demo with CLI narration (CLI walkthrough).
+"""Real LLM E2E demo with CLI narration (walkthrough).
 
 Profiles:
   short     — DEMO-01, DEMO-03, DEMO-04
@@ -497,7 +497,7 @@ def _write_report(results: list[DemoActResult], report_path: Path, profile: str,
 
 _RUN_DEMO_EPILOG = """\
 Examples:
-  # Standard 5-act standard demo (one Enter pause at DEMO-02)
+  # Standard 5-act demo (one Enter pause at DEMO-02)
   CHECKPOINTER=memory LLM_MODE=real BACKEND_MODE=real \\
     python scripts/run_demo.py --profile standard
 

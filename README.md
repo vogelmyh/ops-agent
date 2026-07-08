@@ -34,6 +34,6 @@ make test
 3. `make impact` 查看建议文档与测试命令
 4. 让 Agent 先输出「同步计划」，确认后再改
 
-## 父目录
+## 相关仓库
 
 参考业务语境的 Java/Go 服务在 monorepo 外独立维护，不在本仓库内。
