@@ -35,7 +35,14 @@ class StreamNarrator:
         self.visited: list[str] = []
 
     def on_node(self, node_name: str, update: dict[str, Any]) -> None:
-        self.visited.append(node_name)
+        # approve 在 interrupt 时已记入 visited；resume 完成时不重复记
+        record_visit = not (
+            node_name == "approve"
+            and update.get("approval") is not None
+            and "approve" in self.visited
+        )
+        if record_visit:
+            self.visited.append(node_name)
         stage = NODE_STAGE.get(node_name, f"[{node_name}]")
         print(f"\n{stage} 节点完成 · {node_name}")
         if node_name == "retrieve_runbooks":
@@ -68,6 +75,11 @@ class StreamNarrator:
         elif node_name == "summarize":
             if update.get("summary"):
                 print(f"       summary: {_short(update.get('summary'))}")
+        elif node_name == "approve":
+            pending = update.get("pending_tool_calls") or []
+            if pending:
+                tool = pending[0].get("name") if isinstance(pending[0], dict) else getattr(pending[0], "name", "?")
+                print(f"       等待审批工具: {tool}")
 
         if self.interactive and breakpoints.should_pause_after(node_name):
             breakpoints.pause_after_node(node_name)

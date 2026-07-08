@@ -59,6 +59,34 @@ def test_stream_diagnosis_emits_node_updates():
     assert isinstance(meta["visited_nodes"], list)
 
 
+def test_stream_diagnosis_hits_approve_interrupt():
+    set_mock_scenario("ecomm-manager", "crashloop")
+    incident = IncidentInput(
+        service="ecomm-manager",
+        description="crashloop HITL interrupt",
+    )
+    thread_id, resp, meta, visited = stream_diagnosis(incident)
+    assert thread_id
+    assert resp.status == "awaiting_approval"
+    assert "approve" in visited
+    assert "__interrupt__" not in visited
+    assert meta["pending_interrupt"] is True
+    assert meta["pending_node"] == "approve"
+
+
+def test_hitl_path_matches_expected_after_resume():
+    from demo_presenter.graph_art import EXPECTED_PATHS
+    from demo_presenter.narrator import StreamNarrator
+
+    set_mock_scenario("ecomm-manager", "crashloop")
+    narrator = StreamNarrator(interactive=False)
+    incident = IncidentInput(service="ecomm-manager", description="crashloop recap path")
+    thread_id, resp, _meta, _ = stream_diagnosis(incident, on_node_update=narrator.on_node)
+    assert resp.status == "awaiting_approval"
+    stream_resume(thread_id, {"approved": True}, on_node_update=narrator.on_node)
+    assert narrator.visited == EXPECTED_PATHS["DEMO-02"]
+
+
 def test_stream_resume_after_hitl_mock():
     set_mock_scenario("ecomm-manager", "crashloop")
     incident = IncidentInput(
@@ -66,8 +94,7 @@ def test_stream_resume_after_hitl_mock():
         description="crashloop stream resume",
     )
     thread_id, resp, meta, _ = stream_diagnosis(incident)
-    if resp.status != "awaiting_approval":
-        pytest.skip("mock path did not pause at approve")
+    assert resp.status == "awaiting_approval"
     more: list[str] = []
     resp2, meta2, visited = stream_resume(
         thread_id,
@@ -76,4 +103,5 @@ def test_stream_resume_after_hitl_mock():
     )
     assert resp2.thread_id == thread_id
     assert meta2["visited_nodes"] == visited
+    assert visited == ["approve", "write_tools", "verify_remediation", "summarize"]
     assert resp2.status in {"completed", "awaiting_approval"}

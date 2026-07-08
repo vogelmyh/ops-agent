@@ -66,6 +66,31 @@ def _to_response(thread_id: str, result: dict, pending_node: str | None = None) 
     )
 
 
+def _coerce_stream_update(node_name: str, update: Any) -> dict[str, Any]:
+    if not update:
+        return {}
+    if isinstance(update, dict):
+        return update
+    if node_name == "__interrupt__":
+        items = update if isinstance(update, (list, tuple)) else (update,)
+        merged: dict[str, Any] = {}
+        for item in items:
+            value = getattr(item, "value", None)
+            if isinstance(value, dict):
+                merged.update(value)
+        return merged
+    return {}
+
+
+def _stream_node_label(graph, config: dict[str, Any], node_name: str) -> str:
+    if node_name != "__interrupt__":
+        return node_name
+    snapshot = graph.get_state(config)
+    if snapshot and snapshot.next:
+        return snapshot.next[0]
+    return node_name
+
+
 def _stream_graph(
     input_payload: dict[str, Any] | Command,
     config: dict[str, Any],
@@ -76,9 +101,10 @@ def _stream_graph(
     visited: list[str] = []
     for chunk in graph.stream(input_payload, config=config, stream_mode="updates"):
         for node_name, update in chunk.items():
-            visited.append(node_name)
+            label = _stream_node_label(graph, config, node_name)
+            visited.append(label)
             if on_node_update is not None:
-                on_node_update(node_name, dict(update or {}))
+                on_node_update(label, _coerce_stream_update(node_name, update))
     return visited
 
 

@@ -48,6 +48,7 @@ EXPECTED_PATHS: dict[str, list[str]] = {
         "summarize",
     ],
     "DEMO-03": [
+        # LOOP-02：首轮 write 后 morph；二轮 diagnose→decide 直接 summarize（无二次 write）
         "triage",
         "retrieve_runbooks",
         "diagnose",
@@ -57,17 +58,18 @@ EXPECTED_PATHS: dict[str, list[str]] = {
         "retrieve_runbooks",
         "diagnose",
         "decide",
-        "write_tools",
-        "verify_remediation",
         "summarize",
     ],
     "DEMO-04": [
+        # DEC-01：confidence 足够时必经 decide，再 out_of_scope → summarize
         "triage",
         "retrieve_runbooks",
         "diagnose",
+        "decide",
         "summarize",
     ],
     "DEMO-05": [
+        # DEC-02：首轮 write 暴露逻辑缺陷；二轮 decide out_of_scope → summarize
         "triage",
         "retrieve_runbooks",
         "diagnose",
@@ -76,6 +78,7 @@ EXPECTED_PATHS: dict[str, list[str]] = {
         "verify_remediation",
         "retrieve_runbooks",
         "diagnose",
+        "decide",
         "summarize",
     ],
     "DEMO-H1": [
@@ -129,7 +132,7 @@ def render_path(nodes: Iterable[str], *, width: int = 50) -> str:
 def render_compare(expected: list[str], actual: list[str]) -> str:
     exp_line = render_path(expected)
     act_line = render_path(actual)
-    match = "✓" if _collapse_loops(actual) == _collapse_loops(expected) else "≈"
+    match = "✓" if actual == expected or _collapse_loops(actual) == tuple(expected) else "≈"
     return (
         f"  预期路径 {match}\n"
         f"    {exp_line}\n"

@@ -46,19 +46,17 @@ def _auto_approve_loop(
                     break
             else:
                 print(f"  [HITL] 自动批准: {tool}")
-            resp, meta, more = stream_resume(
+            resp, meta, _ = stream_resume(
                 thread_id,
                 {"approved": True},
                 on_node_update=narrator.on_node,
             )
-            narrator.visited.extend(more)
         elif meta.get("pending_interrupt"):
-            resp, meta, more = stream_resume(
+            resp, meta, _ = stream_resume(
                 thread_id,
                 {"approved": True},
                 on_node_update=narrator.on_node,
             )
-            narrator.visited.extend(more)
         else:
             break
         guard += 1
