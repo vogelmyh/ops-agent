@@ -497,7 +497,7 @@ Examples:
   # CI-friendly mock for all runners (KB still uses isolated mock env)
   python scripts/run_scenarios.py --mock-llm --scenarios all
 
-See ops-agent/docs/test-scenario-trajectories.md (KB · run_scenarios 定位).
+See docs/agent/test-scenario-trajectories.md (KB · run_scenarios 定位).
 """
 
 

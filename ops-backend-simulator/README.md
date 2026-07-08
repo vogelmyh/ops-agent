@@ -27,14 +27,14 @@ Chaos scenarios are for **react-loop / honest-termination** testing (LOOP / DEC 
 
 ### Relationship to ops-agent tests
 
-| ops-agent layer | Uses Simulator? | Role of Simulator |
+| agent layer | Uses Simulator? | Role of Simulator |
 |-----------------|-----------------|-------------------|
-| `tests/graph_paths/` (mock LLM) | Usually **no** — `mock_data` mirrors logic | Optional for LOOP/DEC integration (real `BACKEND_MODE`) |
-| `scripts/run_scenarios.py` (real LLM) | **yes** | Ground truth for write + post-write telemetry |
+| `agent/tests/graph_paths/` (mock LLM) | Usually **no** — `mock_data` mirrors logic | Optional for LOOP/DEC integration (real `BACKEND_MODE`) |
+| `agent/scripts/run_scenarios.py` (real LLM) | **yes** | Ground truth for write + post-write telemetry |
 | KB / HITL / `block_remediation` tests | **no** | Novel services and agent-side hooks, not backend worlds |
 
 - **Simulator `SCENARIO_ID`** = backend world script (e.g. `ecomm-manager-cascade-exhaust`).
-- **ops-agent test ID** = agent behaviour spec (e.g. `LOOP-03`) — see [test-scenario-trajectories.md](../ops-agent/docs/test-scenario-trajectories.md).
+- **agent test ID** = agent behaviour spec (e.g. `LOOP-03`) — see [test-scenario-trajectories.md](../docs/agent/test-scenario-trajectories.md).
 - When mock LLM is used with Simulator, also set `set_mock_scenario(service, "<key>")` in ops-agent (`cascade-exhaust`, not the full scenario id).
 
 Simulator defines **world truth**; agent tests assert **graph + LLM behaviour** in that world.
@@ -96,16 +96,16 @@ If graph_paths tests use mock LLM, update `decide_spec.py`, `diagnose.py`, `veri
 
 ### 6. Runbook
 
-Add `ops-agent/data/runbooks/ecomm-<service>-<name>.md` (7-section template), then reindex RAG if the scenario should be retrievable.
+Add `agent/data/runbooks/ecomm-<service>-<name>.md` (7-section template), then reindex RAG if the scenario should be retrievable.
 
 ### 7. Tests
 
 | Where | What |
 |-------|------|
 | `ops-backend-simulator/tests/` | State machine: `apply_ops` transitions, `is_recovered`, morph phases |
-| `ops-agent/tests/graph_paths/` | Graph contract with mock LLM (+ Simulator if real backend path) |
-| `ops-agent/scripts/run_scenarios.py` | Optional real-LLM characterization + LangSmith |
-| `ops-agent/docs/test-scenario-trajectories.md` | Human/agent spec: new **test ID** (REM/HITL/LOOP/…), steps, simulator fields |
+| `agent/tests/graph_paths/` | Graph contract with mock LLM (+ Simulator if real backend path) |
+| `agent/scripts/run_scenarios.py` | Optional real-LLM characterization + LangSmith |
+| `docs/agent/test-scenario-trajectories.md` | Human/agent spec: new **test ID** (REM/HITL/LOOP/…), steps, simulator fields |
 
 ### 8. Naming
 
@@ -128,7 +128,7 @@ pip install -e ".[dev]"
 uvicorn simulator.app:app --host 0.0.0.0 --port 8081
 ```
 
-Point ops-agent at the simulator (联调步骤与验收点见 [ops-agent/docs/backend-adapters-architecture.md](../ops-agent/docs/backend-adapters-architecture.md) §5；本文保留实现与场景细节):
+Point agent at the simulator (联调步骤与验收点见 [docs/agent/backend-adapters-architecture.md](../docs/agent/backend-adapters-architecture.md) §5；本文保留实现与场景细节):
 
 ```bash
 export BACKEND_MODE=real
@@ -159,7 +159,7 @@ POST /api/v1/ops/patch_config
 }
 ```
 
-Runbooks: `ops-agent/data/runbooks/ecomm-*.md`.
+Runbooks: `agent/data/runbooks/ecomm-*.md`.
 
 ## Tests
 

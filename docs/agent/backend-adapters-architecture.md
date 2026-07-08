@@ -72,7 +72,7 @@ Simulator 本地常用：`http://127.0.0.1:8081`（以 simulator 启动端口为
 
 ---
 
-## 5. Simulator 联调（ops-agent 视角）
+## 5. Simulator 联调（agent 视角）
 
 > 场景脚本、故障类型、`apply_ops` 契约、新增 scenario 清单 → **[ops-backend-simulator/README.md](../../ops-backend-simulator/README.md)**
 
@@ -85,7 +85,7 @@ pip install -e ".[dev]"
 SCENARIO_ID=ecomm-manager-rate-limit uvicorn simulator.main:app --port 8081
 
 # 终端 2 — ops-agent
-cd ops-agent
+cd agent
 export BACKEND_MODE=real
 export BACKEND_BASE_URL=http://127.0.0.1:8081
 export LLM_MODE=real   # 或 mock + set_mock_scenario

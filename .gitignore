@@ -5,26 +5,26 @@
 *.swp
 *~
 
-# Python (ops-agent/ops-agent)
-ops-agent/.venv/
-ops-agent/**/__pycache__/
-ops-agent/**/*.py[cod]
-ops-agent/.pytest_cache/
-ops-agent/.mypy_cache/
-ops-agent/.ruff_cache/
-ops-agent/**/*.egg-info/
-ops-agent/dist/
-ops-agent/build/
+# Python (agent/)
+agent/.venv/
+agent/**/__pycache__/
+agent/**/*.py[cod]
+agent/.pytest_cache/
+agent/.mypy_cache/
+agent/.ruff_cache/
+agent/**/*.egg-info/
+agent/dist/
+agent/build/
 
 # Runtime / local data (do not commit secrets or ephemeral state)
-ops-agent/data/checkpoints.db
-ops-agent/data/checkpoints.db-*
-ops-agent/data/.rag_indexed_*
-ops-agent/data/audit.jsonl
-ops-agent/data/incident_memory.jsonl
-ops-agent/data/eval_report_run.txt
-ops-agent/data/diag_*.txt
-ops-agent/data/**/chroma*/
+agent/data/checkpoints.db
+agent/data/checkpoints.db-*
+agent/data/.rag_indexed_*
+agent/data/audit.jsonl
+agent/data/incident_memory.jsonl
+agent/data/eval_report_run.txt
+agent/data/diag_*.txt
+agent/data/**/chroma*/
 
 # Java (ops-backend)
 ops-backend/target/

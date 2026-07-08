@@ -437,7 +437,7 @@ CHECKPOINTER=memory .venv/bin/python scripts/run_scenarios.py --mock-llm --scena
 
 ```bash
 # 图路径契约（mock LLM，CI 推荐）
-cd ops-agent
+cd agent
 CHECKPOINTER=memory LLM_MODE=mock \
   .venv/bin/python -m pytest tests/graph_paths/ -q
 

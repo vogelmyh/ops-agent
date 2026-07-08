@@ -19,5 +19,5 @@ if [ "${SKIP_HOOKS}" = "1" ] || [ "${SKIP_HOOKS}" = "true" ]; then
 fi
 
 echo "pre-commit: analyzing staged changes..."
-python3 scripts/change_impact.py --staged --run --quiet
+python3 tooling/change_impact.py --staged --run --quiet
 exit $?

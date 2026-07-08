@@ -510,7 +510,7 @@ Examples:
   # Add KB appendix (mock LLM writeback)
   python scripts/run_demo.py --profile standard --appendix
 
-See ops-agent/docs/demo-scenarios.md
+See docs/agent/demo-scenarios.md
 """
 
 

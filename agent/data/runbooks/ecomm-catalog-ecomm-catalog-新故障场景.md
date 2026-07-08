@@ -5,7 +5,7 @@
 - 不适用于本服务其它已知故障场景；若症状不匹配应重新检索 runbook。
 
 ## 症状
-All candidates rejected: service scope does not match incident service.
+Top candidate 'ecomm-catalog-ecomm-catalog-新故障场景' not selectable: symptom_match=FAIL (oracle: weak match for ecomm-catalog-ecomm-catalog-新故障场景); telemetry_match=FAIL (Telemetry does not align with this runbook.); symptom_match=FAIL (required PASS; oracle: weak match for ecomm-catalog-ecomm-catalog-新故障场景); PASS count 1 < min 2
 
 ## 诊断（先确认再动手）
 1. 对照应用日志、服务状态与指标，确认与本次 incident 证据一致。
