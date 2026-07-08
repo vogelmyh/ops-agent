@@ -5,16 +5,18 @@
 ## 快速开始
 
 ```bash
-cd agent
-python3.12 -m venv .venv && source .venv/bin/activate
-python -m pip install -U pip && python -m pip install -e ".[dev]"
-cp .env.example .env
-uvicorn app.main:app --host 0.0.0.0 --port 8000
+python3.12 -m venv .venv
+.venv/bin/python -m pip install -U pip && .venv/bin/python -m pip install -e ".[dev]"
+cp -n .env.example .env
+BACKEND_MODE=mock LLM_MODE=mock EMBEDDINGS_PROVIDER=local-hash \
+  .venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 curl http://localhost:8000/healthz
 ```
 
 ```bash
-CHECKPOINTER=memory python scripts/demo.py    # 三场景离线演示（mock）
+# 离线三场景（或在 monorepo 根目录 make demo）
+CHECKPOINTER=memory BACKEND_MODE=mock LLM_MODE=mock EMBEDDINGS_PROVIDER=local-hash \
+  .venv/bin/python scripts/demo.py
 CHECKPOINTER=memory LLM_MODE=real BACKEND_MODE=real python scripts/run_demo.py --profile standard  # real LLM E2E 演示
 CHECKPOINTER=memory python eval/run_eval.py # 15 场景评测
 python -m pytest tests/ -q

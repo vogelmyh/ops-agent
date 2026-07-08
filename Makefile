@@ -33,7 +33,8 @@ scenarios:
 	cd agent && CHECKPOINTER=memory LLM_MODE=real .venv/bin/python scripts/run_scenarios.py --scenarios all
 
 demo:
-	cd agent && CHECKPOINTER=memory .venv/bin/python scripts/demo.py
+	cd agent && CHECKPOINTER=memory BACKEND_MODE=mock LLM_MODE=mock \
+	  EMBEDDINGS_PROVIDER=local-hash .venv/bin/python scripts/demo.py
 
 demo-real:
 	cd agent && CHECKPOINTER=memory LLM_MODE=real BACKEND_MODE=real \
