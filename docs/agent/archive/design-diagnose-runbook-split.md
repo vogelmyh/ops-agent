@@ -1,8 +1,7 @@
-# 待实施设计：runbook / 探索路径二分（diagnose + decide）
+# 归档设计：runbook / 探索路径二分（diagnose + decide）
 
-> **用途**：记录与用户讨论后、尚未编码的设计结论。当你对 Agent 说 **「展示上一轮设计」** 时，应读本文件并完整复述，待用户确认后再开发或迭代设计。  
-> **分支**：`refactor/rag-diagnose-decide-pipeline`  
-> **状态**：**已实现**（2026-07-01）
+> **状态**：**已实现**（2026-07-01），归档备查。  
+> **分支**：`refactor/rag-diagnose-decide-pipeline`
 
 ---
 

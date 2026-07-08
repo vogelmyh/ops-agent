@@ -27,7 +27,7 @@ git diff
 
 ### 2. 分类 → 打开组件文档
 
-| 改动触及 | 主文档（`ops-agent/docs/`） |
+| 改动触及 | 主文档（`docs/agent/`） |
 |----------|----------------------------|
 | `app/rag/`, `retrieve_runbooks`, `runbook_coverage`, `runbook_eval_policy` | `rag-architecture-and-tests.md` §5 |
 | `builder.py`, `nodes/`（非 RAG）, `runner.py` | `graph-agent-architecture.md` |
@@ -95,7 +95,7 @@ git commit -m "简短说明（why，非 what 罗列）"
 ```text
 我要做如下改动：<一句话目标>
 
-请严格按本仓库 docs/change-workflow.md 与 AGENTS.md 执行：
+请严格按本仓库 docs/workflow/change-workflow.md 与 AGENTS.md 执行：
 1. git status / git diff
 2. 读对应组件文档「Agent 改动同步指南」
 3. 先输出「同步计划」，我确认后再改代码
@@ -131,7 +131,7 @@ make install-hooks
 make impact              # 工作区 diff → 建议文档 + 测试
 make impact-staged       # 暂存区 diff（与 pre-commit 相同分析）
 make pre-commit-check    # 对暂存区分析并执行测试（不 commit）
-python scripts/change_impact.py --staged --run
+python tooling/change_impact.py --staged --run
 ```
 
 | `make` 目标 | 范围 |
@@ -149,5 +149,12 @@ python scripts/change_impact.py --staged --run
 ## 相关文档
 
 - [`AGENTS.md`](../AGENTS.md) — Agent 总入口
-- [`ops-agent/docs/README.md`](../ops-agent/docs/README.md) — 文档索引
-- [`ops-agent/docs/architecture.md`](../ops-agent/docs/architecture.md) — 项目总览
+- [`docs/README.md`](../README.md) — 文档索引
+- [`docs/agent/architecture.md`](../agent/architecture.md) — 项目总览
+
+## 变更记录
+
+### 2026-07-08 · 文档目录重组
+
+- SOP 迁入 `docs/workflow/`；组件文档迁入 `docs/agent/`。
+- `change_impact.py` 迁至 `tooling/`；路径规则 `ops-agent/` → `agent/`。

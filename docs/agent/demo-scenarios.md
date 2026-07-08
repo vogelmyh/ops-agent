@@ -6,7 +6,7 @@
 ## 快速开始
 
 ```bash
-cd ops-agent
+cd agent
 # 标准五幕（默认；DEMO-02 处按 Enter 批准 HITL）
 CHECKPOINTER=memory LLM_MODE=real BACKEND_MODE=real \
   python scripts/run_demo.py --profile standard

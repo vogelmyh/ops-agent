@@ -1,6 +1,6 @@
 .PHONY: test test-rag test-rag-retrieval test-rag-coverage test-graph test-api test-simulator graph-paths scenarios demo demo-real eval build up down k8s-dry-run impact install-hooks pre-commit-check
 
-PY = cd ops-agent && .venv/bin/python
+PY = cd agent && .venv/bin/python
 SIM_PY = $(PY)
 
 test:
@@ -19,28 +19,28 @@ test-rag-coverage:
 test-rag: test-rag-retrieval test-rag-coverage
 
 test-graph:
-	cd ops-agent && CHECKPOINTER=memory LLM_MODE=mock .venv/bin/python -m pytest tests/graph_paths/ -q
+	cd agent && CHECKPOINTER=memory LLM_MODE=mock .venv/bin/python -m pytest tests/graph_paths/ -q
 
 test-api:
 	$(PY) -m pytest tests/test_eval.py tests/test_tracing.py tests/test_health.py -q
 
 test-simulator:
-	cd ops-backend-simulator && ../ops-agent/.venv/bin/python -m pytest tests/ -q
+	cd ops-backend-simulator && ../agent/.venv/bin/python -m pytest tests/ -q
 
 graph-paths: test-graph
 
 scenarios:
-	cd ops-agent && CHECKPOINTER=memory LLM_MODE=real .venv/bin/python scripts/run_scenarios.py --scenarios all
+	cd agent && CHECKPOINTER=memory LLM_MODE=real .venv/bin/python scripts/run_scenarios.py --scenarios all
 
 demo:
-	cd ops-agent && CHECKPOINTER=memory .venv/bin/python scripts/demo.py
+	cd agent && CHECKPOINTER=memory .venv/bin/python scripts/demo.py
 
 demo-real:
-	cd ops-agent && CHECKPOINTER=memory LLM_MODE=real BACKEND_MODE=real \
+	cd agent && CHECKPOINTER=memory LLM_MODE=real BACKEND_MODE=real \
 	  .venv/bin/python scripts/run_demo.py --profile standard
 
 eval:
-	cd ops-agent && CHECKPOINTER=memory .venv/bin/python eval/run_eval.py
+	cd agent && CHECKPOINTER=memory .venv/bin/python eval/run_eval.py
 
 build:
 	docker compose -f deploy/docker-compose.yml build
@@ -55,13 +55,13 @@ k8s-dry-run:
 	kubectl apply --dry-run=client -f deploy/k8s/
 
 impact:
-	python3 scripts/change_impact.py
+	python3 tooling/change_impact.py
 
 impact-staged:
-	python3 scripts/change_impact.py --staged
+	python3 tooling/change_impact.py --staged
 
 pre-commit-check:
-	python3 scripts/change_impact.py --staged --run
+	python3 tooling/change_impact.py --staged --run
 
 install-hooks:
 	git config core.hooksPath .githooks

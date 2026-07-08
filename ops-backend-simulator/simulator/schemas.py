@@ -1,4 +1,4 @@
-"""Pydantic models aligned with ops-agent/app/schemas.py (JSON snake_case)."""
+"""Pydantic models aligned with agent/app/schemas.py (JSON snake_case)."""
 
 from __future__ import annotations
 

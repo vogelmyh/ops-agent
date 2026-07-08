@@ -42,4 +42,4 @@ mvn spring-boot:run
 | `resume_event_stream` | `service`, `stream_id` | — |
 | `cleanup_storage` | `service` | `path`, `retention_days` |
 
-JSON 字段使用 **snake_case**，与 `ops-agent/app/schemas.py` 对齐。
+JSON 字段使用 **snake_case**，与 `agent/app/schemas.py` 对齐。

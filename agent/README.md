@@ -1,11 +1,11 @@
-# ops-agent
+# Agent 服务（ops-agent）
 
-运维诊断与操作 Agent（Python 3.12 + LangGraph + FastAPI）。默认 **mock-first**，无需 API Key、后端或 Docker 即可离线运行。
+拟真运维诊断与操作 Agent（Python 3.12 + LangGraph + FastAPI）。默认 **mock-first**，无需 API Key、后端或 Docker 即可离线运行。
 
 ## 快速开始
 
 ```bash
-cd ops-agent
+cd agent
 python3.12 -m venv .venv && source .venv/bin/activate
 python -m pip install -U pip && python -m pip install -e ".[dev]"
 cp .env.example .env
@@ -43,13 +43,13 @@ python -m pytest tests/ -q
 
 ## 文档
 
-- **修改流程（改代码前必读）**：[../docs/change-workflow.md](../docs/change-workflow.md)
-- **索引**：[docs/README.md](docs/README.md)
-- **总览**：[docs/architecture.md](docs/architecture.md)
-- **场景目录**（测什么）：[docs/test-scenario-trajectories.md](docs/test-scenario-trajectories.md)
-- **E2E 演示**（real LLM）：[docs/demo-scenarios.md](docs/demo-scenarios.md)
-- **组件**：`docs/*-architecture.md`（图、RAG、决策修复、后端适配、KB、API）
-- **Simulator 联调**（ops-agent 视角）：[docs/backend-adapters-architecture.md](docs/backend-adapters-architecture.md) §5；实现细节见 [ops-backend-simulator/README.md](../ops-backend-simulator/README.md)
+- **修改流程（改代码前必读）**：[../docs/workflow/change-workflow.md](../docs/workflow/change-workflow.md)
+- **索引**：[../docs/README.md](../docs/README.md)
+- **总览**：[../docs/agent/architecture.md](../docs/agent/architecture.md)
+- **场景目录**（测什么）：[../docs/agent/test-scenario-trajectories.md](../docs/agent/test-scenario-trajectories.md)
+- **E2E 演示**（real LLM）：[../docs/agent/demo-scenarios.md](../docs/agent/demo-scenarios.md)
+- **组件**：`../docs/agent/*-architecture.md`
+- **Simulator 联调**：[../docs/agent/backend-adapters-architecture.md](../docs/agent/backend-adapters-architecture.md) §5；实现细节见 [ops-backend-simulator/README.md](../ops-backend-simulator/README.md)
 
 ## 环境变量
 
@@ -58,7 +58,7 @@ python -m pytest tests/ -q
 ## 与后端联调
 
 - **Java ops-backend** 或 **ops-backend-simulator**：`BACKEND_MODE=real` + `BACKEND_BASE_URL=…`  
-  步骤见 [docs/backend-adapters-architecture.md](docs/backend-adapters-architecture.md)。
+  步骤见 [../docs/agent/backend-adapters-architecture.md](../docs/agent/backend-adapters-architecture.md)。
 
 ## 工程亮点
 

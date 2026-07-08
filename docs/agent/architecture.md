@@ -20,7 +20,7 @@
 
 | 仓库 | 角色 |
 |------|------|
-| **ops-agent**（本仓库） | Agent、RAG、图编排、API |
+| **agent/**（Python 工程，本 monorepo） | LangGraph Agent、RAG、图编排、API |
 | **ops-backend** | Java 生产型后端契约（可选联调） |
 | **ops-backend-simulator** | 有状态 HTTP 后端替身（write→read 闭环、混沌场景） |
 
@@ -105,7 +105,7 @@ Checkpoint 线程 ID：`thread_id`（`app/graph/runner.py`）。
 ### 4.1 快速开始
 
 ```bash
-cd ops-agent
+cd agent
 python3.12 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 cp .env.example .env
@@ -214,7 +214,7 @@ CHECKPOINTER=memory .venv/bin/python scripts/run_scenarios.py --scenarios KB-01 
 
 ## 8. 文档索引
 
-完整列表与阅读路径：[`docs/README.md`](README.md)。
+完整列表与阅读路径：[`docs/README.md`](../README.md)。
 
 | 文档 | 类型 |
 |------|------|
@@ -233,8 +233,9 @@ CHECKPOINTER=memory .venv/bin/python scripts/run_scenarios.py --scenarios KB-01 
 
 ## 9. 版本注记
 
+- **2026-07-08**：monorepo 目录重组 — 文档统一至根 `docs/`（`workflow/` + `agent/`）；Python 工程 `ops-agent/` → `agent/`；工具 `scripts/` → `tooling/`。
 - **2026-07-01**：命名清理（coverage / verify_remediation）、双轨 RAG 测试（`make test-rag-retrieval` / `test-rag-coverage`）；组件地图与主路径图已同步。
-- **2026-07-01**：状态字段 `runbook_available` / `runbook_unavailable_reason` 替代 `novel_scenario` / `novel_reason`（布尔语义取反）；diagnose/decide runbook 与探索路径二分见 [`design-pending-diagnose-runbook-split.md`](design-pending-diagnose-runbook-split.md)。
+- **2026-07-01**：diagnose/decide runbook 与探索路径二分见 [`archive/design-diagnose-runbook-split.md`](archive/design-diagnose-runbook-split.md)。
 - **2026-07-01**：主图 `retrieve_runbooks` + `diagnose` 三阶段；KB-01 `skipped_low_confidence`、KB-02 探索路径 approve；`decide_outcome` 枚举已同步。
 - **2026-06-30**：`RemediationEvalAssessment` coerce（`eval_schemas`）修复 DeepSeek `json_mode` 下 `eval_remediation` 缺 `reasoning` 硬崩；见 [`decide-remediation-architecture.md`](decide-remediation-architecture.md) §10。
 - **2026-06-30**：结构化输出 fallback 收紧 + `DecideAssessment` coerce + DEC-01 场景断言对齐 novel 写回链；详见 [`api-runtime-architecture.md`](api-runtime-architecture.md) §10、[`decide-remediation-architecture.md`](decide-remediation-architecture.md) §10、[`test-scenario-trajectories.md`](test-scenario-trajectories.md) §变更记录。

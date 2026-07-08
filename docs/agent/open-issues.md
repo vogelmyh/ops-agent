@@ -49,8 +49,8 @@
 
 **状态**：已清理（2026-07-03）
 
-- `ops-agent/data/runbooks/*新故障场景.md` — `git restore` 恢复
-- `ops-agent/data/repro_DEC-02.json` / `.stderr` — 已删除
+- `agent/data/runbooks/*新故障场景.md` — `git restore` 恢复
+- `agent/data/repro_DEC-02.json` / `.stderr` — 已删除
 
 KB 测试写回仍会改 runbook 文件；跑 `run_scenarios` KB 场景后注意 `git status`。
 
@@ -60,7 +60,7 @@ KB 测试写回仍会改 runbook 文件；跑 `run_scenarios` KB 场景后注意
 
 | 日期 | 说明 |
 |------|------|
-| 2026-07-07 | SimulatorSession 单次启动；消除 8081 重复 bind 报错 |
+| 2026-07-08 | monorepo 目录重组：`docs/` 统一文档根；`agent/`、`tooling/` 重命名 |
 | 2026-07-07 | checkpoint serde 注册 IncidentInput/Evidence，消除反序列化 warning |
 | 2026-07-07 | LOOP-03 分层场景；删除 chaos runbook；更新 open-issues §1 |
 | 2026-07-03 | 初版：记录 real LLM 场景表征、KB mock 设计、端口占用、checkpoint 警告、脏数据 |
