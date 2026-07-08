@@ -17,7 +17,7 @@
 1. **应用日志**：检索 `RDS`、`HikariPool`、`Connection timed out`。
 2. **服务状态**：ecomm-order Pod 健康。
 3. **K8s 事件**：无 ecomm-order CrashLoop。
-4. 确认根因指向 **云厂商 RDS**（托管 RDS / 托管 MySQL），非应用代码。
+4. 确认根因指向 **云厂商 RDS**（托管 MySQL），非应用代码。
 
 ## 根因
 **托管 RDS 实例**响应超时或连接池耗尽（PaaS 层问题），ecomm-order 无法完成订单持久化。
