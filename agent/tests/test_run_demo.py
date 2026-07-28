@@ -48,3 +48,16 @@ def test_run_demo_list_exits_zero():
     assert proc.returncode == 0, proc.stderr
     assert "standard:" in proc.stdout
     assert "DEMO-02" in proc.stdout
+
+
+def test_run_demo_auto_requires_flag():
+    script = os.path.join(SCRIPTS, "run_demo.py")
+    proc = subprocess.run(
+        [sys.executable, script, "--help"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+    assert proc.returncode == 0
+    assert "--auto" in proc.stdout
+    assert "--present" in proc.stdout

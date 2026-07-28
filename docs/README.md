@@ -56,7 +56,8 @@
 |------|------|
 | [**rag-eval-corpus.md**](agent/rag-eval-corpus.md) | RAG 语料生成、golden 集运维 |
 | [**test-scenario-trajectories.md**](agent/test-scenario-trajectories.md) | REM / HITL / LOOP / DEC / KB / RAG 场景矩阵 |
-| [**demo-scenarios.md**](agent/demo-scenarios.md) | real LLM E2E 演示 profile |
+| [**demo-presenter.md**](agent/demo-presenter.md) | 交互式 real LLM 演示（`make demo-real`） |
+| [**demo-scenarios.md**](agent/demo-scenarios.md) | batch profile 与幕次矩阵 |
 | [**open-issues.md**](agent/open-issues.md) | 已知问题与 workaround |
 | [**archive/**](agent/archive/) | 已实现的设计草案归档 |
 
@@ -70,7 +71,7 @@
 | 调 RAG 阈值 / 检索链 | `agent/rag-architecture-and-tests.md` |
 | 新增写工具 | `agent/decide-remediation-architecture.md` + `backend-adapters-architecture.md` |
 | 新增 Simulator 场景 | simulator README → `agent/backend-adapters-architecture.md` §5 |
-| real LLM E2E 演示 | `agent/demo-scenarios.md` + `agent/scripts/run_demo.py` |
+| real LLM E2E 演示 | `agent/demo-presenter.md` + `agent/scripts/run_demo.py` |
 
 ---
 

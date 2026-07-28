@@ -6,25 +6,27 @@
 ## 快速开始
 
 ```bash
+# 交互式演示（推荐；五阶段 A–E，单幕 + 目录循环）
+make demo-real
+
+# 旧版五幕连跑（DEMO-02 处 Enter 批准 HITL）
+make demo-real-auto
+
+# 扩展 batch profile
 cd agent
-# 标准五幕（默认；DEMO-02 处按 Enter 批准 HITL）
 CHECKPOINTER=memory LLM_MODE=real BACKEND_MODE=real \
-  python scripts/run_demo.py --profile standard
-
-# 含高难度分层耗尽
-python scripts/run_demo.py --profile full
-
-# 完整版 + 熔断器非常规工具
-python scripts/run_demo.py --profile full+
+  python scripts/run_demo.py --profile full --auto
 
 # 附录：知识写回（mock LLM，按需）
-python scripts/run_demo.py --profile standard --appendix
+python scripts/run_demo.py --profile standard --auto --appendix
 
-# 列出所有 profile
+# 列出所有 profile（batch 模式）
 python scripts/run_demo.py --list
 ```
 
-报告写入 `data/demo_runs/run_demo_<utc>.json`（已 gitignore）。
+交互式 presenter 详解见 [`demo-presenter.md`](demo-presenter.md)。
+
+报告（仅 `--auto` batch）写入 `data/demo_runs/run_demo_<utc>.json`（已 gitignore）。
 
 ## Profile 一览
 
@@ -74,10 +76,15 @@ python scripts/run_demo.py --list
 
 1. `.env` 已配置 `OPENAI_*` / `EMBEDDINGS_PROVIDER`
 2. 脚本会自动启动并复用单个 simulator（`:8081`）；结束时关闭自启进程。若端口已被外部 uvicorn 占用，将复用该实例且不强行杀进程
-3. 预演：`python scripts/run_demo.py --profile standard`
+3. 预演：`make demo-real`（交互）或 `make demo-real-auto`（连跑）
 4. LangSmith 可选：`LANGSMITH_TRACING=true`
 
 ## 变更记录
+
+### 2026-07-08 · 交互式 demo presenter
+
+- `make demo-real` → 交互式五阶段演示；`make demo-real-auto` 保留 batch 连跑
+- 详见 [`demo-presenter.md`](demo-presenter.md)
 
 ### 2026-07-07 · 初版 real LLM 演示脚本
 

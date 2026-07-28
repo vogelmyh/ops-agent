@@ -31,10 +31,8 @@ cd agent && BACKEND_MODE=mock LLM_MODE=mock EMBEDDINGS_PROVIDER=local-hash \
 make demo
 
 # 3. Real LLM 场景演出（需 agent/.env 配置 OPENAI_* 等；自动起 simulator）
-make demo-real              # 标准五幕 walkthrough（~3 min，DEMO-02 处 Enter 批准 HITL）
-# make scenarios            # 全量场景表征回归（硬断言，输出 data/scenario_runs/）
-# cd agent && CHECKPOINTER=memory LLM_MODE=real BACKEND_MODE=real \
-#   .venv/bin/python scripts/run_demo.py --profile full+   # 含高难度幕次
+make demo-real              # 交互式 walkthrough（单幕 + 目录；详见 demo-presenter.md）
+make demo-real-auto         # 标准五幕连跑（~3 min，DEMO-02 处 Enter 批准 HITL）
 
 # 4. 测试（在 monorepo 根目录）
 make test-rag-retrieval     # RAG Track A：检索 + golden L1
@@ -46,7 +44,7 @@ make test-simulator         # 后端替身状态机
 make test                   # agent/ 全量 pytest（合入前最终门禁）
 ```
 
-Real LLM 演示 profile 与幕次说明见 [`docs/agent/demo-scenarios.md`](docs/agent/demo-scenarios.md)。
+Real LLM 演示见 [`docs/agent/demo-presenter.md`](docs/agent/demo-presenter.md)（交互）与 [`docs/agent/demo-scenarios.md`](docs/agent/demo-scenarios.md)（batch profile）。
 
 ## 改代码前
 

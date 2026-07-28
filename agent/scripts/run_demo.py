@@ -497,20 +497,19 @@ def _write_report(results: list[DemoActResult], report_path: Path, profile: str,
 
 _RUN_DEMO_EPILOG = """\
 Examples:
-  # Standard 5-act demo (one Enter pause at DEMO-02)
-  CHECKPOINTER=memory LLM_MODE=real BACKEND_MODE=real \\
-    python scripts/run_demo.py --profile standard
+  # Interactive presenter (default)
+  make demo-real
 
-  # Full demo + cascade exhaust
-  python scripts/run_demo.py --profile full
+  # Legacy batch standard profile
+  make demo-real-auto
 
-  # Rehearse a single act
-  python scripts/run_demo.py --acts DEMO-03
+  # Full demo + cascade exhaust (batch)
+  python scripts/run_demo.py --profile full --auto
 
-  # Add KB appendix (mock LLM writeback)
-  python scripts/run_demo.py --profile standard --appendix
+  # Rehearse a single act (batch)
+  python scripts/run_demo.py --acts DEMO-03 --auto
 
-See docs/agent/demo-scenarios.md
+See docs/agent/demo-presenter.md and docs/agent/demo-scenarios.md
 """
 
 
@@ -548,11 +547,27 @@ def main() -> None:
         action="store_true",
         help="List profiles and acts, then exit",
     )
+    parser.add_argument(
+        "--auto",
+        action="store_true",
+        help="Legacy batch profile run (non-interactive)",
+    )
+    parser.add_argument(
+        "--present",
+        action="store_true",
+        help="Interactive presenter (default when --auto is not set)",
+    )
     args = parser.parse_args()
 
     if args.list:
         for name, acts in PROFILES.items():
             print(f"{name}: {', '.join(acts)}")
+        return
+
+    if not args.auto:
+        from demo_presenter.present import run_present_loop
+
+        run_present_loop()
         return
 
     act_ids = resolve_act_ids(
