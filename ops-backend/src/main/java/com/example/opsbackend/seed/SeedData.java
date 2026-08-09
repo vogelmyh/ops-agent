@@ -128,10 +128,21 @@ public class SeedData {
                 String version = request.targetVersion() != null ? request.targetVersion() : "previous-stable";
                 yield "Rolled back " + service + " to version " + version + ", ready replicas recovering";
             }
-            case "scale_replicas" -> "Scaled " + service + " to " + request.replicas() + " replicas";
-            case "restart_pods" -> {
+            case "scale_deployment" -> "Scaled " + service + " to " + request.replicas() + " replicas";
+            case "restart_deployment" -> {
                 String strategy = request.strategy() != null ? request.strategy() : "rolling";
-                yield "Restarted " + service + " pods with " + strategy + " strategy";
+                yield "Restarted " + service + " deployment with " + strategy + " strategy";
+            }
+            case "delete_pod" -> {
+                int grace = request.gracePeriodSeconds() != null ? request.gracePeriodSeconds() : 30;
+                yield "Deleted pod " + request.podName() + " in " + service + " with " + grace + "s grace period";
+            }
+            case "cordon_node" -> "Cordoned node " + request.nodeName() + " for " + service;
+            case "drain_node" -> {
+                StringBuilder msg = new StringBuilder("Drained node " + request.nodeName() + " for " + service);
+                if (Boolean.TRUE.equals(request.force())) msg.append(" (forced)");
+                if (Boolean.TRUE.equals(request.deleteEmptyDir())) msg.append(" (emptydir deleted)");
+                yield msg.toString();
             }
             case "enable_circuit_breaker" ->
                     "Set circuit breaker on " + service + " upstream=" + request.upstream()
@@ -140,21 +151,12 @@ public class SeedData {
                 String pattern = request.cacheKeyPattern() != null ? request.cacheKeyPattern() : "*";
                 yield "Flushed cache keys matching " + pattern + " for " + service;
             }
-            case "purge_dead_letter_queue" ->
-                    "Purged dead-letter queue " + request.queueName() + " for " + service;
             case "patch_config" ->
                     "Patched " + service + " " + request.configKey() + "=" + request.configValue();
             case "toggle_feature_flag" ->
                     "Set feature flag " + request.flagName() + "="
                             + (Boolean.TRUE.equals(request.enabled()) ? "enabled" : "disabled")
                             + " on " + service;
-            case "resume_event_stream" ->
-                    "Resumed stream " + request.streamId() + " on " + service + ", consumer lag draining";
-            case "cleanup_storage" -> {
-                String path = request.path() != null ? request.path() : "/var/log";
-                int days = request.retentionDays() != null ? request.retentionDays() : 7;
-                yield "Cleaned storage under " + path + " older than " + days + "d for " + service;
-            }
             default -> throw new IllegalArgumentException("unknown ops action: " + action);
         };
         return new OperationResult(

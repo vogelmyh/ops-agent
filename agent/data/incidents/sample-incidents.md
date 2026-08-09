@@ -4,4 +4,4 @@
 
 2025-01: ecomm-order 升级 3.3.0-bad 导致全副本 CrashLoop，rollback_deployment 至 3.2.1-stable 恢复。
 
-2024-11: order-events 流被暂停 6 小时，resume_event_stream 后库存同步恢复。
+2024-11: order-events 流被暂停 6 小时，restart_deployment 后库存同步恢复。

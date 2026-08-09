@@ -16,8 +16,8 @@
 ES 磁盘水位或分片异常导致集群 red。
 
 ## 处置（标准修复）
-1. 执行 **`cleanup_storage`**：**service**: `ecomm-catalog`，**path**: `/data/es`（policy risk=medium）。
-2. 执行 **`restart_pods`**：**service**: `ecomm-catalog`，**strategy**: `rolling`（policy risk=medium）。
+1. 执行 **`drain_node`**：**service**: `ecomm-catalog`，**node_name**: `es-data-node`（policy risk=medium）。
+2. 执行 **`restart_deployment`**：**service**: `ecomm-catalog`，**strategy**: `rolling`（policy risk=medium）。
 
 ## 验证（修复后必须满足）
 - ES 集群 green。

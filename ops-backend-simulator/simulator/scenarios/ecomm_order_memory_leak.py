@@ -45,11 +45,11 @@ class State:
 
     def apply_ops(self, action: str, body: dict) -> OperationResult:
         self.op_counter += 1
-        if action != "restart_pods":
+        if action != "restart_deployment":
             result = op_result(
                 service=SERVICE,
                 action=action,
-                message=f"{action} not applicable; use restart_pods",
+                message=f"{action} not applicable; use restart_deployment",
                 status=OperationStatus.FAILED,
                 op_id=f"op-{self.op_counter}",
             )

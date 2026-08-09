@@ -19,7 +19,7 @@
 并发下单热点行竞争引发 InnoDB 死锁风暴。
 
 ## 处置（标准修复）
-1. 执行 **`restart_pods`**：**service**: `ecomm-order`，**strategy**: `rolling`（清理僵死事务连接）（policy risk=medium）。
+1. 执行 **`restart_deployment`**：**service**: `ecomm-order`，**strategy**: `rolling`（清理僵死事务连接）（policy risk=medium）。
 
 ## 验证（修复后必须满足）
 - `order_error_rate` 恢复。

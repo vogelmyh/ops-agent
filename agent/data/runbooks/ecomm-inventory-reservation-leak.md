@@ -17,14 +17,14 @@
 
 ## 处置（标准修复）
 1. 执行 **`patch_config`**：**service**: `ecomm-inventory`，**config_key**: `reservation.ttl-sec`，**config_value**: `900`（policy risk=low）。
-2. 执行 **`purge_dead_letter_queue`**：**service**: `ecomm-inventory`，**queue**: `reservation-cleanup`（policy risk=low）。
+2. 执行 **`restart_deployment`**：**service**: `ecomm-inventory`，**strategy**: `rolling`（policy risk=low）。
 
 ## 验证（修复后必须满足）
 - 可售库存恢复。
 - hold 数量下降。
 
 ## 勿用手段
-- **不要** `scale_replicas`  alone。
+- **不要** `scale_deployment`  alone。
 
 ## 后续与升级
 若 24h 内复发，升级对应服务 on-call 与平台团队。

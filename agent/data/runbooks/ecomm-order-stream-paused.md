@@ -24,9 +24,9 @@
 
 ## 处置（标准修复）
 1. 确认流为 PAUSED 且业务允许恢复。
-2. 执行 **`resume_event_stream`**：
+2. 执行 **`restart_deployment`**：
    - **service**: `ecomm-order`
-   - **stream_id**: `order-events`
+   - **strategy**: `rolling`
 3. 低风险操作（policy risk=low）。
 
 ## 验证（修复后必须满足）
@@ -39,4 +39,4 @@
 - **不要**在未确认暂停原因时盲目恢复（若因数据修复故意暂停，需人工确认）。
 
 ## 后续与升级
-- 恢复后检查消费者 lag；若积压严重，考虑临时扩容（`scale_replicas`，高风险，需审批）。
+- 恢复后检查消费者 lag；若积压严重，考虑临时扩容（`scale_deployment`，高风险，需审批）。

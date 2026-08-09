@@ -23,7 +23,7 @@
 - 推送或 fallback 恢复。
 
 ## 勿用手段
-- **不要** `purge_dead_letter_queue` webhook 队列。
+- **不要** `restart_deployment` webhook 队列。
 
 ## 后续与升级
 若 24h 内复发，升级对应服务 on-call 与平台团队。

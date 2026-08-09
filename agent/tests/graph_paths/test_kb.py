@@ -45,7 +45,7 @@ def test_kb_02_novel_actionable_then_runbook_writeback(thread_values):
     assert response.decide_outcome == "actionable"
     assert response.needs_approval is True
     assert meta["pending_node"] == "approve"
-    assert response.pending_tool_calls[0]["name"] == "restart_pods"
+    assert response.pending_tool_calls[0]["name"] == "restart_deployment"
 
     response = resume_approval(thread_id, approved=True)
     assert response.incident_resolved is True

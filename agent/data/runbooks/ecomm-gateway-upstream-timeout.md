@@ -23,7 +23,7 @@
 - 路由成功。
 
 ## 勿用手段
-- **不要** `restart_pods` 网关而不调 timeout。
+- **不要** `restart_deployment` 网关而不调 timeout。
 
 ## 后续与升级
 若 24h 内复发，升级对应服务 on-call 与平台团队。

@@ -26,7 +26,7 @@
 - DEADLINE_EXCEEDED 日志减少。
 
 ## 勿用手段
-- **不要** `restart_pods` 作为首选（未缓解下游慢）。
+- **不要** `restart_deployment` 作为首选（未缓解下游慢）。
 
 ## 后续与升级
 若 24h 内复发，升级对应服务 on-call 与平台团队。

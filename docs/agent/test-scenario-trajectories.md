@@ -207,14 +207,14 @@ triage → retrieve_runbooks → diagnose
 |----|----------|---------|------|
 | 1 | `admin_api_qps` 低、限流日志 | `ecomm-manager-rate-limit` | `patch_config` |
 | 2 | `error_rate` 高、NPE / `promotion-v2` | `ecomm-manager-feature-flag` | `toggle_feature_flag` |
-| 3 | `disk_usage_percent` 高、ENOSPC | `ecomm-manager-disk-full` | `cleanup_storage` |
+| 3 | `disk_usage_percent` 高、ENOSPC | `ecomm-manager-disk-full` | `drain_node` |
 | 末态 | `too many open files` | `ecomm-manager-connection-leak` | （第 3 轮 write 后为 CONN_LEAK；`attempt=3` 耗尽） |
 
 | Step | 节点链 | 关键 state / response |
 |------|--------|------------------------|
 | 1 | write `patch_config` | 进入 FEATURE_FLAG 层 |
 | 2 | approve → `toggle_feature_flag` | 进入 DISK_FULL 层 |
-| 3 | approve → `cleanup_storage` | 进入 CONN_LEAK 层；verify `resolved=false` |
+| 3 | approve → `drain_node` | 进入 CONN_LEAK 层；verify `resolved=false` |
 | 末 | summarize | `remediation_attempt=3`, `incident_resolved=false` |
 | — | simulator | `phase=BROKEN`, `fault_layer=CONN_LEAK`, `recoverable=false` |
 
@@ -308,7 +308,7 @@ stateDiagram-v2
 |------|--------|------------------------|
 | 1 | … → diagnose → decide | `runbook_available=false`, `confidence_sufficient=true`, `actionable`, `needs_approval=true` |
 | 2 | approve（interrupt） | `awaiting_approval` |
-| 3 | resume `approved=true` → write_tools | `restart_pods` |
+| 3 | resume `approved=true` → write_tools | `restart_deployment` |
 | 4 | verify_remediation | `incident_resolved=true` |
 | 5 | summarize → notes → draft → review | HITL 写回链 |
 | 8 | ingest | `runbook_saved_path` 非空 |

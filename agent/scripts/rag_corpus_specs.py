@@ -90,7 +90,7 @@ RUNBOOK_SPECS: list[RunbookSpec] = [
                 "low",
             ),
             Remediation(
-                "restart_pods",
+                "restart_deployment",
                 "**service**: `ecomm-order`，**strategy**: `rolling`（池配置生效后仍僵死时）",
                 "medium",
             ),
@@ -101,7 +101,7 @@ RUNBOOK_SPECS: list[RunbookSpec] = [
         ],
         forbidden=[
             "**不要** `rollback_deployment`（镜像未变更）。",
-            "**不要** `scale_replicas` 代替池配置修复（新副本同样耗尽）。",
+            "**不要** `scale_deployment` 代替池配置修复（新副本同样耗尽）。",
         ],
     ),
     RunbookSpec(
@@ -124,19 +124,19 @@ RUNBOOK_SPECS: list[RunbookSpec] = [
         root_cause="消费者处理变慢或分区热点导致 lag 堆积；ingest 通道正常。",
         remediation=[
             Remediation(
-                "scale_replicas",
+                "scale_deployment",
                 "**service**: `ecomm-order`，**replicas**: `5`（扩展消费者实例）",
                 "medium",
             ),
             Remediation(
-                "restart_pods",
+                "restart_deployment",
                 "**service**: `ecomm-order`，**strategy**: `rolling`（单消费者僵死时）",
                 "medium",
             ),
         ],
         verification=["`kafka_consumer_lag` 回落至 < 1000。", "订单状态同步延迟恢复正常。"],
         forbidden=[
-            "**不要** `resume_event_stream`（stream 未 paused）。",
+            "**不要** `restart_deployment`（stream 未 paused）。",
             "**不要** `rollback_deployment`（非版本问题）。",
         ],
     ),
@@ -159,7 +159,7 @@ RUNBOOK_SPECS: list[RunbookSpec] = [
         root_cause="并发下单热点行竞争引发 InnoDB 死锁风暴。",
         remediation=[
             Remediation(
-                "restart_pods",
+                "restart_deployment",
                 "**service**: `ecomm-order`，**strategy**: `rolling`（清理僵死事务连接）",
                 "medium",
             ),
@@ -194,7 +194,7 @@ RUNBOOK_SPECS: list[RunbookSpec] = [
                 "low",
             ),
             Remediation(
-                "restart_pods",
+                "restart_deployment",
                 "**service**: `ecomm-order`，**strategy**: `rolling`",
                 "medium",
             ),
@@ -231,7 +231,7 @@ RUNBOOK_SPECS: list[RunbookSpec] = [
             ),
         ],
         verification=["P99 延迟回落至 SLA 内。", "DEADLINE_EXCEEDED 日志减少。"],
-        forbidden=["**不要** `restart_pods` 作为首选（未缓解下游慢）。"],
+        forbidden=["**不要** `restart_deployment` 作为首选（未缓解下游慢）。"],
     ),
     RunbookSpec(
         stem="ecomm-order-network-partition",
@@ -251,12 +251,12 @@ RUNBOOK_SPECS: list[RunbookSpec] = [
         root_cause="集群 DNS 或 CoreDNS 异常导致服务发现失败。",
         remediation=[
             Remediation(
-                "restart_pods",
+                "restart_deployment",
                 "**service**: `ecomm-order`，**strategy**: `rolling`",
                 "medium",
             ),
             Remediation(
-                "scale_replicas",
+                "scale_deployment",
                 "**service**: `ecomm-order`，**replicas**: `3`",
                 "low",
             ),
@@ -287,7 +287,7 @@ RUNBOOK_SPECS: list[RunbookSpec] = [
                 "**service**: `ecomm-manager`，**config_key**: `executor.max-threads`，**config_value**: `200`",
                 "low",
             ),
-            Remediation("restart_pods", "**service**: `ecomm-manager`，**strategy**: `rolling`", "medium"),
+            Remediation("restart_deployment", "**service**: `ecomm-manager`，**strategy**: `rolling`", "medium"),
         ],
         verification=["RejectedExecutionException 消失。", "API P99 恢复。"],
         forbidden=["**不要**仅 `patch_config` rate-limit（非限流问题）。"],
@@ -314,7 +314,7 @@ RUNBOOK_SPECS: list[RunbookSpec] = [
                 "**service**: `ecomm-manager`，**config_key**: `jvm.gc.max-pause-ms`，**config_value**: `200`",
                 "low",
             ),
-            Remediation("restart_pods", "**service**: `ecomm-manager`，**strategy**: `rolling`", "medium"),
+            Remediation("restart_deployment", "**service**: `ecomm-manager`，**strategy**: `rolling`", "medium"),
         ],
         verification=["Full GC 频率下降。", "P99 尖刺消失。"],
         forbidden=["**不要** `rollback_deployment`（非镜像问题）。"],
@@ -333,7 +333,7 @@ RUNBOOK_SPECS: list[RunbookSpec] = [
             "Pod 仍 Ready。",
         ],
         root_cause="HTTP 客户端未释放连接导致泄漏。",
-        remediation=[Remediation("restart_pods", "**service**: `ecomm-manager`，**strategy**: `rolling`", "medium")],
+        remediation=[Remediation("restart_deployment", "**service**: `ecomm-manager`，**strategy**: `rolling`", "medium")],
         verification=["too many open files 告警消失。", "API 延迟恢复。"],
         forbidden=["**不要** `patch_config` rate-limit。"],
     ),
@@ -383,7 +383,7 @@ RUNBOOK_SPECS: list[RunbookSpec] = [
                 "**service**: `ecomm-manager`，**config_key**: `dns.cache-ttl-sec`，**config_value**: `60`",
                 "low",
             ),
-            Remediation("restart_pods", "**service**: `ecomm-manager`，**strategy**: `rolling`", "medium"),
+            Remediation("restart_deployment", "**service**: `ecomm-manager`，**strategy**: `rolling`", "medium"),
         ],
         verification=["UnknownHost 消失。", "下游调用恢复。"],
         forbidden=["**不要** `patch_config` rate-limit。"],
@@ -410,7 +410,7 @@ RUNBOOK_SPECS: list[RunbookSpec] = [
                 "**service**: `ecomm-search`，**config_key**: `index.rebuild-from-snapshot`，**config_value**: `true`",
                 "medium",
             ),
-            Remediation("restart_pods", "**service**: `ecomm-search`，**strategy**: `rolling`", "medium"),
+            Remediation("restart_deployment", "**service**: `ecomm-search`，**strategy**: `rolling`", "medium"),
         ],
         verification=["搜索可用率恢复。", "corruption 日志消失。"],
         forbidden=["**不要** `flush_cache` 代替索引重建。"],
@@ -435,7 +435,7 @@ RUNBOOK_SPECS: list[RunbookSpec] = [
                 "**service**: `ecomm-search`，**config_key**: `query.slow-log-threshold-ms`，**config_value**: `2000`",
                 "low",
             ),
-            Remediation("scale_replicas", "**service**: `ecomm-search`，**replicas**: `4`", "low"),
+            Remediation("scale_deployment", "**service**: `ecomm-search`，**replicas**: `4`", "low"),
         ],
         verification=["P99 < 1s。", "slow query 比例下降。"],
         forbidden=["**不要**全量 rebuild 索引（无损坏证据）。"],
@@ -451,7 +451,7 @@ RUNBOOK_SPECS: list[RunbookSpec] = [
         ],
         diagnosis=["replica lag 日志。", "主分片健康。"],
         root_cause="副本同步落后主分片。",
-        remediation=[Remediation("restart_pods", "**service**: `ecomm-search`，**strategy**: `rolling`", "medium")],
+        remediation=[Remediation("restart_deployment", "**service**: `ecomm-search`，**strategy**: `rolling`", "medium")],
         verification=["lag 指标回落。", "新数据可搜索。"],
         forbidden=["**不要** `flush_cache` 作为唯一手段。"],
     ),
@@ -467,8 +467,8 @@ RUNBOOK_SPECS: list[RunbookSpec] = [
         diagnosis=["分片 UNASSIGNED。", "非 slow query 主导。"],
         root_cause="节点宕机或磁盘水位导致分片无法分配。",
         remediation=[
-            Remediation("scale_replicas", "**service**: `ecomm-search`，**replicas**: `3`", "medium"),
-            Remediation("restart_pods", "**service**: `ecomm-search`，**strategy**: `rolling`", "medium"),
+            Remediation("scale_deployment", "**service**: `ecomm-search`，**replicas**: `3`", "medium"),
+            Remediation("restart_deployment", "**service**: `ecomm-search`，**strategy**: `rolling`", "medium"),
         ],
         verification=["集群 green。", "UNASSIGNED 为 0。"],
         forbidden=["**不要**仅调慢查询阈值。"],
@@ -495,7 +495,7 @@ RUNBOOK_SPECS: list[RunbookSpec] = [
             Remediation("flush_cache", "**service**: `ecomm-cache`，**scope**: `hot-sku`", "low"),
         ],
         verification=["单分片 CPU 回落。", "P99 正常。"],
-        forbidden=["**不要** `restart_pods` 作为首选（丢热点预热）。"],
+        forbidden=["**不要** `restart_deployment` 作为首选（丢热点预热）。"],
     ),
     RunbookSpec(
         stem="ecomm-cache-redis-memory-full",
@@ -518,7 +518,7 @@ RUNBOOK_SPECS: list[RunbookSpec] = [
             Remediation("flush_cache", "**service**: `ecomm-cache`，**scope**: `low-value-keys`", "medium"),
         ],
         verification=["写入恢复。", "eviction 正常。"],
-        forbidden=["**不要**无限 `scale_replicas` 而不调 policy。"],
+        forbidden=["**不要**无限 `scale_deployment` 而不调 policy。"],
     ),
     RunbookSpec(
         stem="ecomm-cache-connection-storm",
@@ -537,7 +537,7 @@ RUNBOOK_SPECS: list[RunbookSpec] = [
                 "**service**: `ecomm-cache`，**config_key**: `redis.max-clients`，**config_value**: `10000`",
                 "low",
             ),
-            Remediation("restart_pods", "**service**: `ecomm-cache`，**strategy**: `rolling`", "medium"),
+            Remediation("restart_deployment", "**service**: `ecomm-cache`，**strategy**: `rolling`", "medium"),
         ],
         verification=["连接数稳定。", "拒绝连接消失。"],
         forbidden=["**不要** `flush_cache`（非数据问题）。"],
@@ -581,10 +581,10 @@ RUNBOOK_SPECS: list[RunbookSpec] = [
                 "**service**: `ecomm-catalog`，**config_key**: `datasource.connection-timeout-ms`，**config_value**: `5000`",
                 "low",
             ),
-            Remediation("restart_pods", "**service**: `ecomm-catalog`，**strategy**: `rolling`", "medium"),
+            Remediation("restart_deployment", "**service**: `ecomm-catalog`，**strategy**: `rolling`", "medium"),
         ],
         verification=["目录 API 成功率恢复。"],
-        forbidden=["**不要** `resume_event_stream`。"],
+        forbidden=["**不要** `restart_deployment`。"],
     ),
     RunbookSpec(
         stem="ecomm-catalog-es-cluster-red",
@@ -598,8 +598,8 @@ RUNBOOK_SPECS: list[RunbookSpec] = [
         diagnosis=["ES 异常为主。", "MySQL 连接正常。"],
         root_cause="ES 磁盘水位或分片异常导致集群 red。",
         remediation=[
-            Remediation("cleanup_storage", "**service**: `ecomm-catalog`，**path**: `/data/es`", "medium"),
-            Remediation("restart_pods", "**service**: `ecomm-catalog`，**strategy**: `rolling`", "medium"),
+            Remediation("drain_node", "**service**: `ecomm-catalog`，**node_name**: `es-data-node`", "medium"),
+            Remediation("restart_deployment", "**service**: `ecomm-catalog`，**strategy**: `rolling`", "medium"),
         ],
         verification=["ES 集群 green。", "目录查询恢复。"],
         forbidden=["**不要**仅调 MySQL 池（非 DB 根因）。"],
@@ -644,7 +644,7 @@ RUNBOOK_SPECS: list[RunbookSpec] = [
                 "**service**: `ecomm-payment`，**target**: `channel-primary`，**state**: `half-open`",
                 "medium",
             ),
-            Remediation("restart_pods", "**service**: `ecomm-payment`，**strategy**: `rolling`", "medium"),
+            Remediation("restart_deployment", "**service**: `ecomm-payment`，**strategy**: `rolling`", "medium"),
         ],
         verification=["熔断关闭。", "支付恢复。"],
         forbidden=["**不要**仅加长 timeout（熔断已 open）。"],
@@ -662,13 +662,13 @@ RUNBOOK_SPECS: list[RunbookSpec] = [
         root_cause="批次结算文件与渠道账单不一致。",
         remediation=[
             Remediation(
-                "purge_dead_letter_queue",
-                "**service**: `ecomm-payment`，**queue**: `settlement-retry`",
+                "restart_deployment",
+                "**service**: `ecomm-payment`，**strategy**: `rolling`",
                 "medium",
             ),
         ],
         verification=["对账 job 成功。", "delta 归零。"],
-        forbidden=["**不要** `restart_pods` 作为首选。"],
+        forbidden=["**不要** `restart_deployment` 作为首选。"],
     ),
     RunbookSpec(
         stem="ecomm-payment-idempotency-collision",
@@ -711,7 +711,7 @@ RUNBOOK_SPECS: list[RunbookSpec] = [
             ),
         ],
         verification=["504 下降。", "路由成功。"],
-        forbidden=["**不要** `restart_pods` 网关而不调 timeout。"],
+        forbidden=["**不要** `restart_deployment` 网关而不调 timeout。"],
     ),
     RunbookSpec(
         stem="ecomm-gateway-502-bad-gateway",
@@ -725,7 +725,7 @@ RUNBOOK_SPECS: list[RunbookSpec] = [
         diagnosis=["connection refused / no healthy upstream。", "非 read timeout。"],
         root_cause="上游实例全不可用或 service endpoints 空。",
         remediation=[
-            Remediation("scale_replicas", "**service**: `ecomm-gateway`，**replicas**: `3`", "low"),
+            Remediation("scale_deployment", "**service**: `ecomm-gateway`，**replicas**: `3`", "low"),
             Remediation(
                 "patch_config",
                 "**service**: `ecomm-gateway`，**config_key**: `loadbalancer.health-check-interval-sec`，**config_value**: `5`",
@@ -752,7 +752,7 @@ RUNBOOK_SPECS: list[RunbookSpec] = [
                 "**service**: `ecomm-gateway`，**config_key**: `auth.jwks-cache-ttl-sec`，**config_value**: `300`",
                 "low",
             ),
-            Remediation("restart_pods", "**service**: `ecomm-gateway`，**strategy**: `rolling`", "low"),
+            Remediation("restart_deployment", "**service**: `ecomm-gateway`，**strategy**: `rolling`", "low"),
         ],
         verification=["401/403 恢复正常。", "合法流量通过。"],
         forbidden=["**不要** `patch_config` proxy timeout。"],
@@ -776,7 +776,7 @@ RUNBOOK_SPECS: list[RunbookSpec] = [
             ),
         ],
         verification=["OPTIONS QPS 下降。", "业务 QPS 恢复。"],
-        forbidden=["**不要** `scale_replicas` 而不修 CORS。"],
+        forbidden=["**不要** `scale_deployment` 而不修 CORS。"],
     ),
     # --- ecomm-auth (3) ---
     RunbookSpec(
@@ -796,7 +796,7 @@ RUNBOOK_SPECS: list[RunbookSpec] = [
                 "**service**: `ecomm-auth`，**config_key**: `jwt.signing-key-version`，**config_value**: `v3`",
                 "medium",
             ),
-            Remediation("restart_pods", "**service**: `ecomm-auth`，**strategy**: `rolling`", "medium"),
+            Remediation("restart_deployment", "**service**: `ecomm-auth`，**strategy**: `rolling`", "medium"),
         ],
         verification=["登录成功率恢复。"],
         forbidden=["**不要** `flush_cache` session 作为首选。"],
@@ -813,7 +813,7 @@ RUNBOOK_SPECS: list[RunbookSpec] = [
         diagnosis=["Redis session 错误。", "JWT 签发可能成功。"],
         root_cause="Session Redis 宕机或密码轮换。",
         remediation=[
-            Remediation("restart_pods", "**service**: `ecomm-auth`，**strategy**: `rolling`", "medium"),
+            Remediation("restart_deployment", "**service**: `ecomm-auth`，**strategy**: `rolling`", "medium"),
             Remediation("flush_cache", "**service**: `ecomm-auth`，**scope**: `session`", "low"),
         ],
         verification=["会话保持正常。"],
@@ -843,7 +843,7 @@ RUNBOOK_SPECS: list[RunbookSpec] = [
             ),
         ],
         verification=["锁号率下降。", "正常用户可登录。"],
-        forbidden=["**不要** `restart_pods` 作为唯一手段。"],
+        forbidden=["**不要** `restart_deployment` 作为唯一手段。"],
     ),
     # --- ecomm-inventory (3) ---
     RunbookSpec(
@@ -863,10 +863,10 @@ RUNBOOK_SPECS: list[RunbookSpec] = [
                 "**service**: `ecomm-inventory`，**config_key**: `stock.optimistic-lock-retry`，**config_value**: `5`",
                 "low",
             ),
-            Remediation("restart_pods", "**service**: `ecomm-inventory`，**strategy**: `rolling`", "medium"),
+            Remediation("restart_deployment", "**service**: `ecomm-inventory`，**strategy**: `rolling`", "medium"),
         ],
         verification=["负库存消失。", "扣减成功。"],
-        forbidden=["**不要** `purge_dead_letter_queue`（非 MQ 根因）。"],
+        forbidden=["**不要**仅 `restart_deployment` 而不加乐观锁。"],
     ),
     RunbookSpec(
         stem="ecomm-inventory-sync-lag",
@@ -880,10 +880,10 @@ RUNBOOK_SPECS: list[RunbookSpec] = [
         diagnosis=["sync lag 日志。", "无 negative stock。"],
         root_cause="仓配同步 worker 堆积。",
         remediation=[
-            Remediation("scale_replicas", "**service**: `ecomm-inventory`，**replicas**: `4`", "medium"),
+            Remediation("scale_deployment", "**service**: `ecomm-inventory`，**replicas**: `4`", "medium"),
             Remediation(
-                "purge_dead_letter_queue",
-                "**service**: `ecomm-inventory`，**queue**: `sync-retry`",
+                "restart_deployment",
+                "**service**: `ecomm-inventory`，**strategy**: `rolling`",
                 "medium",
             ),
         ],
@@ -908,13 +908,13 @@ RUNBOOK_SPECS: list[RunbookSpec] = [
                 "low",
             ),
             Remediation(
-                "purge_dead_letter_queue",
-                "**service**: `ecomm-inventory`，**queue**: `reservation-cleanup`",
+                "restart_deployment",
+                "**service**: `ecomm-inventory`，**strategy**: `rolling`",
                 "low",
             ),
         ],
         verification=["可售库存恢复。", "hold 数量下降。"],
-        forbidden=["**不要** `scale_replicas`  alone。"],
+        forbidden=["**不要** `scale_deployment`  alone。"],
     ),
     # --- ecomm-notification (3) ---
     RunbookSpec(
@@ -936,7 +936,7 @@ RUNBOOK_SPECS: list[RunbookSpec] = [
             ),
         ],
         verification=["邮件发送成功。"],
-        forbidden=["**不要** `purge_dead_letter_queue` 而不换 relay。"],
+        forbidden=["**不要**仅 `restart_deployment` 而不换 relay。"],
     ),
     RunbookSpec(
         stem="ecomm-notification-webhook-retry-storm",
@@ -951,8 +951,8 @@ RUNBOOK_SPECS: list[RunbookSpec] = [
         root_cause="下游 webhook 5xx 导致无限重试。",
         remediation=[
             Remediation(
-                "purge_dead_letter_queue",
-                "**service**: `ecomm-notification`，**queue**: `webhook-dlq`",
+                "restart_deployment",
+                "**service**: `ecomm-notification`，**strategy**: `rolling`",
                 "medium",
             ),
             Remediation(
@@ -988,7 +988,7 @@ RUNBOOK_SPECS: list[RunbookSpec] = [
             ),
         ],
         verification=["推送或 fallback 恢复。"],
-        forbidden=["**不要** `purge_dead_letter_queue` webhook 队列。"],
+        forbidden=["**不要** `restart_deployment` webhook 队列。"],
     ),
 ]
 

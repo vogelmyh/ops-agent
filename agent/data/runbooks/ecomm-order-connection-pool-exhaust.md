@@ -21,7 +21,7 @@
 
 ## 处置（标准修复）
 1. 执行 **`patch_config`**：**service**: `ecomm-order`，**config_key**: `datasource.max-pool-size`，**config_value**: `80`（policy risk=low）。
-2. 执行 **`restart_pods`**：**service**: `ecomm-order`，**strategy**: `rolling`（池配置生效后仍僵死时）（policy risk=medium）。
+2. 执行 **`restart_deployment`**：**service**: `ecomm-order`，**strategy**: `rolling`（池配置生效后仍僵死时）（policy risk=medium）。
 
 ## 验证（修复后必须满足）
 - `order_error_rate` 降至基线（< 1%）。
@@ -29,7 +29,7 @@
 
 ## 勿用手段
 - **不要** `rollback_deployment`（镜像未变更）。
-- **不要** `scale_replicas` 代替池配置修复（新副本同样耗尽）。
+- **不要** `scale_deployment` 代替池配置修复（新副本同样耗尽）。
 
 ## 后续与升级
 若 24h 内复发，升级对应服务 on-call 与平台团队。

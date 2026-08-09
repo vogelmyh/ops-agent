@@ -84,7 +84,7 @@ def test_load_runbook_by_stem_includes_forbidden_section():
     text = load_runbook_by_stem("ecomm-order-crashloop")
     assert text is not None
     assert "勿用手段" in text
-    assert "restart_pods" in text
+    assert "restart_deployment" in text
 
 
 def test_expand_chunks_to_parent_runbooks_dedupes_and_loads_full_doc():
@@ -182,6 +182,6 @@ def test_rag_02_crashloop_runbook_is_full_parent_not_chunk_only():
     relevant = result["relevant_runbook"] or ""
     assert "rollback_deployment" in relevant
     assert "勿用手段" in relevant
-    assert "restart_pods" in relevant
+    assert "restart_deployment" in relevant
     assert result.get("selected_runbook_id") == "ecomm-order-crashloop"
     assert result.get("match_gate_reason")

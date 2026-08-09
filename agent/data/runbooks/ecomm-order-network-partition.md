@@ -18,8 +18,8 @@
 集群 DNS 或 CoreDNS 异常导致服务发现失败。
 
 ## 处置（标准修复）
-1. 执行 **`restart_pods`**：**service**: `ecomm-order`，**strategy**: `rolling`（policy risk=medium）。
-2. 执行 **`scale_replicas`**：**service**: `ecomm-order`，**replicas**: `3`（policy risk=low）。
+1. 执行 **`restart_deployment`**：**service**: `ecomm-order`，**strategy**: `rolling`（policy risk=medium）。
+2. 执行 **`scale_deployment`**：**service**: `ecomm-order`，**replicas**: `3`（policy risk=low）。
 
 ## 验证（修复后必须满足）
 - UnknownHost 日志消失。

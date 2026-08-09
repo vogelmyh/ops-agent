@@ -23,7 +23,7 @@
 - 业务 QPS 恢复。
 
 ## 勿用手段
-- **不要** `scale_replicas` 而不修 CORS。
+- **不要** `scale_deployment` 而不修 CORS。
 
 ## 后续与升级
 若 24h 内复发，升级对应服务 on-call 与平台团队。

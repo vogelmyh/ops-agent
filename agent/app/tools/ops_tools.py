@@ -12,6 +12,9 @@ class ServiceInput(BaseModel):
     service: str = Field(description="Target K8s workload / microservice name")
 
 
+# ── K8s Infrastructure Layer ──────────────────────────────────────────────
+
+
 class RollbackDeploymentInput(ServiceInput):
     target_version: str | None = Field(
         default=None,
@@ -19,20 +22,56 @@ class RollbackDeploymentInput(ServiceInput):
     )
 
 
-class ScaleReplicasInput(ServiceInput):
+class ScaleDeploymentInput(ServiceInput):
     replicas: int = Field(ge=0, description="Desired ready replica count")
 
 
-class RestartPodsInput(ServiceInput):
+class RestartDeploymentInput(ServiceInput):
     strategy: Literal["rolling", "all"] = Field(
         default="rolling",
         description="Pod restart strategy: rolling (default) or all at once",
     )
 
 
+class DeletePodInput(ServiceInput):
+    pod_name: str = Field(description="Full pod name to delete (e.g. my-deploy-abc123)")
+    grace_period_seconds: int = Field(
+        default=30, ge=0, description="Grace period before force kill"
+    )
+
+
+class CordonNodeInput(ServiceInput):
+    node_name: str = Field(description="K8s node name to mark unschedulable")
+
+
+class DrainNodeInput(ServiceInput):
+    node_name: str = Field(description="K8s node name to drain")
+    force: bool = Field(
+        default=False, description="Force evict even if PDB would block"
+    )
+    delete_emptydir: bool = Field(
+        default=False, description="Delete pods that use emptyDir volumes"
+    )
+
+
+# ── Platform Layer ───────────────────────────────────────────────────────
+
+
+class PatchConfigInput(ServiceInput):
+    config_key: str = Field(
+        description="Configuration key path, e.g. rate-limit.max-qps"
+    )
+    config_value: str = Field(description="New configuration value")
+
+
 class CircuitBreakerInput(ServiceInput):
     upstream: str = Field(description="Upstream dependency or route to break")
     state: Literal["open", "closed"] = Field(description="Circuit breaker state")
+
+
+class ToggleFeatureFlagInput(ServiceInput):
+    flag_name: str = Field(description="Feature flag identifier")
+    enabled: bool = Field(description="Whether to enable the flag")
 
 
 class FlushCacheInput(ServiceInput):
@@ -42,27 +81,7 @@ class FlushCacheInput(ServiceInput):
     )
 
 
-class PurgeDeadLetterQueueInput(ServiceInput):
-    queue_name: str = Field(description="Dead-letter queue name to purge")
-
-
-class PatchConfigInput(ServiceInput):
-    config_key: str = Field(description="Configuration key path, e.g. rate-limit.threshold")
-    config_value: str = Field(description="New configuration value")
-
-
-class ToggleFeatureFlagInput(ServiceInput):
-    flag_name: str = Field(description="Feature flag identifier")
-    enabled: bool = Field(description="Whether to enable the flag")
-
-
-class ResumeEventStreamInput(ServiceInput):
-    stream_id: str = Field(description="Event or stream identifier to resume")
-
-
-class CleanupStorageInput(ServiceInput):
-    path: str = Field(default="/var/log", description="Storage path to clean on pod or node")
-    retention_days: int = Field(default=7, ge=1, description="Delete data older than N days")
+# ── Shared execution helper ──────────────────────────────────────────────
 
 
 def _run_ops_action(
@@ -92,9 +111,12 @@ def _run_ops_action(
     return payload
 
 
+# ── K8s Infrastructure Tools ──────────────────────────────────────────────
+
+
 @tool(args_schema=RollbackDeploymentInput)
 def rollback_deployment(service: str, target_version: str | None = None) -> dict:
-    """Roll back a deployment to a previous stable version after a bad release."""
+    """Roll back a deployment to a previous stable version after a bad release (kubectl rollout undo)."""
     version = target_version or "previous-stable"
     return _run_ops_action(
         action="rollback_deployment",
@@ -107,27 +129,86 @@ def rollback_deployment(service: str, target_version: str | None = None) -> dict
     )
 
 
-@tool(args_schema=ScaleReplicasInput)
-def scale_replicas(service: str, replicas: int) -> dict:
-    """Scale deployment replica count up or down to handle traffic or resource pressure."""
+@tool(args_schema=ScaleDeploymentInput)
+def scale_deployment(service: str, replicas: int) -> dict:
+    """Scale deployment replica count up or down to handle traffic or resource pressure (kubectl scale)."""
     return _run_ops_action(
-        action="scale_replicas",
+        action="scale_deployment",
         service=service,
         body={"replicas": replicas},
         mock_message=f"Mock scale: {service} scaled to {replicas} replicas",
     )
 
 
-@tool(args_schema=RestartPodsInput)
-def restart_pods(service: str, strategy: Literal["rolling", "all"] = "rolling") -> dict:
-    """Restart pods without changing the deployment version (e.g. memory leak, stale connections)."""
+@tool(args_schema=RestartDeploymentInput)
+def restart_deployment(service: str, strategy: Literal["rolling", "all"] = "rolling") -> dict:
+    """Restart a deployment without changing the image version (kubectl rollout restart)."""
     return _run_ops_action(
-        action="restart_pods",
+        action="restart_deployment",
         service=service,
         body={"strategy": strategy},
         mock_message=(
-            f"Mock restart: {service} pods restarted with {strategy} strategy, "
+            f"Mock restart: {service} restarted with {strategy} strategy, "
             "workload recovering"
+        ),
+    )
+
+
+@tool(args_schema=DeletePodInput)
+def delete_pod(service: str, pod_name: str, grace_period_seconds: int = 30) -> dict:
+    """Force-delete a specific pod by name (kubectl delete pod)."""
+    return _run_ops_action(
+        action="delete_pod",
+        service=service,
+        body={"pod_name": pod_name, "grace_period_seconds": grace_period_seconds},
+        mock_message=(
+            f"Mock pod delete: {pod_name} in {service} terminated "
+            f"with {grace_period_seconds}s grace period"
+        ),
+    )
+
+
+@tool(args_schema=CordonNodeInput)
+def cordon_node(service: str, node_name: str) -> dict:
+    """Mark a K8s node as unschedulable to prevent new pods from being assigned (kubectl cordon)."""
+    return _run_ops_action(
+        action="cordon_node",
+        service=service,
+        body={"node_name": node_name},
+        mock_message=f"Mock cordon: node {node_name} marked unschedulable",
+    )
+
+
+@tool(args_schema=DrainNodeInput)
+def drain_node(
+    service: str, node_name: str, force: bool = False, delete_emptydir: bool = False
+) -> dict:
+    """Evict all pods from a node and cordon it for maintenance (kubectl drain)."""
+    return _run_ops_action(
+        action="drain_node",
+        service=service,
+        body={"node_name": node_name, "force": force, "delete_emptydir": delete_emptydir},
+        mock_message=(
+            f"Mock drain: node {node_name} cordoned and pods evicted"
+            + (" (forced)" if force else "")
+            + (" (emptydir deleted)" if delete_emptydir else "")
+        ),
+    )
+
+
+# ── Platform Tools ───────────────────────────────────────────────────────
+
+
+@tool(args_schema=PatchConfigInput)
+def patch_config(service: str, config_key: str, config_value: str) -> dict:
+    """Patch a runtime configuration value (ConfigMap, env var, or app config)."""
+    return _run_ops_action(
+        action="patch_config",
+        service=service,
+        body={"config_key": config_key, "config_value": config_value},
+        mock_message=(
+            f"Mock config patch: {service} {config_key}={config_value!r}, "
+            "workload applying new settings"
         ),
     )
 
@@ -145,46 +226,6 @@ def enable_circuit_breaker(service: str, upstream: str, state: Literal["open", "
     )
 
 
-@tool(args_schema=FlushCacheInput)
-def flush_cache(service: str, cache_key_pattern: str = "*") -> dict:
-    """Flush stale or poisoned cache entries for a service."""
-    return _run_ops_action(
-        action="flush_cache",
-        service=service,
-        body={"cache_key_pattern": cache_key_pattern},
-        mock_message=(
-            f"Mock cache flush: cleared keys matching {cache_key_pattern!r} for {service}"
-        ),
-    )
-
-
-@tool(args_schema=PurgeDeadLetterQueueInput)
-def purge_dead_letter_queue(service: str, queue_name: str) -> dict:
-    """Purge a dead-letter queue that is blocking downstream consumption."""
-    return _run_ops_action(
-        action="purge_dead_letter_queue",
-        service=service,
-        body={"queue_name": queue_name},
-        mock_message=(
-            f"Mock DLQ purge: cleared queue {queue_name!r} for {service}"
-        ),
-    )
-
-
-@tool(args_schema=PatchConfigInput)
-def patch_config(service: str, config_key: str, config_value: str) -> dict:
-    """Patch a runtime configuration value (thresholds, limits, env-style settings)."""
-    return _run_ops_action(
-        action="patch_config",
-        service=service,
-        body={"config_key": config_key, "config_value": config_value},
-        mock_message=(
-            f"Mock config patch: {service} {config_key}={config_value!r}, "
-            "workload applying new settings"
-        ),
-    )
-
-
 @tool(args_schema=ToggleFeatureFlagInput)
 def toggle_feature_flag(service: str, flag_name: str, enabled: bool) -> dict:
     """Enable or disable a feature flag to mitigate a bad rollout or restore stable behavior."""
@@ -197,33 +238,14 @@ def toggle_feature_flag(service: str, flag_name: str, enabled: bool) -> dict:
     )
 
 
-@tool(args_schema=ResumeEventStreamInput)
-def resume_event_stream(service: str, stream_id: str) -> dict:
-    """Resume a paused event or message stream so consumers can catch up."""
+@tool(args_schema=FlushCacheInput)
+def flush_cache(service: str, cache_key_pattern: str = "*") -> dict:
+    """Flush stale or poisoned cache entries for a service (Redis / KV cache)."""
     return _run_ops_action(
-        action="resume_event_stream",
+        action="flush_cache",
         service=service,
-        body={"stream_id": stream_id},
+        body={"cache_key_pattern": cache_key_pattern},
         mock_message=(
-            f"Mock stream resume: {service} stream {stream_id!r} is RUNNING, "
-            "consumer lag draining"
-        ),
-    )
-
-
-@tool(args_schema=CleanupStorageInput)
-def cleanup_storage(
-    service: str,
-    path: str = "/var/log",
-    retention_days: int = 7,
-) -> dict:
-    """Clean old logs or temporary files to free disk space on a pod or node."""
-    return _run_ops_action(
-        action="cleanup_storage",
-        service=service,
-        body={"path": path, "retention_days": retention_days},
-        mock_message=(
-            f"Mock cleanup: removed data under {path} older than {retention_days}d "
-            f"for {service}, disk usage dropped from 99% to ~45%"
+            f"Mock cache flush: cleared keys matching {cache_key_pattern!r} for {service}"
         ),
     )

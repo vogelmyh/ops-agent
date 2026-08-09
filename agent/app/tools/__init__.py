@@ -1,15 +1,15 @@
 from app.tools.log_tools import query_app_logs, query_k8s_events
 from app.tools.metric_tools import get_metrics
 from app.tools.ops_tools import (
-    cleanup_storage,
+    cordon_node,
+    delete_pod,
+    drain_node,
     enable_circuit_breaker,
     flush_cache,
     patch_config,
-    purge_dead_letter_queue,
-    restart_pods,
-    resume_event_stream,
+    restart_deployment,
     rollback_deployment,
-    scale_replicas,
+    scale_deployment,
     toggle_feature_flag,
 )
 from app.tools.runbook_tools import search_runbook
@@ -26,14 +26,14 @@ READ_TOOLS = [
 ]
 WRITE_TOOLS = [
     rollback_deployment,
-    scale_replicas,
-    restart_pods,
-    enable_circuit_breaker,
-    flush_cache,
-    purge_dead_letter_queue,
+    scale_deployment,
+    restart_deployment,
+    delete_pod,
+    cordon_node,
+    drain_node,
     patch_config,
+    enable_circuit_breaker,
     toggle_feature_flag,
-    resume_event_stream,
-    cleanup_storage,
+    flush_cache,
 ]
 ALL_TOOLS = READ_TOOLS + WRITE_TOOLS

@@ -32,7 +32,7 @@
 - agent 无直接修复 RDS 的 write tool。
 
 ## 勿用手段
-- **不要**`rollback_deployment` / `restart_pods`（应用层无版本/进程问题）。
+- **不要**`rollback_deployment` / `restart_deployment`（应用层无版本/进程问题）。
 - **不要**`patch_config` 除非明确有错误的数据源连接串配置（且需 DBA 确认）。
 
 ## 后续与升级

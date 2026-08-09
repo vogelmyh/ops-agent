@@ -46,13 +46,13 @@ Simulator defines **world truth**; agent tests assert **graph + LLM behaviour** 
 | `ecomm-manager-rate-limit` | ecomm-manager | recoverable | `patch_config` (`rate-limit.max-qps=5000`) |
 | `ecomm-manager-feature-flag` | ecomm-manager | recoverable | `toggle_feature_flag` (`promotion-v2=false`) |
 | `ecomm-manager-crashloop` | ecomm-manager | recoverable | `rollback_deployment` |
-| `ecomm-manager-disk-full` | ecomm-manager | recoverable | `cleanup_storage` |
+| `ecomm-manager-disk-full` | ecomm-manager | recoverable | `drain_node` |
 | `ecomm-manager-discount-bug` | ecomm-manager | static OOS | no recovery (logic bug) |
 | `ecomm-manager-chaos-morph` | ecomm-manager | chaos (recoverable) | `patch_config` then `toggle_feature_flag` |
 | `ecomm-manager-cascade-exhaust` | ecomm-manager | layered exhaust | rate-limit → feature-flag → disk-full → conn-leak; never `RECOVERED` |
 | `ecomm-manager-chaos-oos` | ecomm-manager | chaos (early OOS) | morph to logic bug; ops cannot fix |
-| `ecomm-order-stream-paused` | ecomm-order | recoverable | `resume_event_stream` (`order-events`) |
-| `ecomm-order-memory-leak` | ecomm-order | recoverable | `restart_pods` |
+| `ecomm-order-stream-paused` | ecomm-order | recoverable | `restart_deployment` (`order-events`) |
+| `ecomm-order-memory-leak` | ecomm-order | recoverable | `restart_deployment` |
 | `ecomm-order-payment-circuit` | ecomm-order | recoverable | `enable_circuit_breaker` (`payment-gw`, open) |
 | `ecomm-order-crashloop` | ecomm-order | recoverable | `rollback_deployment` |
 | `ecomm-order-rds-timeout` | ecomm-order | static OOS | no recovery (RDS / PaaS) |

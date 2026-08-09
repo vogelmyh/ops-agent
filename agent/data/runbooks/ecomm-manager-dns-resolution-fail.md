@@ -17,7 +17,7 @@ DNS 解析异常或错误 service 名配置。
 
 ## 处置（标准修复）
 1. 执行 **`patch_config`**：**service**: `ecomm-manager`，**config_key**: `dns.cache-ttl-sec`，**config_value**: `60`（policy risk=low）。
-2. 执行 **`restart_pods`**：**service**: `ecomm-manager`，**strategy**: `rolling`（policy risk=medium）。
+2. 执行 **`restart_deployment`**：**service**: `ecomm-manager`，**strategy**: `rolling`（policy risk=medium）。
 
 ## 验证（修复后必须满足）
 - UnknownHost 消失。

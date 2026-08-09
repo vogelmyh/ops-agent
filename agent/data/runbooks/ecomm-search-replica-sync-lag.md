@@ -16,7 +16,7 @@
 副本同步落后主分片。
 
 ## 处置（标准修复）
-1. 执行 **`restart_pods`**：**service**: `ecomm-search`，**strategy**: `rolling`（policy risk=medium）。
+1. 执行 **`restart_deployment`**：**service**: `ecomm-search`，**strategy**: `rolling`（policy risk=medium）。
 
 ## 验证（修复后必须满足）
 - lag 指标回落。

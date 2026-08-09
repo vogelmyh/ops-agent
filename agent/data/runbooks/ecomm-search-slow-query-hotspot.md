@@ -17,7 +17,7 @@
 
 ## 处置（标准修复）
 1. 执行 **`patch_config`**：**service**: `ecomm-search`，**config_key**: `query.slow-log-threshold-ms`，**config_value**: `2000`（policy risk=low）。
-2. 执行 **`scale_replicas`**：**service**: `ecomm-search`，**replicas**: `4`（policy risk=low）。
+2. 执行 **`scale_deployment`**：**service**: `ecomm-search`，**replicas**: `4`（policy risk=low）。
 
 ## 验证（修复后必须满足）
 - P99 < 1s。
