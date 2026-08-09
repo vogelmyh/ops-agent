@@ -16,7 +16,7 @@
 下游 webhook 5xx 导致无限重试。
 
 ## 处置（标准修复）
-1. 执行 **`purge_dead_letter_queue`**：**service**: `ecomm-notification`，**queue**: `webhook-dlq`（policy risk=medium）。
+1. 执行 **`restart_deployment`**：**service**: `ecomm-notification`，**strategy**: `rolling`（policy risk=medium）。
 2. 执行 **`patch_config`**：**service**: `ecomm-notification`，**config_key**: `webhook.max-retries`，**config_value**: `5`（policy risk=low）。
 
 ## 验证（修复后必须满足）

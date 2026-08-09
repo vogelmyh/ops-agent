@@ -23,10 +23,11 @@
 
 ## 处置（标准修复）
 1. 确认根因为 **磁盘满**，且可安全清理 `/var/log/ecomm-manager` 下过期日志。
-2. 执行 **`cleanup_storage`**：
+2. 执行 **`drain_node`**：
    - **service**: `ecomm-manager`
-   - **path**: `/var/log/ecomm-manager`
-   - **retention_days**: `7`
+   - **node_name**: `node-ecomm-manager-0`
+   - **force**: `false`
+   - **delete_emptydir**: `false`
 3. 低风险操作（policy risk=low）。
 
 ## 验证（修复后必须满足）

@@ -16,7 +16,7 @@
 HTTP 客户端未释放连接导致泄漏。
 
 ## 处置（标准修复）
-1. 执行 **`restart_pods`**：**service**: `ecomm-manager`，**strategy**: `rolling`（policy risk=medium）。
+1. 执行 **`restart_deployment`**：**service**: `ecomm-manager`，**strategy**: `rolling`（policy risk=medium）。
 
 ## 验证（修复后必须满足）
 - too many open files 告警消失。

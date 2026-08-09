@@ -102,7 +102,7 @@ def test_decide_ecomm_catalog_uncertain():
 @pytest.mark.parametrize("service,scenario,tool_name,decision_class", [
     ("ecomm-manager", "rate-limit", "patch_config", DecisionClass.EXECUTE),
     ("ecomm-order", "crashloop", "rollback_deployment", DecisionClass.APPROVE),
-    ("ecomm-order", "stream-paused", "resume_event_stream", DecisionClass.EXECUTE),
+    ("ecomm-order", "stream-paused", "restart_deployment", DecisionClass.EXECUTE),
 ])
 def test_decide_actionable_services(service, scenario, tool_name, decision_class):
     set_mock_scenario(service, scenario)
@@ -138,6 +138,6 @@ def test_runbook_unavailable_ecomm_catalog_completes_to_runbook():
 
 
 def test_policy_runbook_unavailable_requires_approval():
-    tool_calls = [{"name": "restart_pods", "args": {"service": "ecomm-cache"}}]
+    tool_calls = [{"name": "restart_deployment", "args": {"service": "ecomm-cache"}}]
     assert compute_needs_approval({"runbook_available": False}, tool_calls) is True
     assert compute_needs_approval({"runbook_available": True}, tool_calls) is False

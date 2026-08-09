@@ -36,7 +36,7 @@
 
 ## 勿用手段
 - **不要**对 ecomm-order 执行 `rollback_deployment`（本地服务无版本问题）。
-- **不要**`restart_pods`（无法修复上游网关）。
+- **不要**`restart_deployment`（无法修复上游网关）。
 - payment-gw 本身修复属 **out_of_scope**（支付平台团队）。
 
 ## 后续与升级

@@ -32,14 +32,14 @@ mvn spring-boot:run
 | action | 必填字段 | 可选字段 |
 |--------|---------|---------|
 | `rollback_deployment` | `service` | `target_version` |
-| `scale_replicas` | `service`, `replicas` | — |
-| `restart_pods` | `service` | `strategy` (`rolling` / `all`) |
+| `scale_deployment` | `service`, `replicas` | — |
+| `restart_deployment` | `service` | `strategy` (`rolling` / `all`) |
+| `delete_pod` | `service`, `pod_name` | `grace_period_seconds` |
+| `cordon_node` | `service`, `node_name` | — |
+| `drain_node` | `service`, `node_name` | `force`, `delete_emptydir` |
 | `enable_circuit_breaker` | `service`, `upstream`, `state` | — |
 | `flush_cache` | `service` | `cache_key_pattern` |
-| `purge_dead_letter_queue` | `service`, `queue_name` | — |
 | `patch_config` | `service`, `config_key`, `config_value` | — |
 | `toggle_feature_flag` | `service`, `flag_name`, `enabled` | — |
-| `resume_event_stream` | `service`, `stream_id` | — |
-| `cleanup_storage` | `service` | `path`, `retention_days` |
 
 JSON 字段使用 **snake_case**，与 `agent/app/schemas.py` 对齐。

@@ -18,7 +18,7 @@ def test_cascade_never_recovers_after_three_writes():
     s.apply_ops("toggle_feature_flag", {"flag_name": FLAG_NAME, "enabled": False})
     assert s.fault_layer == FaultLayer.DISK_FULL
     s.apply_ops(
-        "cleanup_storage",
+        "drain_node",
         {"path": LOG_PATH, "retention_days": 7},
     )
     assert s.fault_layer == FaultLayer.CONN_LEAK

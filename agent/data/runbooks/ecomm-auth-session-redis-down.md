@@ -16,7 +16,7 @@
 Session Redis 宕机或密码轮换。
 
 ## 处置（标准修复）
-1. 执行 **`restart_pods`**：**service**: `ecomm-auth`，**strategy**: `rolling`（policy risk=medium）。
+1. 执行 **`restart_deployment`**：**service**: `ecomm-auth`，**strategy**: `rolling`（policy risk=medium）。
 2. 执行 **`flush_cache`**：**service**: `ecomm-auth`，**scope**: `session`（policy risk=low）。
 
 ## 验证（修复后必须满足）

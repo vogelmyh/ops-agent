@@ -20,15 +20,15 @@
 消费者处理变慢或分区热点导致 lag 堆积；ingest 通道正常。
 
 ## 处置（标准修复）
-1. 执行 **`scale_replicas`**：**service**: `ecomm-order`，**replicas**: `5`（扩展消费者实例）（policy risk=medium）。
-2. 执行 **`restart_pods`**：**service**: `ecomm-order`，**strategy**: `rolling`（单消费者僵死时）（policy risk=medium）。
+1. 执行 **`scale_deployment`**：**service**: `ecomm-order`，**replicas**: `5`（扩展消费者实例）（policy risk=medium）。
+2. 执行 **`restart_deployment`**：**service**: `ecomm-order`，**strategy**: `rolling`（单消费者僵死时）（policy risk=medium）。
 
 ## 验证（修复后必须满足）
 - `kafka_consumer_lag` 回落至 < 1000。
 - 订单状态同步延迟恢复正常。
 
 ## 勿用手段
-- **不要** `resume_event_stream`（stream 未 paused）。
+- **不要** `restart_deployment`（stream 未 paused）。
 - **不要** `rollback_deployment`（非版本问题）。
 
 ## 后续与升级

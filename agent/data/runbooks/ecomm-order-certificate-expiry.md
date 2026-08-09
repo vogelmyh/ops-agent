@@ -20,7 +20,7 @@
 
 ## 处置（标准修复）
 1. 执行 **`patch_config`**：**service**: `ecomm-order`，**config_key**: `tls.trust-store-version`，**config_value**: `2026-06`（policy risk=low）。
-2. 执行 **`restart_pods`**：**service**: `ecomm-order`，**strategy**: `rolling`（policy risk=medium）。
+2. 执行 **`restart_deployment`**：**service**: `ecomm-order`，**strategy**: `rolling`（policy risk=medium）。
 
 ## 验证（修复后必须满足）
 - SSL 握手错误日志消失。

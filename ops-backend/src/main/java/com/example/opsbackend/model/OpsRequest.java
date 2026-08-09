@@ -12,12 +12,13 @@ public record OpsRequest(
         String upstream,
         String state,
         String cacheKeyPattern,
-        String queueName,
         String configKey,
         String configValue,
         String flagName,
         Boolean enabled,
-        String streamId,
-        String path,
-        Integer retentionDays) {
+        String podName,
+        String nodeName,
+        Integer gracePeriodSeconds,
+        Boolean force,
+        Boolean deleteEmptyDir) {
 }

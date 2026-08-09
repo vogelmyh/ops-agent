@@ -33,7 +33,7 @@
 ## 勿用手段
 - **不要**执行 `rollback_deployment`（除非确认是近期坏版本引入，且日志指向启动/部署问题）。
 - **不要**执行 `patch_config` / `toggle_feature_flag`（根因是代码逻辑，非配置）。
-- **不要**执行 `restart_pods`（无法修复逻辑 Bug）。
+- **不要**执行 `restart_deployment`（无法修复逻辑 Bug）。
 
 ## 后续与升级
 - escalation_hint: **development team**

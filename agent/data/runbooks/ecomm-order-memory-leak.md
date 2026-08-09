@@ -24,7 +24,7 @@
 
 ## 处置（标准修复）
 1. 确认根因为 **内存泄漏/僵死**（非坏镜像）。
-2. 执行 **`restart_pods`**：
+2. 执行 **`restart_deployment`**：
    - **service**: `ecomm-order`
    - **strategy**: `rolling`
 3. 中风险操作（policy risk=medium）。
@@ -36,7 +36,7 @@
 
 ## 勿用手段
 - **不要**执行 `rollback_deployment`（版本未变更，回滚无效或回退到更旧版本）。
-- **不要**仅 `scale_replicas` 而不重启（新副本可能同样泄漏）。
+- **不要**仅 `scale_deployment` 而不重启（新副本可能同样泄漏）。
 
 ## 后续与升级
 - 若 24h 内复发：升级开发团队排查内存泄漏；考虑 Type C 混沌场景（重启后再次 OOM）。

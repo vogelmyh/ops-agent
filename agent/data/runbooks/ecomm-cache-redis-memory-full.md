@@ -25,7 +25,7 @@
 - eviction 正常。
 
 ## 勿用手段
-- **不要**无限 `scale_replicas` 而不调 policy。
+- **不要**无限 `scale_deployment` 而不调 policy。
 
 ## 后续与升级
 若 24h 内复发，升级对应服务 on-call 与平台团队。

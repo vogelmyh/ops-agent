@@ -19,15 +19,15 @@ public class OpsController {
 
     private static final Set<String> ALLOWED_ACTIONS = Set.of(
             "rollback_deployment",
-            "scale_replicas",
-            "restart_pods",
+            "scale_deployment",
+            "restart_deployment",
+            "delete_pod",
+            "cordon_node",
+            "drain_node",
             "enable_circuit_breaker",
             "flush_cache",
-            "purge_dead_letter_queue",
             "patch_config",
-            "toggle_feature_flag",
-            "resume_event_stream",
-            "cleanup_storage");
+            "toggle_feature_flag");
 
     private final OperationService operationService;
 

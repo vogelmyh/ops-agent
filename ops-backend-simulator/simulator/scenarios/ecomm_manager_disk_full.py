@@ -21,6 +21,7 @@ from simulator.scenarios.common import NOW, Phase, op_result
 SCENARIO_ID = "ecomm-manager-disk-full"
 SERVICE = "ecomm-manager"
 LOG_PATH = "/var/log/ecomm-manager"
+NODE_NAME = "node-ecomm-manager-0"
 
 
 @dataclass
@@ -42,23 +43,23 @@ class State:
 
     def apply_ops(self, action: str, body: dict) -> OperationResult:
         self.op_counter += 1
-        if action != "cleanup_storage":
+        if action != "drain_node":
             result = op_result(
                 service=SERVICE,
                 action=action,
-                message=f"{action} not applicable; use cleanup_storage",
+                message=f"{action} not applicable; use drain_node",
                 status=OperationStatus.FAILED,
                 op_id=f"op-{self.op_counter}",
             )
             self.last_operation = result
             return result
 
-        path = body.get("path") or LOG_PATH
-        if path != LOG_PATH:
+        node_name = body.get("node_name") or NODE_NAME
+        if node_name != NODE_NAME:
             result = op_result(
                 service=SERVICE,
                 action=action,
-                message=f"Unexpected path {path!r}; expected {LOG_PATH}",
+                message=f"Unknown node_name {node_name!r}; expected {NODE_NAME}",
                 status=OperationStatus.FAILED,
                 op_id=f"op-{self.op_counter}",
             )
@@ -67,11 +68,12 @@ class State:
 
         self.phase = Phase.RECOVERED
         self.disk_usage_percent = 45.0
-        days = body.get("retention_days", 7)
+        force = body.get("force", False)
+        delete_emptydir = body.get("delete_emptydir", False)
         result = op_result(
             service=SERVICE,
             action=action,
-            message=f"Cleaned {path} older than {days}d; disk usage dropped to 45%",
+            message=f"Drained node {NODE_NAME} (force={force}, delete_emptydir={delete_emptydir}); disk usage dropped to 45%",
             op_id=f"op-{self.op_counter}",
         )
         self.last_operation = result

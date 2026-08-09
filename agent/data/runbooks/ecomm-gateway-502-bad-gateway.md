@@ -16,7 +16,7 @@
 上游实例全不可用或 service endpoints 空。
 
 ## 处置（标准修复）
-1. 执行 **`scale_replicas`**：**service**: `ecomm-gateway`，**replicas**: `3`（policy risk=low）。
+1. 执行 **`scale_deployment`**：**service**: `ecomm-gateway`，**replicas**: `3`（policy risk=low）。
 2. 执行 **`patch_config`**：**service**: `ecomm-gateway`，**config_key**: `loadbalancer.health-check-interval-sec`，**config_value**: `5`（policy risk=low）。
 
 ## 验证（修复后必须满足）

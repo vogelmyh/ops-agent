@@ -36,14 +36,14 @@ ACT_RUNTIME: dict[str, ActRuntime] = {
     "DEMO-01": ActRuntime(
         "DEMO-01",
         "低风险直达修复",
-        "订单事件流暂停 → resume_event_stream",
+        "订单事件流暂停 → restart_deployment",
         "P1 · REM",
         "ecomm-order-stream-paused",
         "ecomm-order",
         "stream-paused",
         "ecomm-order",
         "【P1】订单事件流无数据，下游履约延迟",
-        "Simulator 注入 stream-paused；Agent 应选 resume_event_stream 低风险工具。",
+        "Simulator 注入 stream-paused；Agent 应选 restart_deployment 低风险工具。",
     ),
     "DEMO-02": ActRuntime(
         "DEMO-02",

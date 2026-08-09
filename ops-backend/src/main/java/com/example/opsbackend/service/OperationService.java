@@ -26,10 +26,19 @@ public class OperationService {
             case "rollback_deployment" -> {
                 // target_version optional — defaults to previous stable
             }
-            case "scale_replicas" -> require(request.replicas() != null, "replicas is required for scale_replicas");
-            case "restart_pods" -> {
+            case "scale_deployment" -> require(request.replicas() != null, "replicas is required for scale_deployment");
+            case "restart_deployment" -> {
                 // strategy optional — defaults to rolling
             }
+            case "delete_pod" -> require(
+                    request.podName() != null && !request.podName().isBlank(),
+                    "pod_name is required for delete_pod");
+            case "cordon_node" -> require(
+                    request.nodeName() != null && !request.nodeName().isBlank(),
+                    "node_name is required for cordon_node");
+            case "drain_node" -> require(
+                    request.nodeName() != null && !request.nodeName().isBlank(),
+                    "node_name is required for drain_node");
             case "enable_circuit_breaker" -> {
                 require(request.upstream() != null && !request.upstream().isBlank(),
                         "upstream is required for enable_circuit_breaker");
@@ -39,9 +48,6 @@ public class OperationService {
             case "flush_cache" -> {
                 // cache_key_pattern optional — defaults to *
             }
-            case "purge_dead_letter_queue" -> require(
-                    request.queueName() != null && !request.queueName().isBlank(),
-                    "queue_name is required for purge_dead_letter_queue");
             case "patch_config" -> {
                 require(request.configKey() != null && !request.configKey().isBlank(),
                         "config_key is required for patch_config");
@@ -53,12 +59,6 @@ public class OperationService {
                         "flag_name is required for toggle_feature_flag");
                 require(request.enabled() != null,
                         "enabled is required for toggle_feature_flag");
-            }
-            case "resume_event_stream" -> require(
-                    request.streamId() != null && !request.streamId().isBlank(),
-                    "stream_id is required for resume_event_stream");
-            case "cleanup_storage" -> {
-                // path and retention_days optional — defaults applied by agent
             }
             default -> throw new ResponseStatusException(HttpStatus.NOT_FOUND, "unknown ops action: " + action);
         }

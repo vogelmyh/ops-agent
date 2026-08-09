@@ -50,23 +50,23 @@ class State:
 
     def apply_ops(self, action: str, body: dict) -> OperationResult:
         self.op_counter += 1
-        if action != "resume_event_stream":
+        if action != "restart_deployment":
             result = op_result(
                 service=SERVICE,
                 action=action,
-                message=f"{action} not applicable; use resume_event_stream",
+                message=f"{action} not applicable; use restart_deployment",
                 status=OperationStatus.FAILED,
                 op_id=f"op-{self.op_counter}",
             )
             self.last_operation = result
             return result
 
-        stream_id = body.get("stream_id")
-        if stream_id != STREAM_ID:
+        strategy = body.get("strategy") or "rolling"
+        if strategy not in ("rolling", "all"):
             result = op_result(
                 service=SERVICE,
                 action=action,
-                message=f"Unknown stream_id {stream_id!r}; expected {STREAM_ID}",
+                message=f"Unknown strategy {strategy!r}; expected rolling or all",
                 status=OperationStatus.FAILED,
                 op_id=f"op-{self.op_counter}",
             )
@@ -79,7 +79,7 @@ class State:
         result = op_result(
             service=SERVICE,
             action=action,
-            message=f"Resumed stream {STREAM_ID}; consumer lag draining",
+            message=f"Restarted deployment {SERVICE} with {strategy} strategy; stream {STREAM_ID} resumed, consumer lag draining",
             op_id=f"op-{self.op_counter}",
         )
         self.last_operation = result

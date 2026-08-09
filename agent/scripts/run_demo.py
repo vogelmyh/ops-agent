@@ -77,7 +77,7 @@ ACT_SPECS: dict[str, DemoActSpec] = {
     "DEMO-01": DemoActSpec(
         "DEMO-01",
         "低风险直达修复",
-        "订单事件流暂停 → resume_event_stream",
+        "订单事件流暂停 → restart_deployment",
         "P1 · REM",
     ),
     "DEMO-02": DemoActSpec(
@@ -230,8 +230,8 @@ def _run_rem_stream_paused(spec: DemoActSpec) -> DemoActResult:
         _narrate_response(resp, phase="审批后")
     sim = client.get("/admin/state").json()
     actions = [e.get("action") for e in (resp.execution_results or [])]
-    if "resume_event_stream" not in actions:
-        warnings.append(f"expected resume_event_stream in execution_results, got {actions}")
+    if "restart_deployment" not in actions:
+        warnings.append(f"expected restart_deployment in execution_results, got {actions}")
     if resp.incident_resolved is not True:
         warnings.append("expected incident_resolved=true")
     if sim.get("phase") != "RECOVERED":

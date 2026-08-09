@@ -12,15 +12,15 @@ from demo_presenter import console
 # Default POST bodies for ops lab (service filled from admin state).
 OPS_SAMPLES: dict[str, dict[str, Any]] = {
     "rollback_deployment": {"target_version": "v1.2.0"},
-    "scale_replicas": {"replicas": 3},
-    "restart_pods": {},
-    "enable_circuit_breaker": {"upstream": "payment-gw"},
+    "scale_deployment": {"replicas": 3},
+    "restart_deployment": {"strategy": "rolling"},
+    "delete_pod": {"pod_name": "ecomm-manager-0", "grace_period_seconds": 30},
+    "cordon_node": {"node_name": "worker-node-1"},
+    "drain_node": {"node_name": "worker-node-1", "force": False, "delete_emptydir": False},
+    "enable_circuit_breaker": {"upstream": "payment-gw", "state": "open"},
     "flush_cache": {"cache_key_pattern": "catalog:*"},
-    "purge_dead_letter_queue": {"queue_name": "order-events-dlq"},
     "patch_config": {"config_key": "rate_limit.qps", "config_value": "500"},
     "toggle_feature_flag": {"flag_name": "discount_v2", "enabled": False},
-    "resume_event_stream": {"stream_id": "order-events"},
-    "cleanup_storage": {"path": "/data/tmp", "retention_days": 7},
 }
 
 LAB_MENU: dict[str, str] = {

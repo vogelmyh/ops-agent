@@ -16,8 +16,8 @@
 节点宕机或磁盘水位导致分片无法分配。
 
 ## 处置（标准修复）
-1. 执行 **`scale_replicas`**：**service**: `ecomm-search`，**replicas**: `3`（policy risk=medium）。
-2. 执行 **`restart_pods`**：**service**: `ecomm-search`，**strategy**: `rolling`（policy risk=medium）。
+1. 执行 **`scale_deployment`**：**service**: `ecomm-search`，**replicas**: `3`（policy risk=medium）。
+2. 执行 **`restart_deployment`**：**service**: `ecomm-search`，**strategy**: `rolling`（policy risk=medium）。
 
 ## 验证（修复后必须满足）
 - 集群 green。

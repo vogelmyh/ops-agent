@@ -6,16 +6,18 @@ from app.schemas import RiskLevel
 
 # Authoritative risk map: tool name → risk level
 TOOL_RISK: dict[str, RiskLevel] = {
+    # K8s Infrastructure Layer
     "rollback_deployment": RiskLevel.HIGH,
-    "scale_replicas": RiskLevel.HIGH,
-    "restart_pods": RiskLevel.MEDIUM,
-    "enable_circuit_breaker": RiskLevel.MEDIUM,
-    "flush_cache": RiskLevel.MEDIUM,
-    "purge_dead_letter_queue": RiskLevel.MEDIUM,
+    "scale_deployment": RiskLevel.HIGH,
+    "restart_deployment": RiskLevel.MEDIUM,
+    "delete_pod": RiskLevel.MEDIUM,
+    "cordon_node": RiskLevel.MEDIUM,
+    "drain_node": RiskLevel.HIGH,
+    # Platform Layer
     "patch_config": RiskLevel.LOW,
+    "enable_circuit_breaker": RiskLevel.MEDIUM,
     "toggle_feature_flag": RiskLevel.LOW,
-    "resume_event_stream": RiskLevel.LOW,
-    "cleanup_storage": RiskLevel.LOW,
+    "flush_cache": RiskLevel.MEDIUM,
 }
 
 

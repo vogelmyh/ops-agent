@@ -16,7 +16,7 @@ def test_catalog_includes_risk_and_parameters():
     assert "config_key" in catalog
     assert "rollback_deployment" in catalog
     assert "policy risk=high" in catalog
-    assert "cleanup_storage" in catalog
+    assert "drain_node" in catalog
 
 
 def test_catalog_empty_tools():

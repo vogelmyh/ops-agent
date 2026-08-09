@@ -17,7 +17,7 @@
 
 ## 处置（标准修复）
 1. 执行 **`patch_config`**：**service**: `ecomm-auth`，**config_key**: `jwt.signing-key-version`，**config_value**: `v3`（policy risk=medium）。
-2. 执行 **`restart_pods`**：**service**: `ecomm-auth`，**strategy**: `rolling`（policy risk=medium）。
+2. 执行 **`restart_deployment`**：**service**: `ecomm-auth`，**strategy**: `rolling`（policy risk=medium）。
 
 ## 验证（修复后必须满足）
 - 登录成功率恢复。

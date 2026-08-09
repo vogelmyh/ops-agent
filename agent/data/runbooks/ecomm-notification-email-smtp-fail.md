@@ -22,7 +22,7 @@ SMTP 凭证过期或端口被封。
 - 邮件发送成功。
 
 ## 勿用手段
-- **不要** `purge_dead_letter_queue` 而不换 relay。
+- **不要**仅 `restart_deployment` 而不换 relay。
 
 ## 后续与升级
 若 24h 内复发，升级对应服务 on-call 与平台团队。

@@ -116,7 +116,7 @@ class State:
             self.last_operation = result
             return result
 
-        if self.fault_layer == FaultLayer.DISK_FULL and action == "cleanup_storage":
+        if self.fault_layer == FaultLayer.DISK_FULL and action == "drain_node":
             path = body.get("path") or LOG_PATH
             if path != LOG_PATH:
                 result = op_result(
@@ -136,7 +136,7 @@ class State:
             self.last_operation = result
             return result
 
-        if self.fault_layer == FaultLayer.CONN_LEAK and action == "restart_pods":
+        if self.fault_layer == FaultLayer.CONN_LEAK and action == "restart_deployment":
             self.restart_count += 1
             msg = "Rolling restart completed; connection leak metrics remain elevated"
             result = op_result(service=SERVICE, action=action, message=msg, op_id=f"op-{self.op_counter}")
