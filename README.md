@@ -10,8 +10,8 @@
 | `[ops-backend/](ops-backend/)`                                         | Spring Boot 契约参考                           |
 | `[deploy/](deploy/)`                                                   | docker-compose + K8s                       |
 | `[docs/README.md](docs/README.md)`                                     | **文档总索引**                                  |
-| `[docs/workflow/change-workflow.md](docs/workflow/change-workflow.md)` | 每次改代码的七步 SOP                               |
-| `[AGENTS.md](AGENTS.md)`                                               | Cursor Agent 入口                            |
+| `[CLAUDE.md](CLAUDE.md)`                                               | 项目宪法：约束、命令、编码规范                        |
+| `[specs/ops-agent/](specs/ops-agent/)`                                 | 需求、设计、开发任务（AI-Native Bootstrap）           |
 
 
 ## 快速开始
@@ -48,7 +48,8 @@ Real LLM 演示见 [`docs/agent/demo-presenter.md`](docs/agent/demo-presenter.md
 
 ## 改代码前
 
-1. 读 [`docs/workflow/change-workflow.md`](docs/workflow/change-workflow.md)
+1. 读 [`CLAUDE.md`](CLAUDE.md) — 了解项目约束与七步 SOP
 2. `make install-hooks`（首次）→ 之后 commit 自动跑路径相关测试
 3. `make impact` 查看建议文档与测试命令
 4. 让 Agent 先输出「同步计划」，确认后再改
+5. 有新的 feature 要开发时，在 `specs/{feature}/` 下创建 `tasks.md`（按 AI-Native Bootstrap 流程）

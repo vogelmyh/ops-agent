@@ -45,7 +45,7 @@ python -m pytest tests/ -q
 
 ## 文档
 
-- **修改流程（改代码前必读）**：[../docs/workflow/change-workflow.md](../docs/workflow/change-workflow.md)
+- **项目约束与改代码纪律**：[../CLAUDE.md](../CLAUDE.md)
 - **索引**：[../docs/README.md](../docs/README.md)
 - **总览**：[../docs/agent/architecture.md](../docs/agent/architecture.md)
 - **场景目录**（测什么）：[../docs/agent/test-scenario-trajectories.md](../docs/agent/test-scenario-trajectories.md)
