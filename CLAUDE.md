@@ -96,8 +96,8 @@ ops-agent/                        # Git monorepo root
 ├── specs/                        # 📋 Spec-driven development documents
 │   └── ops-agent/
 │       ├── requirements.md       # what the project does (EARS format)
-│       ├── design.md             # high-level architecture map
-│       └── tasks.md              # dev workflow + maintenance task templates
+│       └── design.md             # high-level architecture map
+│       # tasks.md is created per-feature when development starts
 └── Makefile                      # unified command entry
 ```
 
@@ -111,7 +111,7 @@ ops-agent/                        # Git monorepo root
 4. Implement — small, revertible commits; order: logic + unit tests → integration tests → docs
 5. Run targeted `make test-*`; paste pass/fail summary
 6. Update changelog in affected component doc (date + 1–3 lines in §变更记录)
-7. Self-check against the checklist in `specs/ops-agent/tasks.md`
+7. Self-check: all changed files listed; tests pass; changelog updated
 
 ### Change → Doc Mapping
 
