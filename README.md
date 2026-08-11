@@ -48,8 +48,25 @@ Real LLM 演示见 [`docs/agent/demo-presenter.md`](docs/agent/demo-presenter.md
 
 ## 改代码前
 
-1. 读 [`CLAUDE.md`](CLAUDE.md) — 了解项目约束与七步 SOP
-2. `make install-hooks`（首次）→ 之后 commit 自动跑路径相关测试
-3. `make impact` 查看建议文档与测试命令
-4. 让 Agent 先输出「同步计划」，确认后再改
-5. 有新的 feature 要开发时，在 `specs/{feature}/` 下创建 `tasks.md`（按 AI-Native Bootstrap 流程）
+### 新功能开发
+
+按 spec-driven 流程，在 `specs/{feature}/` 下依次创建：
+
+1. `requirements.md` — 用户故事 + EARS 验收标准
+2. `design.md` — 架构、组件、数据模型
+3. `tasks.md` — 原子任务清单（精确文件路径，需求追溯）
+
+Agent 按 `tasks.md` 从上到下逐项实现，每完成一项标记 `- [x]`。详见 [`CLAUDE.md`](CLAUDE.md) §Spec-Driven Workflow。
+
+### 小改动 / Bug 修复
+
+1. 读 [`CLAUDE.md`](CLAUDE.md) — 约束、LLM 规则、常见踩坑
+2. `make impact` — 查看 diff 涉及的文档与测试
+3. 让 Agent 先输出同步计划（必改/不必改代码、测试、文档、验证命令），确认后再改
+4. 改后跑 `make test-*`，在对应组件文档追加变更记录
+
+### 一次性设置
+
+```bash
+make install-hooks   # commit 时按变更路径自动跑对应测试
+```
