@@ -4,9 +4,10 @@
 
 | 子目录 | 内容 |
 |--------|------|
-| [`workflow/`](workflow/) | 改代码七步 SOP（人与 Agent 共用） |
 | [`agent/`](agent/) | LangGraph Agent 架构、场景矩阵、RAG 评测、E2E 演示 |
 | [`deploy/`](deploy/) | 部署清单说明（文件在仓库根 `deploy/`） |
+
+项目约束与规范文件在仓库根 [`CLAUDE.md`](../CLAUDE.md) 和 [`specs/ops-agent/`](../specs/ops-agent/)（requirements / design；tasks 在具体 feature 开发时创建）。
 
 ---
 
@@ -14,7 +15,9 @@
 
 | 你想… | 从这里开始 |
 |--------|------------|
-| **改代码前的七步 SOP** | [`workflow/change-workflow.md`](workflow/change-workflow.md) |
+| **了解项目约束与改代码纪律** | [`CLAUDE.md`](../CLAUDE.md)（仓库根） |
+| **项目需求与验收标准** | [`specs/ops-agent/requirements.md`](../specs/ops-agent/requirements.md) |
+| **高层架构总览** | [`specs/ops-agent/design.md`](../specs/ops-agent/design.md) |
 | 了解全貌、组件边界、测试分层 | [`agent/architecture.md`](agent/architecture.md) |
 | 改某一模块前的同步清单 | 对应 **组件文档** §「Agent 改动同步指南」 |
 | 对照场景 ID 与预期轨迹 | [`agent/test-scenario-trajectories.md`](agent/test-scenario-trajectories.md) |
@@ -28,6 +31,7 @@
 - **场景目录**（`agent/test-scenario-trajectories.md`）— 只列「测什么、轨迹是什么」
 - **Simulator 实现** — 只在 [`ops-backend-simulator/README.md`](../ops-backend-simulator/README.md)
 - **Python 工程薄 README** — [`agent/README.md`](../agent/README.md)（venv、启动命令）
+- **项目约束与开发纪律** — [`CLAUDE.md`](../CLAUDE.md) + [`specs/ops-agent/`](../specs/ops-agent/)
 
 ---
 
@@ -87,6 +91,12 @@ CHECKPOINTER=memory .venv/bin/python scripts/run_scenarios.py --scenarios REM-01
 更多入口见 [`agent/architecture.md`](agent/architecture.md) §4–§5。
 
 ## 变更记录
+
+### 2026-08-11 · 约束文件重构为 AI-Native Bootstrap 格式
+
+- `AGENTS.md`、`docs/workflow/change-workflow.md`、`.cursor/rules/ops-change-workflow.mdc` 合并入 `CLAUDE.md` + `specs/ops-agent/`。
+- 新增 `specs/ops-agent/requirements.md`、`design.md`、`tasks.md`。
+- `CLAUDE.md` 按 AI-Native Bootstrap 模板重写（精简 ~150 行）。
 
 ### 2026-07-08 · 文档目录重组（方案 A）
 
